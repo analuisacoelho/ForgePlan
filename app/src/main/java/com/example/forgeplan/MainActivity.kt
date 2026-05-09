@@ -12,7 +12,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
 import com.example.forgeplan.core.model.User
-import com.example.forgeplan.core.network.SupabaseApi
+import com.example.forgeplan.core.repository.UserRepository
 import com.example.forgeplan.ui.theme.ForgePlanTheme
 import retrofit2.Call
 import retrofit2.Callback
@@ -38,7 +38,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun testSupabaseConnection() {
-        SupabaseApi.service.getUsers().enqueue(object : Callback<List<User>> {
+        UserRepository().getUsers().enqueue(object : Callback<List<User>> {
             override fun onResponse(
                 call: Call<List<User>>,
                 response: Response<List<User>>
