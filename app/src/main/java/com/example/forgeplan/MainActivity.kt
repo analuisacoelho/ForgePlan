@@ -11,22 +11,49 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
+import com.example.forgeplan.core.model.User
+import com.example.forgeplan.core.network.SupabaseApi
 import com.example.forgeplan.ui.theme.ForgePlanTheme
+import retrofit2.Call
+import retrofit2.Callback
+import retrofit2.Response
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        testSupabaseConnection()
+
         enableEdgeToEdge()
         setContent {
             ForgePlanTheme {
                 Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
                     Greeting(
-                        name = "Android",
+                        name = "ForgePlan",
                         modifier = Modifier.padding(innerPadding)
                     )
                 }
             }
         }
+    }
+
+    private fun testSupabaseConnection() {
+        SupabaseApi.service.getUsers().enqueue(object : Callback<List<User>> {
+            override fun onResponse(
+                call: Call<List<User>>,
+                response: Response<List<User>>
+            ) {
+                if (response.isSuccessful) {
+                    println("USERS: ${response.body()}")
+                } else {
+                    println("ERRO: ${response.code()} - ${response.errorBody()?.string()}")
+                }
+            }
+
+            override fun onFailure(call: Call<List<User>>, t: Throwable) {
+                println("FALHA: ${t.message}")
+            }
+        })
     }
 }
 
@@ -42,6 +69,6 @@ fun Greeting(name: String, modifier: Modifier = Modifier) {
 @Composable
 fun GreetingPreview() {
     ForgePlanTheme {
-        Greeting("Android")
+        Greeting("ForgePlan")
     }
 }
