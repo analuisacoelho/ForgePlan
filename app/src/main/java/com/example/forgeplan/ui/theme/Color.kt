@@ -2,10 +2,20 @@ package com.example.forgeplan.ui.theme
 
 import androidx.compose.ui.graphics.Color
 
-val Purple80 = Color(0xFFD0BCFF)
-val PurpleGrey80 = Color(0xFFCCC2DC)
-val Pink80 = Color(0xFFEFB8C8)
+// BRAND COLORS
 
-val Purple40 = Color(0xFF6650a4)
-val PurpleGrey40 = Color(0xFF625b71)
-val Pink40 = Color(0xFF7D5260)
+val ForgeDark = Color(0xFF000020)
+val ForgePrimary = Color(0xFF171A4A)
+val ForgePurple = Color(0xFF2F2C79)
+
+val ForgeGold = Color(0xFFE8C39E)
+
+val ForgeSurface = Color(0xFFECEBFF)
+val ForgeSurfaceDark = Color(0xFFCBC9FF)
+
+val ForgeBackground = Color(0xFFF5E1CE)
+
+val ForgeWhite = Color(0xFFFFFFFF)
+val ForgeBlack = Color(0xFF111111)
+
+val ForgeError = Color(0xFFB3261E)

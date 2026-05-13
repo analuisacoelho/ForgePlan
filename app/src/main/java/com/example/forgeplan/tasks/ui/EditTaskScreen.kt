@@ -1,16 +1,19 @@
 package com.example.forgeplan.tasks.ui
 
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Button
-import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -26,6 +29,12 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.forgeplan.core.model.Task
 import com.example.forgeplan.core.model.User
+import com.example.forgeplan.core.ui.components.ForgeCard
+import com.example.forgeplan.core.ui.components.ForgePlanBottomBar
+import com.example.forgeplan.core.ui.components.ForgePlanTopBar
+import com.example.forgeplan.core.ui.components.ForgePrimaryButton
+import com.example.forgeplan.core.ui.components.ForgeSectionTitle
+import com.example.forgeplan.core.ui.components.UserAvatarChip
 import com.example.forgeplan.tasks.viewmodel.TaskAssignmentViewModel
 import com.example.forgeplan.tasks.viewmodel.TaskViewModel
 import com.example.forgeplan.tasks.viewmodel.UserViewModel
@@ -42,7 +51,10 @@ fun EditTaskScreen(
     val isLoading by viewModel.isLoading.collectAsState()
 
     val users by userViewModel.users.collectAsState()
+    val assignments by assignmentViewModel.assignments.collectAsState()
     val assignmentError by assignmentViewModel.error.collectAsState()
+
+    val assignedUserIds = assignments.map { it.user_id }
 
     var title by remember { mutableStateOf("") }
     var description by remember { mutableStateOf("") }
@@ -55,6 +67,7 @@ fun EditTaskScreen(
     LaunchedEffect(taskId) {
         viewModel.loadTaskById(taskId)
         userViewModel.loadUsers()
+        assignmentViewModel.loadAssignments(taskId)
     }
 
     LaunchedEffect(selectedTask) {
@@ -67,177 +80,365 @@ fun EditTaskScreen(
         }
     }
 
-    if (isLoading && selectedTask == null) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(16.dp)
-        ) {
-            CircularProgressIndicator()
+    Column(
+        modifier = Modifier.fillMaxSize()
+    ) {
+        ForgePlanTopBar(
+            title = "Edit Task",
+            initials = "FP"
+        )
+
+        if (isLoading && selectedTask == null) {
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(18.dp)
+            ) {
+                CircularProgressIndicator()
+            }
+
+            ForgePlanBottomBar(
+                selectedItem = "Projects"
+            )
+
+            return@Column
         }
 
-        return
-    }
-
-    selectedTask?.let { task ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .verticalScroll(rememberScrollState())
-                .padding(16.dp)
-        ) {
-            Text(
-                text = "Editar Tarefa",
-                style = MaterialTheme.typography.headlineMedium
-            )
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            OutlinedTextField(
-                modifier = Modifier.fillMaxWidth(),
-                value = title,
-                onValueChange = { title = it },
-                label = { Text("Título") }
-            )
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            OutlinedTextField(
-                modifier = Modifier.fillMaxWidth(),
-                value = description,
-                onValueChange = { description = it },
-                label = { Text("Descrição") }
-            )
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            OutlinedTextField(
-                modifier = Modifier.fillMaxWidth(),
-                value = status,
-                onValueChange = { status = it.uppercase() },
-                label = { Text("Estado") },
-                supportingText = {
-                    Text("PENDING, IN_PROGRESS ou DONE")
-                }
-            )
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            OutlinedTextField(
-                modifier = Modifier.fillMaxWidth(),
-                value = priority,
-                onValueChange = { priority = it.uppercase() },
-                label = { Text("Prioridade") }
-            )
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            OutlinedTextField(
-                modifier = Modifier.fillMaxWidth(),
-                value = completionRate,
-                onValueChange = { completionRate = it },
-                label = { Text("Conclusão (%)") }
-            )
-
-            Spacer(modifier = Modifier.height(24.dp))
-
-            Button(
-                modifier = Modifier.fillMaxWidth(),
-                onClick = {
-                    val updatedTask = Task(
-                        id = task.id,
-                        project_id = task.project_id,
-                        created_by_id = task.created_by_id,
-                        title = title,
-                        description = description,
-                        status = status,
-                        priority = priority,
-                        completion_rate = completionRate.toIntOrNull() ?: 0,
-                        start_date = task.start_date,
-                        end_date = task.end_date
-                    )
-
-                    viewModel.updateTask(
-                        task = updatedTask,
-                        onSuccess = onTaskUpdated
-                    )
-                }
+        selectedTask?.let { task ->
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = 18.dp, vertical = 16.dp)
             ) {
-                Text("Guardar alterações")
-            }
+                ForgeSectionTitle(text = "Edit task")
 
-            Spacer(modifier = Modifier.height(32.dp))
+                Spacer(modifier = Modifier.height(14.dp))
 
-            Text(
-                text = "Associar utilizador à tarefa",
-                style = MaterialTheme.typography.titleMedium
-            )
+                ForgeCard(
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(
+                        modifier = Modifier.padding(14.dp)
+                    ) {
+                        OutlinedTextField(
+                            modifier = Modifier.fillMaxWidth(),
+                            value = title,
+                            onValueChange = { title = it },
+                            label = { Text("Task name") },
+                            shape = RoundedCornerShape(14.dp)
+                        )
 
-            Spacer(modifier = Modifier.height(12.dp))
+                        Spacer(modifier = Modifier.height(12.dp))
 
-            assignmentMessage?.let {
-                Text(text = it)
-                Spacer(modifier = Modifier.height(8.dp))
-            }
+                        OutlinedTextField(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(130.dp),
+                            value = description,
+                            onValueChange = { description = it },
+                            label = { Text("Description") },
+                            shape = RoundedCornerShape(14.dp)
+                        )
 
-            assignmentError?.let {
-                Text(
-                    text = it,
-                    color = MaterialTheme.colorScheme.error
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-            }
+                        Spacer(modifier = Modifier.height(16.dp))
 
-            if (users.isEmpty()) {
-                Text(text = "Não existem utilizadores disponíveis.")
-            } else {
-                users.forEach { user ->
-                    UserAssignmentCard(
-                        user = user,
-                        onAssignClick = {
-                            assignmentViewModel.assignUserToTask(
-                                taskId = task.id,
-                                userId = user.id,
-                                onSuccess = {
-                                    assignmentMessage =
-                                        "Utilizador ${user.name} associado à tarefa."
+                        Text(
+                            text = "Status",
+                            style = MaterialTheme.typography.titleSmall
+                        )
+
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            TaskOptionChip(
+                                text = "PENDING",
+                                selected = status == "PENDING",
+                                onClick = {
+                                    status = "PENDING"
+                                    completionRate = "0"
+                                }
+                            )
+
+                            TaskOptionChip(
+                                text = "IN_PROGRESS",
+                                selected = status == "IN_PROGRESS",
+                                onClick = {
+                                    status = "IN_PROGRESS"
+                                    if (completionRate == "0") completionRate = "40"
+                                }
+                            )
+
+                            TaskOptionChip(
+                                text = "DONE",
+                                selected = status == "DONE",
+                                onClick = {
+                                    status = "DONE"
+                                    completionRate = "100"
                                 }
                             )
                         }
+
+                        Spacer(modifier = Modifier.height(16.dp))
+
+                        Text(
+                            text = "Priority",
+                            style = MaterialTheme.typography.titleSmall
+                        )
+
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            TaskOptionChip(
+                                text = "LOW",
+                                selected = priority == "LOW",
+                                onClick = { priority = "LOW" }
+                            )
+
+                            TaskOptionChip(
+                                text = "MEDIUM",
+                                selected = priority == "MEDIUM",
+                                onClick = { priority = "MEDIUM" }
+                            )
+
+                            TaskOptionChip(
+                                text = "HIGH",
+                                selected = priority == "HIGH",
+                                onClick = { priority = "HIGH" }
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.height(16.dp))
+
+                        OutlinedTextField(
+                            modifier = Modifier.fillMaxWidth(),
+                            value = completionRate,
+                            onValueChange = { completionRate = it },
+                            label = { Text("Completion (%)") },
+                            shape = RoundedCornerShape(14.dp)
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(18.dp))
+
+                ForgePrimaryButton(
+                    text = "Save changes",
+                    modifier = Modifier.fillMaxWidth(),
+                    onClick = {
+                        val updatedTask = Task(
+                            id = task.id,
+                            project_id = task.project_id,
+                            created_by_id = task.created_by_id,
+                            title = title,
+                            description = description,
+                            status = status,
+                            priority = priority,
+                            completion_rate = completionRate.toIntOrNull() ?: 0,
+                            start_date = task.start_date,
+                            end_date = task.end_date
+                        )
+
+                        viewModel.updateTask(
+                            task = updatedTask,
+                            onSuccess = onTaskUpdated
+                        )
+                    }
+                )
+
+                Spacer(modifier = Modifier.height(28.dp))
+
+                ForgeSectionTitle(text = "Utilizadores associados")
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                val assignedUsers = users.filter { assignedUserIds.contains(it.id) }
+
+                if (assignedUsers.isEmpty()) {
+                    Text(
+                        text = "Ainda não existem utilizadores associados.",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                } else {
+                    ForgeCard(
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(14.dp)
+                        ) {
+                            assignedUsers.forEach { user ->
+                                Row {
+                                    UserAvatarChip(initials = userInitials(user))
+
+                                    Spacer(modifier = Modifier.width(10.dp))
+
+                                    Column {
+                                        Text(
+                                            text = user.name,
+                                            style = MaterialTheme.typography.titleSmall
+                                        )
+
+                                        Text(
+                                            text = "@${user.username}",
+                                            style = MaterialTheme.typography.bodyMedium
+                                        )
+                                    }
+                                }
+
+                                Spacer(modifier = Modifier.height(10.dp))
+                            }
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(24.dp))
+
+                ForgeSectionTitle(text = "Associar utilizador à tarefa")
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                assignmentMessage?.let {
+                    Text(
+                        text = it,
+                        style = MaterialTheme.typography.bodyMedium
                     )
 
                     Spacer(modifier = Modifier.height(8.dp))
                 }
+
+                assignmentError?.let {
+                    Text(
+                        text = it,
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+
+                    Spacer(modifier = Modifier.height(8.dp))
+                }
+
+                if (users.isEmpty()) {
+                    Text(
+                        text = "Não existem utilizadores disponíveis.",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                } else {
+                    users.forEach { user ->
+                        val isAssigned = assignedUserIds.contains(user.id)
+
+                        UserAssignmentCard(
+                            user = user,
+                            isAssigned = isAssigned,
+                            onAssignClick = {
+                                assignmentViewModel.assignUserToTask(
+                                    taskId = task.id,
+                                    userId = user.id,
+                                    onSuccess = {
+                                        assignmentMessage =
+                                            "Utilizador ${user.name} associado à tarefa."
+                                    }
+                                )
+                            }
+                        )
+
+                        Spacer(modifier = Modifier.height(8.dp))
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(20.dp))
             }
         }
+
+        ForgePlanBottomBar(
+            selectedItem = "Projects"
+        )
     }
 }
 
 @Composable
 fun UserAssignmentCard(
     user: User,
+    isAssigned: Boolean,
     onAssignClick: () -> Unit
 ) {
-    Card {
+    ForgeCard(
+        modifier = Modifier.fillMaxWidth()
+    ) {
         Column(
-            modifier = Modifier.padding(12.dp)
+            modifier = Modifier.padding(14.dp)
         ) {
-            Text(
-                text = user.name,
-                style = MaterialTheme.typography.titleSmall
-            )
+            Row {
+                UserAvatarChip(initials = userInitials(user))
 
-            Text(text = "@${user.username}")
-            Text(text = user.email)
+                Spacer(modifier = Modifier.width(10.dp))
 
-            Spacer(modifier = Modifier.height(8.dp))
+                Column(
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text(
+                        text = user.name,
+                        style = MaterialTheme.typography.titleSmall
+                    )
 
-            Button(
-                modifier = Modifier.fillMaxWidth(),
-                onClick = onAssignClick
-            ) {
-                Text(text = "Associar")
+                    Text(
+                        text = "@${user.username}",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+
+                    Text(
+                        text = user.email,
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            if (isAssigned) {
+                Text(
+                    text = "✓ Já associado",
+                    style = MaterialTheme.typography.bodyMedium
+                )
+            } else {
+                ForgePrimaryButton(
+                    text = "Associar",
+                    modifier = Modifier.fillMaxWidth(),
+                    onClick = onAssignClick
+                )
             }
         }
     }
+}
+
+@Composable
+fun TaskOptionChip(
+    text: String,
+    selected: Boolean,
+    onClick: () -> Unit
+) {
+    FilterChip(
+        selected = selected,
+        onClick = onClick,
+        label = {
+            Text(
+                text = text,
+                style = MaterialTheme.typography.labelSmall
+            )
+        }
+    )
+}
+
+private fun userInitials(user: User): String {
+    return user.name
+        .split(" ")
+        .mapNotNull { it.firstOrNull()?.toString() }
+        .take(2)
+        .joinToString("")
+        .uppercase()
+        .ifBlank { user.username.take(2).uppercase() }
 }

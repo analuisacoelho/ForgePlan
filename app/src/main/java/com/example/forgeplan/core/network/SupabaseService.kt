@@ -1,6 +1,7 @@
 package com.example.forgeplan.core.network
 
 import com.example.forgeplan.core.model.Project
+import com.example.forgeplan.core.model.ProjectUser
 import com.example.forgeplan.core.model.Task
 import com.example.forgeplan.core.model.TaskAssignment
 import com.example.forgeplan.core.model.User
@@ -51,9 +52,27 @@ interface SupabaseService {
         @Body task: Task
     ): Call<Task>
 
+    @GET("task_assignments")
+    fun getTaskAssignmentsByTaskId(
+        @Query("task_id") taskId: String,
+        @Query("select") select: String = "*"
+    ): Call<List<TaskAssignment>>
+
     @Headers("Prefer: return=representation")
     @POST("task_assignments")
     fun assignUserToTask(
         @Body assignment: TaskAssignment
     ): Call<List<TaskAssignment>>
+
+    @GET("project_users")
+    fun getProjectUsersByProjectId(
+        @Query("project_id") projectId: String,
+        @Query("select") select: String = "*"
+    ): Call<List<ProjectUser>>
+
+    @Headers("Prefer: return=representation")
+    @POST("project_users")
+    fun assignUserToProject(
+        @Body projectUser: ProjectUser
+    ): Call<List<ProjectUser>>
 }
