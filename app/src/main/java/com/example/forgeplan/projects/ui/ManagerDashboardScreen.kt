@@ -33,10 +33,11 @@ import com.example.forgeplan.core.ui.components.ForgePlanTopBar
 import com.example.forgeplan.core.ui.components.ForgeSearchBar
 import com.example.forgeplan.core.ui.components.StatusChip
 import com.example.forgeplan.projects.viewmodel.ProjectViewModel
-import androidx.compose.material3.Card
+
 @Composable
 fun ManagerDashboardScreen(
     onProjectClick: (Long) -> Unit,
+    onTimelineClick: () -> Unit,
     viewModel: ProjectViewModel = viewModel()
 ) {
     val projects by viewModel.projects.collectAsState()
@@ -119,7 +120,8 @@ fun ManagerDashboardScreen(
         }
 
         ForgePlanBottomBar(
-            selectedItem = "Projects"
+            selectedItem = "Projects",
+            onTimelineClick = onTimelineClick
         )
     }
 }

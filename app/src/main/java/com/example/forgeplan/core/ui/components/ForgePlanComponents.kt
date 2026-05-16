@@ -89,7 +89,12 @@ fun ForgePlanTopBar(
 
 @Composable
 fun ForgePlanBottomBar(
-    selectedItem: String = "Projects"
+    selectedItem: String = "Projects",
+    onProjectsClick: () -> Unit = {},
+    onTimelineClick: () -> Unit = {},
+    onProgressClick: () -> Unit = {},
+    onTeamClick: () -> Unit = {},
+    onProfileClick: () -> Unit = {}
 ) {
     NavigationBar(
         modifier = Modifier.height(68.dp),
@@ -98,7 +103,7 @@ fun ForgePlanBottomBar(
     ) {
         NavigationBarItem(
             selected = selectedItem == "Projects",
-            onClick = {},
+            onClick = onProjectsClick,
             icon = {
                 Icon(
                     imageVector = Icons.Outlined.CheckCircle,
@@ -115,7 +120,7 @@ fun ForgePlanBottomBar(
 
         NavigationBarItem(
             selected = selectedItem == "Timeline",
-            onClick = {},
+            onClick = onTimelineClick,
             icon = { Text("◷", style = MaterialTheme.typography.labelLarge) },
             label = { Text("Timeline", style = MaterialTheme.typography.labelSmall) },
             alwaysShowLabel = true,
@@ -126,7 +131,7 @@ fun ForgePlanBottomBar(
 
         NavigationBarItem(
             selected = selectedItem == "Progress",
-            onClick = {},
+            onClick = onProgressClick,
             icon = { Text("↗", style = MaterialTheme.typography.labelLarge) },
             label = { Text("Progress", style = MaterialTheme.typography.labelSmall) },
             alwaysShowLabel = true,
@@ -137,7 +142,7 @@ fun ForgePlanBottomBar(
 
         NavigationBarItem(
             selected = selectedItem == "Team",
-            onClick = {},
+            onClick = onTeamClick,
             icon = { Text("♟", style = MaterialTheme.typography.labelLarge) },
             label = { Text("Team", style = MaterialTheme.typography.labelSmall) },
             alwaysShowLabel = true,
@@ -148,7 +153,7 @@ fun ForgePlanBottomBar(
 
         NavigationBarItem(
             selected = selectedItem == "Profile",
-            onClick = {},
+            onClick = onProfileClick,
             icon = {
                 Icon(
                     imageVector = Icons.Outlined.AccountCircle,

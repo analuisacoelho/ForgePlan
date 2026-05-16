@@ -14,6 +14,7 @@ import com.example.forgeplan.projects.ui.ProjectDetailScreen
 import com.example.forgeplan.tasks.ui.CreateTaskScreen
 import com.example.forgeplan.tasks.ui.EditTaskScreen
 import com.example.forgeplan.tasks.ui.UserDashboardScreen
+import com.example.forgeplan.timeline.ui.TimelineScreen
 
 @Composable
 fun AppNavigation() {
@@ -59,6 +60,17 @@ fun AppNavigation() {
             ManagerDashboardScreen(
                 onProjectClick = { projectId ->
                     navController.navigate("projectDetail/$projectId")
+                },
+                onTimelineClick = {
+                    navController.navigate("timeline")
+                }
+            )
+        }
+
+        composable("timeline") {
+            TimelineScreen(
+                onProjectsClick = {
+                    navController.navigate("manager")
                 }
             )
         }
