@@ -17,6 +17,7 @@ import androidx.compose.material.icons.outlined.AccountCircle
 import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
@@ -43,19 +44,19 @@ fun ForgePlanTopBar(
 ) {
     Surface(
         color = MaterialTheme.colorScheme.primary,
-        shape = RoundedCornerShape(bottomStart = 10.dp, bottomEnd = 10.dp),
+        shape = RoundedCornerShape(bottomStart = 8.dp, bottomEnd = 8.dp),
         tonalElevation = 0.dp
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(60.dp)
-                .padding(horizontal = 16.dp),
+                .height(56.dp)
+                .padding(horizontal = 14.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Box(
                 modifier = Modifier
-                    .size(36.dp)
+                    .size(34.dp)
                     .clip(CircleShape)
                     .background(MaterialTheme.colorScheme.secondary),
                 contentAlignment = Alignment.Center
@@ -80,7 +81,7 @@ fun ForgePlanTopBar(
                 imageVector = Icons.Outlined.Notifications,
                 contentDescription = "Notifications",
                 tint = MaterialTheme.colorScheme.onPrimary,
-                modifier = Modifier.size(22.dp)
+                modifier = Modifier.size(21.dp)
             )
         }
     }
@@ -91,7 +92,7 @@ fun ForgePlanBottomBar(
     selectedItem: String = "Projects"
 ) {
     NavigationBar(
-        modifier = Modifier.height(72.dp),
+        modifier = Modifier.height(68.dp),
         containerColor = MaterialTheme.colorScheme.surface,
         tonalElevation = 0.dp
     ) {
@@ -102,15 +103,10 @@ fun ForgePlanBottomBar(
                 Icon(
                     imageVector = Icons.Outlined.CheckCircle,
                     contentDescription = "Projects",
-                    modifier = Modifier.size(20.dp)
+                    modifier = Modifier.size(19.dp)
                 )
             },
-            label = {
-                Text(
-                    text = "Projects",
-                    style = MaterialTheme.typography.labelSmall
-                )
-            },
+            label = { Text("Projects", style = MaterialTheme.typography.labelSmall) },
             alwaysShowLabel = true,
             colors = NavigationBarItemDefaults.colors(
                 indicatorColor = MaterialTheme.colorScheme.secondary
@@ -120,18 +116,8 @@ fun ForgePlanBottomBar(
         NavigationBarItem(
             selected = selectedItem == "Timeline",
             onClick = {},
-            icon = {
-                Text(
-                    text = "◷",
-                    style = MaterialTheme.typography.labelLarge
-                )
-            },
-            label = {
-                Text(
-                    text = "Timeline",
-                    style = MaterialTheme.typography.labelSmall
-                )
-            },
+            icon = { Text("◷", style = MaterialTheme.typography.labelLarge) },
+            label = { Text("Timeline", style = MaterialTheme.typography.labelSmall) },
             alwaysShowLabel = true,
             colors = NavigationBarItemDefaults.colors(
                 indicatorColor = MaterialTheme.colorScheme.secondary
@@ -141,18 +127,8 @@ fun ForgePlanBottomBar(
         NavigationBarItem(
             selected = selectedItem == "Progress",
             onClick = {},
-            icon = {
-                Text(
-                    text = "↗",
-                    style = MaterialTheme.typography.labelLarge
-                )
-            },
-            label = {
-                Text(
-                    text = "Progress",
-                    style = MaterialTheme.typography.labelSmall
-                )
-            },
+            icon = { Text("↗", style = MaterialTheme.typography.labelLarge) },
+            label = { Text("Progress", style = MaterialTheme.typography.labelSmall) },
             alwaysShowLabel = true,
             colors = NavigationBarItemDefaults.colors(
                 indicatorColor = MaterialTheme.colorScheme.secondary
@@ -162,18 +138,8 @@ fun ForgePlanBottomBar(
         NavigationBarItem(
             selected = selectedItem == "Team",
             onClick = {},
-            icon = {
-                Text(
-                    text = "♟",
-                    style = MaterialTheme.typography.labelLarge
-                )
-            },
-            label = {
-                Text(
-                    text = "Team",
-                    style = MaterialTheme.typography.labelSmall
-                )
-            },
+            icon = { Text("♟", style = MaterialTheme.typography.labelLarge) },
+            label = { Text("Team", style = MaterialTheme.typography.labelSmall) },
             alwaysShowLabel = true,
             colors = NavigationBarItemDefaults.colors(
                 indicatorColor = MaterialTheme.colorScheme.secondary
@@ -187,15 +153,10 @@ fun ForgePlanBottomBar(
                 Icon(
                     imageVector = Icons.Outlined.AccountCircle,
                     contentDescription = "Profile",
-                    modifier = Modifier.size(20.dp)
+                    modifier = Modifier.size(19.dp)
                 )
             },
-            label = {
-                Text(
-                    text = "Profile",
-                    style = MaterialTheme.typography.labelSmall
-                )
-            },
+            label = { Text("Profile", style = MaterialTheme.typography.labelSmall) },
             alwaysShowLabel = true,
             colors = NavigationBarItemDefaults.colors(
                 indicatorColor = MaterialTheme.colorScheme.secondary
@@ -210,7 +171,7 @@ fun UserAvatarChip(
 ) {
     Box(
         modifier = Modifier
-            .size(32.dp)
+            .size(30.dp)
             .clip(CircleShape)
             .background(MaterialTheme.colorScheme.secondary),
         contentAlignment = Alignment.Center
@@ -233,7 +194,7 @@ fun StatusChip(
     ) {
         Text(
             text = text,
-            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSecondaryContainer
         )
@@ -264,9 +225,13 @@ fun ForgePrimaryButton(
     onClick: () -> Unit
 ) {
     Button(
-        modifier = modifier.height(44.dp),
+        modifier = modifier.height(42.dp),
         onClick = onClick,
-        shape = RoundedCornerShape(14.dp)
+        shape = RoundedCornerShape(14.dp),
+        colors = ButtonDefaults.buttonColors(
+            containerColor = MaterialTheme.colorScheme.primary,
+            contentColor = MaterialTheme.colorScheme.onPrimary
+        )
     ) {
         Text(
             text = text,
@@ -282,7 +247,7 @@ fun ForgeSecondaryButton(
     onClick: () -> Unit
 ) {
     OutlinedButton(
-        modifier = modifier.height(44.dp),
+        modifier = modifier.height(42.dp),
         onClick = onClick,
         shape = RoundedCornerShape(14.dp),
         border = BorderStroke(
@@ -318,7 +283,7 @@ fun ForgeSearchBar(
     TextField(
         modifier = modifier
             .fillMaxWidth()
-            .height(46.dp),
+            .height(42.dp),
         value = value,
         onValueChange = onValueChange,
         placeholder = {
@@ -335,7 +300,9 @@ fun ForgeSearchBar(
             disabledContainerColor = MaterialTheme.colorScheme.surface,
             focusedIndicatorColor = Color.Transparent,
             unfocusedIndicatorColor = Color.Transparent,
-            disabledIndicatorColor = Color.Transparent
+            disabledIndicatorColor = Color.Transparent,
+            focusedTextColor = MaterialTheme.colorScheme.onSurface,
+            unfocusedTextColor = MaterialTheme.colorScheme.onSurface
         )
     )
 }
