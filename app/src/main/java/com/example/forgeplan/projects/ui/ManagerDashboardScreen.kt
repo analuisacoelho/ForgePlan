@@ -38,13 +38,17 @@ import com.example.forgeplan.projects.viewmodel.ProjectViewModel
 fun ManagerDashboardScreen(
     onProjectClick: (Long) -> Unit,
     onTimelineClick: () -> Unit,
+    onProgressClick: () -> Unit,
+    onTeamClick: () -> Unit,
     viewModel: ProjectViewModel = viewModel()
 ) {
     val projects by viewModel.projects.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
     val error by viewModel.error.collectAsState()
 
-    var searchText by remember { mutableStateOf("") }
+    var searchText by remember {
+        mutableStateOf("")
+    }
 
     val filteredProjects = projects.filter {
         it.name.contains(searchText, ignoreCase = true) ||
@@ -70,7 +74,9 @@ fun ManagerDashboardScreen(
         ) {
             ForgeSearchBar(
                 value = searchText,
-                onValueChange = { searchText = it },
+                onValueChange = {
+                    searchText = it
+                },
                 placeholder = "Search projects"
             )
 
@@ -121,7 +127,9 @@ fun ManagerDashboardScreen(
 
         ForgePlanBottomBar(
             selectedItem = "Projects",
-            onTimelineClick = onTimelineClick
+            onTimelineClick = onTimelineClick,
+            onProgressClick = onProgressClick,
+            onTeamClick = onTeamClick
         )
     }
 }
@@ -164,11 +172,15 @@ fun ProjectCard(
             Spacer(modifier = Modifier.height(14.dp))
 
             Row {
-                StatusChip(text = project.status ?: "No status")
+                StatusChip(
+                    text = project.status ?: "No status"
+                )
 
                 Spacer(modifier = Modifier.width(8.dp))
 
-                StatusChip(text = project.priority ?: "No priority")
+                StatusChip(
+                    text = project.priority ?: "No priority"
+                )
             }
 
             Spacer(modifier = Modifier.height(14.dp))

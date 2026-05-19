@@ -9,11 +9,13 @@ import androidx.navigation.navArgument
 import com.example.forgeplan.admin.ui.AdminDashboardScreen
 import com.example.forgeplan.auth.ui.LoginScreen
 import com.example.forgeplan.auth.ui.WelcomeScreen
+import com.example.forgeplan.progress.ui.ProgressScreen
 import com.example.forgeplan.projects.ui.ManagerDashboardScreen
 import com.example.forgeplan.projects.ui.ProjectDetailScreen
 import com.example.forgeplan.tasks.ui.CreateTaskScreen
 import com.example.forgeplan.tasks.ui.EditTaskScreen
 import com.example.forgeplan.tasks.ui.UserDashboardScreen
+import com.example.forgeplan.team.ui.TeamScreen
 import com.example.forgeplan.timeline.ui.TimelineScreen
 
 @Composable
@@ -63,6 +65,12 @@ fun AppNavigation() {
                 },
                 onTimelineClick = {
                     navController.navigate("timeline")
+                },
+                onProgressClick = {
+                    navController.navigate("progress")
+                },
+                onTeamClick = {
+                    navController.navigate("team")
                 }
             )
         }
@@ -71,6 +79,40 @@ fun AppNavigation() {
             TimelineScreen(
                 onProjectsClick = {
                     navController.navigate("manager")
+                },
+                onProgressClick = {
+                    navController.navigate("progress")
+                },
+                onTeamClick = {
+                    navController.navigate("team")
+                }
+            )
+        }
+
+        composable("progress") {
+            ProgressScreen(
+                onProjectsClick = {
+                    navController.navigate("manager")
+                },
+                onTimelineClick = {
+                    navController.navigate("timeline")
+                },
+                onTeamClick = {
+                    navController.navigate("team")
+                }
+            )
+        }
+
+        composable("team") {
+            TeamScreen(
+                onProjectsClick = {
+                    navController.navigate("manager")
+                },
+                onTimelineClick = {
+                    navController.navigate("timeline")
+                },
+                onProgressClick = {
+                    navController.navigate("progress")
                 }
             )
         }
