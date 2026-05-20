@@ -10,6 +10,8 @@ import com.example.forgeplan.admin.ui.AdminDashboardScreen
 import com.example.forgeplan.auth.ui.LoginScreen
 import com.example.forgeplan.auth.ui.WelcomeScreen
 import com.example.forgeplan.progress.ui.ProgressScreen
+import com.example.forgeplan.projects.ui.CreateProjectScreen
+import com.example.forgeplan.projects.ui.EditProjectScreen
 import com.example.forgeplan.projects.ui.ManagerDashboardScreen
 import com.example.forgeplan.projects.ui.ProjectDetailScreen
 import com.example.forgeplan.tasks.ui.CreateTaskScreen
@@ -63,6 +65,9 @@ fun AppNavigation() {
                 onProjectClick = { projectId ->
                     navController.navigate("projectDetail/$projectId")
                 },
+                onCreateProjectClick = {
+                    navController.navigate("createProject")
+                },
                 onTimelineClick = {
                     navController.navigate("timeline")
                 },
@@ -71,6 +76,30 @@ fun AppNavigation() {
                 },
                 onTeamClick = {
                     navController.navigate("team")
+                }
+            )
+        }
+
+        composable("createProject") {
+            CreateProjectScreen(
+                onProjectCreated = {
+                    navController.popBackStack()
+                }
+            )
+        }
+
+        composable(
+            route = "editProject/{projectId}",
+            arguments = listOf(
+                navArgument("projectId") { type = NavType.LongType }
+            )
+        ) { backStackEntry ->
+            val projectId = backStackEntry.arguments?.getLong("projectId") ?: 0L
+
+            EditProjectScreen(
+                projectId = projectId,
+                onProjectUpdated = {
+                    navController.popBackStack()
                 }
             )
         }
@@ -130,8 +159,23 @@ fun AppNavigation() {
                 onCreateTaskClick = {
                     navController.navigate("createTask/$projectId")
                 },
+                onEditProjectClick = {
+                    navController.navigate("editProject/$projectId")
+                },
                 onTaskClick = { taskId ->
                     navController.navigate("editTask/$taskId")
+                },
+                onProjectsClick = {
+                    navController.navigate("manager")
+                },
+                onTimelineClick = {
+                    navController.navigate("timeline")
+                },
+                onProgressClick = {
+                    navController.navigate("progress")
+                },
+                onTeamClick = {
+                    navController.navigate("team")
                 }
             )
         }

@@ -1,9 +1,11 @@
 package com.example.forgeplan.core.network
 
 import com.example.forgeplan.core.model.Project
+import com.example.forgeplan.core.model.ProjectPayload
 import com.example.forgeplan.core.model.ProjectUser
 import com.example.forgeplan.core.model.Task
 import com.example.forgeplan.core.model.TaskAssignment
+import com.example.forgeplan.core.model.TaskPayload
 import com.example.forgeplan.core.model.User
 import retrofit2.Call
 import retrofit2.http.Body
@@ -29,6 +31,19 @@ interface SupabaseService {
         @Query("select") select: String = "*"
     ): Call<List<Project>>
 
+    @Headers("Prefer: return=representation")
+    @POST("projects")
+    fun createProject(
+        @Body project: ProjectPayload
+    ): Call<List<Project>>
+
+    @Headers("Prefer: return=representation")
+    @PATCH("projects")
+    fun updateProject(
+        @Query("id") id: String,
+        @Body project: ProjectPayload
+    ): Call<List<Project>>
+
     @GET("tasks")
     fun getTasksByProjectId(
         @Query("project_id") projectId: String,
@@ -41,16 +56,18 @@ interface SupabaseService {
         @Query("select") select: String = "*"
     ): Call<List<Task>>
 
+    @Headers("Prefer: return=representation")
     @POST("tasks")
     fun createTask(
-        @Body task: Task
-    ): Call<Task>
+        @Body task: TaskPayload
+    ): Call<List<Task>>
 
+    @Headers("Prefer: return=representation")
     @PATCH("tasks")
     fun updateTask(
         @Query("id") id: String,
-        @Body task: Task
-    ): Call<Task>
+        @Body task: TaskPayload
+    ): Call<List<Task>>
 
     @GET("task_assignments")
     fun getTaskAssignmentsByTaskId(

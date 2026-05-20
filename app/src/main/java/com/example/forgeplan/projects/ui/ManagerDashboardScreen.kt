@@ -30,6 +30,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.forgeplan.core.model.Project
 import com.example.forgeplan.core.ui.components.ForgePlanBottomBar
 import com.example.forgeplan.core.ui.components.ForgePlanTopBar
+import com.example.forgeplan.core.ui.components.ForgePrimaryButton
 import com.example.forgeplan.core.ui.components.ForgeSearchBar
 import com.example.forgeplan.core.ui.components.StatusChip
 import com.example.forgeplan.projects.viewmodel.ProjectViewModel
@@ -37,6 +38,7 @@ import com.example.forgeplan.projects.viewmodel.ProjectViewModel
 @Composable
 fun ManagerDashboardScreen(
     onProjectClick: (Long) -> Unit,
+    onCreateProjectClick: () -> Unit,
     onTimelineClick: () -> Unit,
     onProgressClick: () -> Unit,
     onTeamClick: () -> Unit,
@@ -46,9 +48,7 @@ fun ManagerDashboardScreen(
     val isLoading by viewModel.isLoading.collectAsState()
     val error by viewModel.error.collectAsState()
 
-    var searchText by remember {
-        mutableStateOf("")
-    }
+    var searchText by remember { mutableStateOf("") }
 
     val filteredProjects = projects.filter {
         it.name.contains(searchText, ignoreCase = true) ||
@@ -82,10 +82,20 @@ fun ManagerDashboardScreen(
 
             Spacer(modifier = Modifier.height(18.dp))
 
-            Text(
-                text = "Projects",
-                style = MaterialTheme.typography.titleLarge
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(
+                    text = "Projects",
+                    style = MaterialTheme.typography.titleLarge,
+                    modifier = Modifier.weight(1f)
+                )
+
+                ForgePrimaryButton(
+                    text = "Novo",
+                    onClick = onCreateProjectClick
+                )
+            }
 
             Spacer(modifier = Modifier.height(12.dp))
 

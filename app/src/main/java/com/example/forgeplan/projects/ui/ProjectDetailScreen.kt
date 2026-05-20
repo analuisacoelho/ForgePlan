@@ -24,6 +24,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.forgeplan.core.model.Task
 import com.example.forgeplan.core.model.User
 import com.example.forgeplan.core.ui.components.ForgeCard
+import com.example.forgeplan.core.ui.components.ForgeMiniChip
 import com.example.forgeplan.core.ui.components.ForgePlanBottomBar
 import com.example.forgeplan.core.ui.components.ForgePlanTopBar
 import com.example.forgeplan.core.ui.components.ForgePrimaryButton
@@ -40,7 +41,12 @@ import com.example.forgeplan.tasks.viewmodel.UserViewModel
 fun ProjectDetailScreen(
     projectId: Long,
     onCreateTaskClick: () -> Unit,
+    onEditProjectClick: () -> Unit,
     onTaskClick: (Long) -> Unit,
+    onProjectsClick: () -> Unit = {},
+    onTimelineClick: () -> Unit = {},
+    onProgressClick: () -> Unit = {},
+    onTeamClick: () -> Unit = {},
     viewModel: ProjectDetailViewModel = viewModel(),
     taskViewModel: TaskViewModel = viewModel(),
     userViewModel: UserViewModel = viewModel(),
@@ -49,6 +55,7 @@ fun ProjectDetailScreen(
     val project by viewModel.project.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
     val error by viewModel.error.collectAsState()
+
     val tasks by taskViewModel.tasks.collectAsState()
 
     val users by userViewModel.users.collectAsState()
@@ -58,8 +65,15 @@ fun ProjectDetailScreen(
     val projectUserIds = projectUsers.map { it.user_id }
     val assignedProjectUsers = users.filter { projectUserIds.contains(it.id) }
 
-    val pendingTasks = tasks.filter { it.status != "DONE" }
-    val completedTasks = tasks.filter { it.status == "DONE" }
+    val completedTasks = tasks.filter { it.status?.uppercase() == "DONE" }
+    val pendingTasks = tasks.filter { it.status?.uppercase() != "DONE" }
+
+    val progressPercentage =
+        if (tasks.isEmpty()) {
+            0
+        } else {
+            ((completedTasks.size.toFloat() / tasks.size.toFloat()) * 100).toInt()
+        }
 
     LaunchedEffect(projectId) {
         viewModel.loadProject(projectId)
@@ -81,6 +95,7 @@ fun ProjectDetailScreen(
                 .weight(1f)
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 18.dp, vertical = 16.dp)
+                .padding(bottom = 90.dp)
         ) {
             when {
                 isLoading -> {
@@ -102,47 +117,25 @@ fun ProjectDetailScreen(
                 }
 
                 else -> {
-                    ForgeCard(
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Column(
-                            modifier = Modifier.padding(16.dp)
-                        ) {
-                            Text(
-                                text = project!!.name,
-                                style = MaterialTheme.typography.titleLarge
-                            )
+                    ProjectHeaderCard(
+                        name = project!!.name,
+                        description = project!!.description ?: "Sem descrição",
+                        status = project!!.status ?: "Sem estado",
+                        priority = project!!.priority ?: "Sem prioridade",
+                        startDate = project!!.start_date ?: "Sem data",
+                        endDate = project!!.end_date ?: "Sem data",
+                        progressPercentage = progressPercentage,
+                        completedTasks = completedTasks.size,
+                        totalTasks = tasks.size
+                    )
 
-                            Spacer(modifier = Modifier.height(6.dp))
+                    Spacer(modifier = Modifier.height(12.dp))
 
-                            Text(
-                                text = project!!.description ?: "Sem descrição",
-                                style = MaterialTheme.typography.bodyMedium
-                            )
-
-                            Spacer(modifier = Modifier.height(12.dp))
-
-                            Row {
-                                StatusChip(text = project!!.status ?: "Sem estado")
-
-                                Spacer(modifier = Modifier.width(8.dp))
-
-                                StatusChip(text = project!!.priority ?: "Sem prioridade")
-                            }
-
-                            Spacer(modifier = Modifier.height(10.dp))
-
-                            Text(
-                                text = "Início: ${project!!.start_date ?: "Sem data"}",
-                                style = MaterialTheme.typography.bodyMedium
-                            )
-
-                            Text(
-                                text = "Fim: ${project!!.end_date ?: "Sem data"}",
-                                style = MaterialTheme.typography.bodyMedium
-                            )
-                        }
-                    }
+                    ForgeSecondaryButton(
+                        text = "Editar projeto",
+                        modifier = Modifier.fillMaxWidth(),
+                        onClick = onEditProjectClick
+                    )
 
                     Spacer(modifier = Modifier.height(22.dp))
 
@@ -232,7 +225,19 @@ fun ProjectDetailScreen(
                                 onClick = {
                                     onTaskClick(task.id)
                                 },
-                                taskViewModel = taskViewModel
+                                onCompleteClick = {
+                                    val updatedTask = task.copy(
+                                        status = "DONE",
+                                        completion_rate = 100
+                                    )
+
+                                    taskViewModel.updateTask(
+                                        task = updatedTask,
+                                        onSuccess = {
+                                            taskViewModel.loadTasks(task.project_id)
+                                        }
+                                    )
+                                }
                             )
 
                             Spacer(modifier = Modifier.height(10.dp))
@@ -257,7 +262,7 @@ fun ProjectDetailScreen(
                                 onClick = {
                                     onTaskClick(task.id)
                                 },
-                                taskViewModel = taskViewModel
+                                onCompleteClick = {}
                             )
 
                             Spacer(modifier = Modifier.height(10.dp))
@@ -270,8 +275,77 @@ fun ProjectDetailScreen(
         }
 
         ForgePlanBottomBar(
-            selectedItem = "Projects"
+            selectedItem = "Projects",
+            onProjectsClick = onProjectsClick,
+            onTimelineClick = onTimelineClick,
+            onProgressClick = onProgressClick,
+            onTeamClick = onTeamClick
         )
+    }
+}
+
+@Composable
+fun ProjectHeaderCard(
+    name: String,
+    description: String,
+    status: String,
+    priority: String,
+    startDate: String,
+    endDate: String,
+    progressPercentage: Int,
+    completedTasks: Int,
+    totalTasks: Int
+) {
+    ForgeCard(
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp)
+        ) {
+            Text(
+                text = name,
+                style = MaterialTheme.typography.titleLarge
+            )
+
+            Spacer(modifier = Modifier.height(6.dp))
+
+            Text(
+                text = description,
+                style = MaterialTheme.typography.bodyMedium
+            )
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            Row {
+                StatusChip(text = status)
+
+                Spacer(modifier = Modifier.width(8.dp))
+
+                StatusChip(text = priority)
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            Text(
+                text = "Início: $startDate",
+                style = MaterialTheme.typography.bodyMedium
+            )
+
+            Text(
+                text = "Fim: $endDate",
+                style = MaterialTheme.typography.bodyMedium
+            )
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            Row {
+                ForgeMiniChip(text = "$progressPercentage% concluído")
+
+                Spacer(modifier = Modifier.width(8.dp))
+
+                ForgeMiniChip(text = "$completedTasks/$totalTasks tarefas")
+            }
+        }
     }
 }
 
@@ -336,7 +410,7 @@ fun ProjectUserCard(
 fun TaskCard(
     task: Task,
     onClick: () -> Unit,
-    taskViewModel: TaskViewModel
+    onCompleteClick: () -> Unit
 ) {
     ForgeCard(
         modifier = Modifier.fillMaxWidth()
@@ -376,13 +450,18 @@ fun TaskCard(
             )
 
             Text(
+                text = "Início: ${task.start_date ?: "Sem data"}",
+                style = MaterialTheme.typography.bodyMedium
+            )
+
+            Text(
                 text = "Fim: ${task.end_date ?: "Sem data"}",
                 style = MaterialTheme.typography.bodyMedium
             )
 
-            if (task.status != "DONE") {
-                Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
+            if (task.status?.uppercase() != "DONE") {
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
@@ -395,24 +474,10 @@ fun TaskCard(
                     ForgePrimaryButton(
                         text = "Concluir",
                         modifier = Modifier.weight(1f),
-                        onClick = {
-                            val updatedTask = task.copy(
-                                status = "DONE",
-                                completion_rate = 100
-                            )
-
-                            taskViewModel.updateTask(
-                                task = updatedTask,
-                                onSuccess = {
-                                    taskViewModel.loadTasks(task.project_id)
-                                }
-                            )
-                        }
+                        onClick = onCompleteClick
                     )
                 }
             } else {
-                Spacer(modifier = Modifier.height(10.dp))
-
                 ForgeSecondaryButton(
                     text = "Ver detalhes",
                     modifier = Modifier.fillMaxWidth(),

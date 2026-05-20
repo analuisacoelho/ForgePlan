@@ -1,6 +1,7 @@
 package com.example.forgeplan.core.repository
 
 import com.example.forgeplan.core.model.Project
+import com.example.forgeplan.core.model.ProjectPayload
 import com.example.forgeplan.core.network.SupabaseApi
 import retrofit2.Call
 import retrofit2.Callback
@@ -48,11 +49,7 @@ class ProjectRepository {
                     response: Response<List<Project>>
                 ) {
                     if (response.isSuccessful) {
-
-                        val project = response.body()?.firstOrNull()
-
-                        onSuccess(project)
-
+                        onSuccess(response.body()?.firstOrNull())
                     } else {
                         onError("Erro ao carregar projeto: ${response.code()}")
                     }
@@ -65,5 +62,64 @@ class ProjectRepository {
                     onError(t.message ?: "Erro desconhecido")
                 }
             })
+    }
+
+    fun createProject(
+        project: ProjectPayload,
+        onSuccess: (Project?) -> Unit,
+        onError: (String) -> Unit
+    ) {
+        SupabaseApi.service.createProject(project)
+            .enqueue(object : Callback<List<Project>> {
+
+                override fun onResponse(
+                    call: Call<List<Project>>,
+                    response: Response<List<Project>>
+                ) {
+                    if (response.isSuccessful) {
+                        onSuccess(response.body()?.firstOrNull())
+                    } else {
+                        onError("Erro ao criar projeto: ${response.code()}")
+                    }
+                }
+
+                override fun onFailure(
+                    call: Call<List<Project>>,
+                    t: Throwable
+                ) {
+                    onError(t.message ?: "Erro desconhecido")
+                }
+            })
+    }
+
+    fun updateProject(
+        projectId: Long,
+        project: ProjectPayload,
+        onSuccess: (Project?) -> Unit,
+        onError: (String) -> Unit
+    ) {
+        SupabaseApi.service.updateProject(
+            id = "eq.$projectId",
+            project = project
+        ).enqueue(object : Callback<List<Project>> {
+
+            override fun onResponse(
+                call: Call<List<Project>>,
+                response: Response<List<Project>>
+            ) {
+                if (response.isSuccessful) {
+                    onSuccess(response.body()?.firstOrNull())
+                } else {
+                    onError("Erro ao atualizar projeto: ${response.code()}")
+                }
+            }
+
+            override fun onFailure(
+                call: Call<List<Project>>,
+                t: Throwable
+            ) {
+                onError(t.message ?: "Erro desconhecido")
+            }
+        })
     }
 }

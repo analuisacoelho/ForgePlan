@@ -1,6 +1,7 @@
 package com.example.forgeplan.timeline.ui
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -11,12 +12,20 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.AccountCircle
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -24,20 +33,64 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.forgeplan.core.model.Project
+import com.example.forgeplan.core.model.Task
 import com.example.forgeplan.core.ui.components.ForgeCard
+import com.example.forgeplan.core.ui.components.ForgeOutlinedCard
 import com.example.forgeplan.core.ui.components.ForgePlanBottomBar
 import com.example.forgeplan.core.ui.components.ForgePlanTopBar
 import com.example.forgeplan.core.ui.components.ForgeSearchBar
 import com.example.forgeplan.core.ui.components.ForgeSectionTitle
+import com.example.forgeplan.projects.viewmodel.ProjectViewModel
+import com.example.forgeplan.tasks.viewmodel.TaskViewModel
 
 @Composable
 fun TimelineScreen(
     onProjectsClick: () -> Unit = {},
     onProgressClick: () -> Unit = {},
-    onTeamClick: () -> Unit = {}
+    onTeamClick: () -> Unit = {},
+    projectViewModel: ProjectViewModel = viewModel(),
+    taskViewModel: TaskViewModel = viewModel()
 ) {
+    val projects by projectViewModel.projects.collectAsState()
+    val projectError by projectViewModel.error.collectAsState()
+
+    val tasks by taskViewModel.tasks.collectAsState()
+    val taskError by taskViewModel.error.collectAsState()
+
     var searchText by remember { mutableStateOf("") }
+    var selectedProject by remember { mutableStateOf<Project?>(null) }
+
+    LaunchedEffect(Unit) {
+        projectViewModel.loadProjects()
+    }
+
+    LaunchedEffect(projects) {
+        if (selectedProject == null && projects.isNotEmpty()) {
+            selectedProject = projects.first()
+        }
+    }
+
+    LaunchedEffect(selectedProject?.id) {
+        selectedProject?.let { project ->
+            taskViewModel.loadTasks(project.id)
+        }
+    }
+
+    val filteredTasks = tasks.filter {
+        it.title.contains(searchText, ignoreCase = true) ||
+                (it.description ?: "").contains(searchText, ignoreCase = true)
+    }
+
+    val finishedCount = filteredTasks.count { it.status?.uppercase() == "DONE" }
+    val activeCount = filteredTasks.count { it.status?.uppercase() == "IN_PROGRESS" }
+    val pendingCount = filteredTasks.count {
+        it.status?.uppercase() != "DONE" &&
+                it.status?.uppercase() != "IN_PROGRESS"
+    }
 
     Column(
         modifier = Modifier.fillMaxSize()
@@ -58,6 +111,16 @@ fun TimelineScreen(
                 placeholder = "Search your task"
             )
 
+            Spacer(modifier = Modifier.height(12.dp))
+
+            TimelineProjectSelector(
+                selectedProject = selectedProject,
+                projects = projects,
+                onProjectSelected = {
+                    selectedProject = it
+                }
+            )
+
             Spacer(modifier = Modifier.height(18.dp))
 
             ForgeSectionTitle(text = "Timeline")
@@ -71,13 +134,56 @@ fun TimelineScreen(
                 TimelineToggle(text = "Month", selected = false)
             }
 
+            Spacer(modifier = Modifier.height(10.dp))
+
+            projectError?.let {
+                Text(
+                    text = it,
+                    color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.bodySmall
+                )
+
+                Spacer(modifier = Modifier.height(6.dp))
+            }
+
+            taskError?.let {
+                Text(
+                    text = it,
+                    color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.bodySmall
+                )
+
+                Spacer(modifier = Modifier.height(6.dp))
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            if (filteredTasks.isEmpty()) {
+                ForgeCard(
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(
+                        modifier = Modifier.padding(16.dp)
+                    ) {
+                        Text(
+                            text = "Não existem tarefas para apresentar.",
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                    }
+                }
+            } else {
+                TimelineBoard(
+                    tasks = filteredTasks
+                )
+            }
+
             Spacer(modifier = Modifier.height(14.dp))
 
-            TimelineBoard()
-
-            Spacer(modifier = Modifier.height(14.dp))
-
-            TimelineSummary()
+            TimelineSummary(
+                finished = finishedCount,
+                active = activeCount,
+                pending = pendingCount
+            )
         }
 
         ForgePlanBottomBar(
@@ -86,6 +192,90 @@ fun TimelineScreen(
             onProgressClick = onProgressClick,
             onTeamClick = onTeamClick
         )
+    }
+}
+
+@Composable
+fun TimelineProjectSelector(
+    selectedProject: Project?,
+    projects: List<Project>,
+    onProjectSelected: (Project) -> Unit
+) {
+    var expanded by remember { mutableStateOf(false) }
+
+    Box {
+        TimelineSelectorCard(
+            text = selectedProject?.name ?: "Select your project",
+            icon = Icons.Outlined.AccountCircle,
+            onClick = {
+                expanded = true
+            }
+        )
+
+        DropdownMenu(
+            expanded = expanded,
+            onDismissRequest = {
+                expanded = false
+            }
+        ) {
+            projects.forEach { project ->
+                DropdownMenuItem(
+                    text = {
+                        Text(
+                            text = project.name,
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                    },
+                    onClick = {
+                        onProjectSelected(project)
+                        expanded = false
+                    }
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun TimelineSelectorCard(
+    text: String,
+    icon: ImageVector,
+    onClick: () -> Unit
+) {
+    ForgeOutlinedCard(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable {
+                onClick()
+            }
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(42.dp)
+                .padding(horizontal = 12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                modifier = Modifier.size(19.dp),
+                tint = MaterialTheme.colorScheme.onSurface
+            )
+
+            Spacer(modifier = Modifier.size(8.dp))
+
+            Text(
+                text = text,
+                style = MaterialTheme.typography.bodyMedium,
+                modifier = Modifier.weight(1f)
+            )
+
+            Text(
+                text = "⌄",
+                style = MaterialTheme.typography.titleSmall
+            )
+        }
     }
 }
 
@@ -115,7 +305,11 @@ fun TimelineToggle(
 }
 
 @Composable
-fun TimelineBoard() {
+fun TimelineBoard(
+    tasks: List<Task>
+) {
+    val visibleTasks = tasks.take(6)
+
     ForgeCard(
         modifier = Modifier.fillMaxWidth()
     ) {
@@ -127,69 +321,50 @@ fun TimelineBoard() {
                 .padding(12.dp)
         ) {
             Column(
-                modifier = Modifier.width(95.dp)
+                modifier = Modifier.width(115.dp)
             ) {
                 Text(
                     text = "Tasks",
                     style = MaterialTheme.typography.titleSmall
                 )
 
-                Spacer(modifier = Modifier.height(30.dp))
+                Spacer(modifier = Modifier.height(26.dp))
 
-                TimelineTaskLabel("Task 1")
-                TimelineTaskLabel("Task 2")
-                TimelineTaskLabel("Task 3")
-                TimelineTaskLabel("Task 4")
-                TimelineTaskLabel("Task 5")
+                visibleTasks.forEach { task ->
+                    TimelineTaskLabel(task = task)
+                }
             }
 
-            TimelineDayColumn(
-                day = "Monday",
-                date = "15th Jan",
-                bars = listOf(
-                    TimelineBar("100% Finished", 120, 0),
-                    TimelineBar("73% Active", 160, 1)
-                )
+            TimelineDateColumn(
+                title = "Start",
+                tasks = visibleTasks,
+                useEndDate = false
             )
 
-            TimelineDayColumn(
-                day = "Tuesday",
-                date = "16th Jan",
-                bars = listOf(
-                    TimelineBar("73% Active", 155, 1)
-                )
+            TimelineDateColumn(
+                title = "End",
+                tasks = visibleTasks,
+                useEndDate = true
             )
 
-            TimelineDayColumn(
-                day = "Wednesday",
-                date = "17th Jan",
-                bars = listOf(
-                    TimelineBar("0% Pending", 170, 2)
-                )
+            TimelineStatusColumn(
+                title = "Status",
+                tasks = visibleTasks
             )
 
-            TimelineDayColumn(
-                day = "Thursday",
-                date = "18th Jan",
-                bars = emptyList()
-            )
-
-            TimelineDayColumn(
-                day = "Friday",
-                date = "19th Jan",
-                bars = listOf(
-                    TimelineBar("0% Pending", 165, 2)
-                )
+            TimelineProgressColumn(
+                title = "Progress",
+                tasks = visibleTasks
             )
         }
     }
 }
 
 @Composable
-fun TimelineDayColumn(
-    day: String,
-    date: String,
-    bars: List<TimelineBar>
+fun TimelineDateColumn(
+    title: String,
+    tasks: List<Task>,
+    useEndDate: Boolean
 ) {
     Column(
         modifier = Modifier
@@ -197,26 +372,79 @@ fun TimelineDayColumn(
             .padding(horizontal = 4.dp)
     ) {
         Text(
-            text = day,
+            text = title,
             style = MaterialTheme.typography.labelSmall
         )
 
+        Spacer(modifier = Modifier.height(38.dp))
+
+        tasks.forEach { task ->
+            val date =
+                if (useEndDate) {
+                    task.end_date ?: "Sem data"
+                } else {
+                    task.start_date ?: "Sem data"
+                }
+
+            TimelineCellText(text = date)
+        }
+    }
+}
+
+@Composable
+fun TimelineStatusColumn(
+    title: String,
+    tasks: List<Task>
+) {
+    Column(
+        modifier = Modifier
+            .width(132.dp)
+            .padding(horizontal = 4.dp)
+    ) {
         Text(
-            text = date,
-            style = MaterialTheme.typography.bodySmall
+            text = title,
+            style = MaterialTheme.typography.labelSmall
         )
 
-        Spacer(modifier = Modifier.height(22.dp))
+        Spacer(modifier = Modifier.height(38.dp))
 
-        bars.forEach { bar ->
-            Spacer(modifier = Modifier.height((bar.verticalOffset * 42).dp))
-
+        tasks.forEach { task ->
             TimelineProgressBar(
-                text = bar.text,
-                width = bar.width
+                text = task.status ?: "PENDING",
+                width = 110
             )
 
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(18.dp))
+        }
+    }
+}
+
+@Composable
+fun TimelineProgressColumn(
+    title: String,
+    tasks: List<Task>
+) {
+    Column(
+        modifier = Modifier
+            .width(150.dp)
+            .padding(horizontal = 4.dp)
+    ) {
+        Text(
+            text = title,
+            style = MaterialTheme.typography.labelSmall
+        )
+
+        Spacer(modifier = Modifier.height(38.dp))
+
+        tasks.forEach { task ->
+            val progress = task.completion_rate ?: 0
+
+            TimelineProgressBar(
+                text = "$progress%",
+                width = (70 + progress).coerceAtMost(145)
+            )
+
+            Spacer(modifier = Modifier.height(18.dp))
         }
     }
 }
@@ -244,17 +472,42 @@ fun TimelineProgressBar(
 
 @Composable
 fun TimelineTaskLabel(
+    task: Task
+) {
+    Column(
+        modifier = Modifier.height(42.dp)
+    ) {
+        Text(
+            text = task.title,
+            style = MaterialTheme.typography.bodySmall,
+            maxLines = 1
+        )
+
+        Text(
+            text = task.priority ?: "",
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.primary
+        )
+    }
+}
+
+@Composable
+fun TimelineCellText(
     text: String
 ) {
     Text(
         text = text,
         style = MaterialTheme.typography.bodySmall,
-        modifier = Modifier.padding(vertical = 12.dp)
+        modifier = Modifier.height(42.dp)
     )
 }
 
 @Composable
-fun TimelineSummary() {
+fun TimelineSummary(
+    finished: Int,
+    active: Int,
+    pending: Int
+) {
     ForgeCard(
         modifier = Modifier.fillMaxWidth()
     ) {
@@ -272,9 +525,9 @@ fun TimelineSummary() {
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceAround
             ) {
-                TimelineSummaryItem(number = "10", label = "Finished")
-                TimelineSummaryItem(number = "3", label = "Active")
-                TimelineSummaryItem(number = "13", label = "Pending")
+                TimelineSummaryItem(number = finished.toString(), label = "Finished")
+                TimelineSummaryItem(number = active.toString(), label = "Active")
+                TimelineSummaryItem(number = pending.toString(), label = "Pending")
             }
         }
     }
@@ -300,9 +553,3 @@ fun TimelineSummaryItem(
         )
     }
 }
-
-data class TimelineBar(
-    val text: String,
-    val width: Int,
-    val verticalOffset: Int
-)
