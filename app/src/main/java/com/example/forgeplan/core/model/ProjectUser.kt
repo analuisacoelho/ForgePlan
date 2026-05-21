@@ -6,3 +6,8 @@ data class ProjectUser(
     val user_id: Long,
     val joined_at: String?
 )
+
+data class ProjectUserPayload(
+    val project_id: Long,
+    val user_id: Long
+)

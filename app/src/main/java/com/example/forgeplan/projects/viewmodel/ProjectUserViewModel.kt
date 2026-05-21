@@ -2,6 +2,7 @@ package com.example.forgeplan.projects.viewmodel
 
 import androidx.lifecycle.ViewModel
 import com.example.forgeplan.core.model.ProjectUser
+import com.example.forgeplan.core.model.ProjectUserPayload
 import com.example.forgeplan.core.repository.ProjectUserRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -44,11 +45,9 @@ class ProjectUserViewModel : ViewModel() {
         _isLoading.value = true
         _error.value = null
 
-        val projectUser = ProjectUser(
-            project_user_id = 0,
+        val projectUser = ProjectUserPayload(
             project_id = projectId,
-            user_id = userId,
-            joined_at = null
+            user_id = userId
         )
 
         repository.assignUserToProject(

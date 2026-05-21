@@ -1,5 +1,6 @@
 package com.example.forgeplan.tasks.ui
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -13,6 +14,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -30,12 +33,14 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.forgeplan.core.model.Task
 import com.example.forgeplan.core.model.User
 import com.example.forgeplan.core.ui.components.ForgeCard
+import com.example.forgeplan.core.ui.components.ForgeOutlinedCard
 import com.example.forgeplan.core.ui.components.ForgePlanBottomBar
 import com.example.forgeplan.core.ui.components.ForgePlanTopBar
 import com.example.forgeplan.core.ui.components.ForgePrimaryButton
 import com.example.forgeplan.core.ui.components.ForgeSectionTitle
 import com.example.forgeplan.core.ui.components.UserAvatarChip
 import com.example.forgeplan.tasks.viewmodel.TaskAssignmentViewModel
+import com.example.forgeplan.tasks.viewmodel.TaskDependencyViewModel
 import com.example.forgeplan.tasks.viewmodel.TaskViewModel
 import com.example.forgeplan.tasks.viewmodel.UserViewModel
 
@@ -45,14 +50,20 @@ fun EditTaskScreen(
     onTaskUpdated: () -> Unit,
     viewModel: TaskViewModel = viewModel(),
     userViewModel: UserViewModel = viewModel(),
-    assignmentViewModel: TaskAssignmentViewModel = viewModel()
+    assignmentViewModel: TaskAssignmentViewModel = viewModel(),
+    dependencyViewModel: TaskDependencyViewModel = viewModel()
 ) {
     val selectedTask by viewModel.selectedTask.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
 
+    val tasks by viewModel.tasks.collectAsState()
+
     val users by userViewModel.users.collectAsState()
     val assignments by assignmentViewModel.assignments.collectAsState()
     val assignmentError by assignmentViewModel.error.collectAsState()
+
+    val dependencies by dependencyViewModel.dependencies.collectAsState()
+    val dependencyError by dependencyViewModel.error.collectAsState()
 
     val assignedUserIds = assignments.map { it.user_id }
 
@@ -62,12 +73,15 @@ fun EditTaskScreen(
     var priority by remember { mutableStateOf("") }
     var completionRate by remember { mutableStateOf("") }
 
+    var selectedDependencyTask by remember { mutableStateOf<Task?>(null) }
+    var dependencyMessage by remember { mutableStateOf<String?>(null) }
     var assignmentMessage by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(taskId) {
         viewModel.loadTaskById(taskId)
         userViewModel.loadUsers()
         assignmentViewModel.loadAssignments(taskId)
+        dependencyViewModel.loadDependencies(taskId)
     }
 
     LaunchedEffect(selectedTask) {
@@ -77,6 +91,8 @@ fun EditTaskScreen(
             status = task.status ?: ""
             priority = task.priority ?: ""
             completionRate = (task.completion_rate ?: 0).toString()
+
+            viewModel.loadTasks(task.project_id)
         }
     }
 
@@ -105,6 +121,19 @@ fun EditTaskScreen(
         }
 
         selectedTask?.let { task ->
+
+            val currentDependencyIds =
+                dependencies.map { it.depends_on_task_id }
+
+            val dependencyTasks =
+                tasks.filter {
+                    it.id != task.id &&
+                            !currentDependencyIds.contains(it.id)
+                }
+
+            val currentDependencyTasks =
+                tasks.filter { currentDependencyIds.contains(it.id) }
+
             Column(
                 modifier = Modifier
                     .weight(1f)
@@ -254,6 +283,107 @@ fun EditTaskScreen(
 
                 Spacer(modifier = Modifier.height(28.dp))
 
+                ForgeSectionTitle(text = "Dependências da tarefa")
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                ForgeCard(
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(
+                        modifier = Modifier.padding(14.dp)
+                    ) {
+                        Text(
+                            text = "Esta tarefa depende de:",
+                            style = MaterialTheme.typography.titleSmall
+                        )
+
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        if (currentDependencyTasks.isEmpty()) {
+                            Text(
+                                text = "Ainda não existem precedências definidas.",
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                        } else {
+                            currentDependencyTasks.forEach { dependencyTask ->
+                                Text(
+                                    text = "• ${dependencyTask.title}",
+                                    style = MaterialTheme.typography.bodyMedium
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(14.dp))
+
+                        DependencySelector(
+                            selectedTask = selectedDependencyTask,
+                            tasks = dependencyTasks,
+                            onTaskSelected = {
+                                selectedDependencyTask = it
+                                dependencyMessage = null
+                            }
+                        )
+
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        ForgePrimaryButton(
+                            text = "Guardar precedência",
+                            modifier = Modifier.fillMaxWidth(),
+                            onClick = {
+                                val dependencyTask = selectedDependencyTask
+
+                                when {
+                                    dependencyTask == null -> {
+                                        dependencyMessage =
+                                            "Seleciona uma tarefa predecessora."
+                                    }
+
+                                    currentDependencyIds.contains(dependencyTask.id) -> {
+                                        dependencyMessage =
+                                            "Esta precedência já existe."
+                                    }
+
+                                    else -> {
+                                        dependencyViewModel.createDependency(
+                                            taskId = task.id,
+                                            dependsOnTaskId = dependencyTask.id,
+                                            onSuccess = {
+                                                dependencyMessage =
+                                                    "Precedência guardada com sucesso."
+                                                selectedDependencyTask = null
+                                                dependencyViewModel.loadDependencies(task.id)
+                                            }
+                                        )
+                                    }
+                                }
+                            }
+                        )
+
+                        dependencyMessage?.let {
+                            Spacer(modifier = Modifier.height(8.dp))
+
+                            Text(
+                                text = it,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
+
+                        dependencyError?.let {
+                            Spacer(modifier = Modifier.height(8.dp))
+
+                            Text(
+                                text = it,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.error
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(28.dp))
+
                 ForgeSectionTitle(text = "Utilizadores associados")
 
                 Spacer(modifier = Modifier.height(10.dp))
@@ -357,6 +487,54 @@ fun EditTaskScreen(
         ForgePlanBottomBar(
             selectedItem = "Projects"
         )
+    }
+}
+
+@Composable
+fun DependencySelector(
+    selectedTask: Task?,
+    tasks: List<Task>,
+    onTaskSelected: (Task) -> Unit
+) {
+    var expanded by remember { mutableStateOf(false) }
+
+    ForgeOutlinedCard(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable {
+                expanded = true
+            }
+    ) {
+        Column(
+            modifier = Modifier.padding(12.dp)
+        ) {
+            Text(
+                text = selectedTask?.title ?: "Selecionar tarefa predecessora",
+                style = MaterialTheme.typography.bodyMedium
+            )
+        }
+    }
+
+    DropdownMenu(
+        expanded = expanded,
+        onDismissRequest = {
+            expanded = false
+        }
+    ) {
+        tasks.forEach { task ->
+            DropdownMenuItem(
+                text = {
+                    Text(
+                        text = task.title,
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                },
+                onClick = {
+                    onTaskSelected(task)
+                    expanded = false
+                }
+            )
+        }
     }
 }
 

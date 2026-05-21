@@ -2,6 +2,7 @@ package com.example.forgeplan.core.ui.components
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -15,8 +16,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.AccountCircle
-import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.KeyboardArrowDown
 import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.material.icons.outlined.Search
@@ -26,9 +25,6 @@ import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
-import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -85,83 +81,102 @@ fun ForgePlanTopBar(
 
 @Composable
 fun ForgePlanBottomBar(
-    selectedItem: String = "Projects",
+    selectedItem: String = "Tasks",
     onProjectsClick: () -> Unit = {},
     onTimelineClick: () -> Unit = {},
     onProgressClick: () -> Unit = {},
     onTeamClick: () -> Unit = {},
     onProfileClick: () -> Unit = {}
 ) {
-    NavigationBar(
-        modifier = Modifier.height(68.dp),
-        containerColor = MaterialTheme.colorScheme.surface,
-        tonalElevation = 0.dp
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(82.dp),
+        color = Color.White,
+        shape = RoundedCornerShape(topStart = 10.dp, topEnd = 10.dp),
+        border = BorderStroke(
+            width = 1.dp,
+            color = Color.Black.copy(alpha = 0.25f)
+        )
     ) {
-        NavigationBarItem(
-            selected = selectedItem == "Projects",
-            onClick = onProjectsClick,
-            icon = {
-                Icon(
-                    imageVector = Icons.Outlined.CheckCircle,
-                    contentDescription = "Projects",
-                    modifier = Modifier.size(19.dp)
-                )
-            },
-            label = { Text("Projects", style = MaterialTheme.typography.labelSmall) },
-            alwaysShowLabel = true,
-            colors = NavigationBarItemDefaults.colors(
-                indicatorColor = MaterialTheme.colorScheme.secondary
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 6.dp, vertical = 7.dp),
+            horizontalArrangement = Arrangement.SpaceAround,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            ForgeBottomBarItem(
+                label = "Tasks",
+                icon = "☑",
+                selected = selectedItem == "Projects" || selectedItem == "Tasks",
+                onClick = onProjectsClick
             )
+
+            ForgeBottomBarItem(
+                label = "Timeline",
+                icon = "◷",
+                selected = selectedItem == "Timeline",
+                onClick = onTimelineClick
+            )
+
+            ForgeBottomBarItem(
+                label = "Progress",
+                icon = "↗",
+                selected = selectedItem == "Progress",
+                onClick = onProgressClick
+            )
+
+            ForgeBottomBarItem(
+                label = "Team",
+                icon = "♧",
+                selected = selectedItem == "Team",
+                onClick = onTeamClick
+            )
+
+            ForgeBottomBarItem(
+                label = "Profile",
+                icon = "◎",
+                selected = selectedItem == "Profile",
+                onClick = onProfileClick
+            )
+        }
+    }
+}
+
+@Composable
+fun ForgeBottomBarItem(
+    label: String,
+    icon: String,
+    selected: Boolean,
+    onClick: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .width(70.dp)
+            .height(64.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .background(
+                if (selected) MaterialTheme.colorScheme.secondary
+                else Color.Transparent
+            )
+            .clickable { onClick() }
+            .padding(vertical = 5.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        Text(
+            text = icon,
+            style = MaterialTheme.typography.headlineSmall,
+            color = Color.Black
         )
 
-        NavigationBarItem(
-            selected = selectedItem == "Timeline",
-            onClick = onTimelineClick,
-            icon = { Text("◷", style = MaterialTheme.typography.labelLarge) },
-            label = { Text("Timeline", style = MaterialTheme.typography.labelSmall) },
-            alwaysShowLabel = true,
-            colors = NavigationBarItemDefaults.colors(
-                indicatorColor = MaterialTheme.colorScheme.secondary
-            )
-        )
+        Spacer(modifier = Modifier.height(2.dp))
 
-        NavigationBarItem(
-            selected = selectedItem == "Progress",
-            onClick = onProgressClick,
-            icon = { Text("↗", style = MaterialTheme.typography.labelLarge) },
-            label = { Text("Progress", style = MaterialTheme.typography.labelSmall) },
-            alwaysShowLabel = true,
-            colors = NavigationBarItemDefaults.colors(
-                indicatorColor = MaterialTheme.colorScheme.secondary
-            )
-        )
-
-        NavigationBarItem(
-            selected = selectedItem == "Team",
-            onClick = onTeamClick,
-            icon = { Text("♟", style = MaterialTheme.typography.labelLarge) },
-            label = { Text("Team", style = MaterialTheme.typography.labelSmall) },
-            alwaysShowLabel = true,
-            colors = NavigationBarItemDefaults.colors(
-                indicatorColor = MaterialTheme.colorScheme.secondary
-            )
-        )
-
-        NavigationBarItem(
-            selected = selectedItem == "Profile",
-            onClick = onProfileClick,
-            icon = {
-                Icon(
-                    imageVector = Icons.Outlined.AccountCircle,
-                    contentDescription = "Profile",
-                    modifier = Modifier.size(19.dp)
-                )
-            },
-            label = { Text("Profile", style = MaterialTheme.typography.labelSmall) },
-            alwaysShowLabel = true,
-            colors = NavigationBarItemDefaults.colors(
-                indicatorColor = MaterialTheme.colorScheme.secondary
-            )
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelSmall,
+            color = Color.Black
         )
     }
 }

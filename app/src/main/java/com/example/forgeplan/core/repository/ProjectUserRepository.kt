@@ -1,6 +1,7 @@
 package com.example.forgeplan.core.repository
 
 import com.example.forgeplan.core.model.ProjectUser
+import com.example.forgeplan.core.model.ProjectUserPayload
 import com.example.forgeplan.core.network.SupabaseApi
 import retrofit2.Call
 import retrofit2.Callback
@@ -37,7 +38,7 @@ class ProjectUserRepository {
     }
 
     fun assignUserToProject(
-        projectUser: ProjectUser,
+        projectUser: ProjectUserPayload,
         onSuccess: (ProjectUser?) -> Unit,
         onError: (String) -> Unit
     ) {
@@ -51,11 +52,7 @@ class ProjectUserRepository {
                     if (response.isSuccessful) {
                         onSuccess(response.body()?.firstOrNull())
                     } else {
-                        if (response.code() == 409) {
-                            onError("Este utilizador já pertence ao projeto.")
-                        } else {
-                            onError("Erro ao associar utilizador ao projeto: ${response.code()}")
-                        }
+                        onError("Erro ao associar utilizador ao projeto: ${response.code()}")
                     }
                 }
 

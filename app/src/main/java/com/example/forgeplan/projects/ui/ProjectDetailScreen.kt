@@ -1,5 +1,6 @@
 package com.example.forgeplan.projects.ui
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -13,14 +14,20 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.forgeplan.core.model.ProjectEvaluationPayload
+import com.example.forgeplan.core.model.ProjectPayload
 import com.example.forgeplan.core.model.Task
 import com.example.forgeplan.core.model.User
 import com.example.forgeplan.core.ui.components.ForgeCard
@@ -33,7 +40,9 @@ import com.example.forgeplan.core.ui.components.ForgeSectionTitle
 import com.example.forgeplan.core.ui.components.StatusChip
 import com.example.forgeplan.core.ui.components.UserAvatarChip
 import com.example.forgeplan.projects.viewmodel.ProjectDetailViewModel
+import com.example.forgeplan.projects.viewmodel.ProjectEvaluationViewModel
 import com.example.forgeplan.projects.viewmodel.ProjectUserViewModel
+import com.example.forgeplan.projects.viewmodel.ProjectViewModel
 import com.example.forgeplan.tasks.viewmodel.TaskViewModel
 import com.example.forgeplan.tasks.viewmodel.UserViewModel
 
@@ -48,6 +57,8 @@ fun ProjectDetailScreen(
     onProgressClick: () -> Unit = {},
     onTeamClick: () -> Unit = {},
     viewModel: ProjectDetailViewModel = viewModel(),
+    projectViewModel: ProjectViewModel = viewModel(),
+    evaluationViewModel: ProjectEvaluationViewModel = viewModel(),
     taskViewModel: TaskViewModel = viewModel(),
     userViewModel: UserViewModel = viewModel(),
     projectUserViewModel: ProjectUserViewModel = viewModel()
@@ -56,11 +67,18 @@ fun ProjectDetailScreen(
     val isLoading by viewModel.isLoading.collectAsState()
     val error by viewModel.error.collectAsState()
 
+    val evaluations by evaluationViewModel.evaluations.collectAsState()
+    val evaluationError by evaluationViewModel.error.collectAsState()
+
     val tasks by taskViewModel.tasks.collectAsState()
 
     val users by userViewModel.users.collectAsState()
     val projectUsers by projectUserViewModel.projectUsers.collectAsState()
     val projectUserError by projectUserViewModel.error.collectAsState()
+
+    var rating by remember { mutableStateOf(5) }
+    var comment by remember { mutableStateOf("") }
+    var evaluationMessage by remember { mutableStateOf<String?>(null) }
 
     val projectUserIds = projectUsers.map { it.user_id }
     val assignedProjectUsers = users.filter { projectUserIds.contains(it.id) }
@@ -80,6 +98,7 @@ fun ProjectDetailScreen(
         taskViewModel.loadTasks(projectId)
         userViewModel.loadUsers()
         projectUserViewModel.loadProjectUsers(projectId)
+        evaluationViewModel.loadEvaluations(projectId)
     }
 
     Column(
@@ -117,13 +136,15 @@ fun ProjectDetailScreen(
                 }
 
                 else -> {
+                    val currentProject = project!!
+
                     ProjectHeaderCard(
-                        name = project!!.name,
-                        description = project!!.description ?: "Sem descrição",
-                        status = project!!.status ?: "Sem estado",
-                        priority = project!!.priority ?: "Sem prioridade",
-                        startDate = project!!.start_date ?: "Sem data",
-                        endDate = project!!.end_date ?: "Sem data",
+                        name = currentProject.name,
+                        description = currentProject.description ?: "Sem descrição",
+                        status = currentProject.status ?: "Sem estado",
+                        priority = currentProject.priority ?: "Sem prioridade",
+                        startDate = currentProject.start_date ?: "Sem data",
+                        endDate = currentProject.end_date ?: "Sem data",
                         progressPercentage = progressPercentage,
                         completedTasks = completedTasks.size,
                         totalTasks = tasks.size
@@ -135,6 +156,57 @@ fun ProjectDetailScreen(
                         text = "Editar projeto",
                         modifier = Modifier.fillMaxWidth(),
                         onClick = onEditProjectClick
+                    )
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    ProjectCompletionCard(
+                        isDone = currentProject.status?.uppercase() == "DONE",
+                        rating = rating,
+                        comment = comment,
+                        evaluations = evaluations,
+                        message = evaluationMessage,
+                        error = evaluationError,
+                        onRatingSelected = {
+                            rating = it
+                            evaluationMessage = null
+                        },
+                        onCommentChange = {
+                            comment = it
+                            evaluationMessage = null
+                        },
+                        onCompleteProjectClick = {
+                            val payload = ProjectPayload(
+                                created_by_id = currentProject.created_by_id,
+                                manager_id = currentProject.manager_id,
+                                name = currentProject.name,
+                                description = currentProject.description,
+                                priority = currentProject.priority,
+                                status = "DONE",
+                                start_date = currentProject.start_date,
+                                end_date = currentProject.end_date
+                            )
+
+                            projectViewModel.updateProject(
+                                projectId = currentProject.id,
+                                project = payload,
+                                onSuccess = {
+                                    evaluationViewModel.createEvaluation(
+                                        evaluation = ProjectEvaluationPayload(
+                                            project_id = currentProject.id,
+                                            rating = rating,
+                                            comment = comment.trim().ifBlank { null }
+                                        ),
+                                        onSuccess = {
+                                            evaluationMessage =
+                                                "Projeto concluído e avaliação guardada."
+                                            viewModel.loadProject(projectId)
+                                            evaluationViewModel.loadEvaluations(projectId)
+                                        }
+                                    )
+                                }
+                            )
+                        }
                     )
 
                     Spacer(modifier = Modifier.height(22.dp))
@@ -281,6 +353,136 @@ fun ProjectDetailScreen(
             onProgressClick = onProgressClick,
             onTeamClick = onTeamClick
         )
+    }
+}
+
+@Composable
+fun ProjectCompletionCard(
+    isDone: Boolean,
+    rating: Int,
+    comment: String,
+    evaluations: List<com.example.forgeplan.core.model.ProjectEvaluation>,
+    message: String?,
+    error: String?,
+    onRatingSelected: (Int) -> Unit,
+    onCommentChange: (String) -> Unit,
+    onCompleteProjectClick: () -> Unit
+) {
+    ForgeCard(
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(
+            modifier = Modifier.padding(14.dp)
+        ) {
+            Text(
+                text = "Conclusão e avaliação",
+                style = MaterialTheme.typography.titleMedium
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            if (isDone) {
+                StatusChip(text = "Projeto concluído")
+            } else {
+                Text(
+                    text = "Avalia o projeto antes de o marcar como concluído.",
+                    style = MaterialTheme.typography.bodyMedium
+                )
+            }
+
+            if (evaluations.isEmpty()) {
+                Spacer(modifier = Modifier.height(12.dp))
+
+                Text(
+                    text = "Avaliação",
+                    style = MaterialTheme.typography.titleSmall
+                )
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    (1..5).forEach { value ->
+                        Text(
+                            text = if (value <= rating) "★" else "☆",
+                            style = MaterialTheme.typography.titleLarge,
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.clickable {
+                                onRatingSelected(value)
+                            }
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                OutlinedTextField(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(100.dp),
+                    value = comment,
+                    onValueChange = onCommentChange,
+                    label = { Text("Comentário") },
+                    placeholder = { Text("Escreve uma avaliação final do projeto") }
+                )
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                ForgePrimaryButton(
+                    text = "Concluir projeto",
+                    modifier = Modifier.fillMaxWidth(),
+                    onClick = onCompleteProjectClick
+                )
+            }
+
+            message?.let {
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Text(
+                    text = it,
+                    color = MaterialTheme.colorScheme.primary,
+                    style = MaterialTheme.typography.bodySmall
+                )
+            }
+
+            error?.let {
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Text(
+                    text = it,
+                    color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.bodySmall
+                )
+            }
+
+            if (evaluations.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(14.dp))
+
+                Text(
+                    text = "Avaliação guardada",
+                    style = MaterialTheme.typography.titleSmall
+                )
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                evaluations.firstOrNull()?.let { evaluation ->
+                    Text(
+                        text = "★".repeat(evaluation.rating) +
+                                "☆".repeat(5 - evaluation.rating),
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+
+                    Spacer(modifier = Modifier.height(4.dp))
+
+                    Text(
+                        text = evaluation.comment ?: "Sem comentário",
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+            }
+        }
     }
 }
 
