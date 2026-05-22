@@ -1,6 +1,5 @@
 package com.example.forgeplan.team.ui
 
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -111,7 +110,7 @@ fun TeamScreen(
                 placeholder = "Search your colleagues"
             )
 
-            Spacer(modifier = Modifier.height(20.dp))
+            Spacer(modifier = Modifier.height(24.dp))
 
             ForgeSectionTitle(text = "Your Team")
 
@@ -150,45 +149,36 @@ fun TeamMemberCard(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(18.dp),
+                .height(150.dp)
+                .padding(horizontal = 20.dp, vertical = 18.dp),
             verticalAlignment = Alignment.Top
         ) {
             UserAvatarChip(initials = member.initials)
 
-            Spacer(modifier = Modifier.width(14.dp))
+            Spacer(modifier = Modifier.width(18.dp))
 
             Column(
                 modifier = Modifier.weight(1f)
             ) {
+                ForgeMiniChip(text = "Name")
+
+                Spacer(modifier = Modifier.height(5.dp))
+
                 Text(
                     text = member.name,
-                    style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.onSurface
+                    style = MaterialTheme.typography.titleMedium
                 )
 
-                Spacer(modifier = Modifier.height(3.dp))
+                Spacer(modifier = Modifier.height(12.dp))
+
+                ForgeMiniChip(text = "Role")
+
+                Spacer(modifier = Modifier.height(5.dp))
 
                 Text(
-                    text = member.username,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.75f)
+                    text = "• ${member.role}",
+                    style = MaterialTheme.typography.bodyMedium
                 )
-
-                Text(
-                    text = member.email,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.75f)
-                )
-
-                Spacer(modifier = Modifier.height(10.dp))
-
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    ForgeMiniChip(text = member.role)
-                    ForgeMiniChip(text = member.projects)
-                }
             }
 
             Column(
@@ -196,12 +186,22 @@ fun TeamMemberCard(
             ) {
                 ForgeMiniChip(text = "Status")
 
-                Spacer(modifier = Modifier.height(6.dp))
+                Spacer(modifier = Modifier.height(5.dp))
 
                 Text(
                     text = "• ${member.status}",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurface
+                    style = MaterialTheme.typography.bodySmall
+                )
+
+                Spacer(modifier = Modifier.height(26.dp))
+
+                ForgeMiniChip(text = "Currently in")
+
+                Spacer(modifier = Modifier.height(5.dp))
+
+                Text(
+                    text = member.projects,
+                    style = MaterialTheme.typography.bodySmall
                 )
             }
         }

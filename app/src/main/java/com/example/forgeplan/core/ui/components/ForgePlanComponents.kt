@@ -366,13 +366,13 @@ fun ForgeSearchBar(
     TextField(
         modifier = modifier
             .fillMaxWidth()
-            .height(42.dp),
+            .height(56.dp),
         value = value,
         onValueChange = onValueChange,
         placeholder = {
             Text(
                 text = placeholder,
-                style = MaterialTheme.typography.bodyMedium
+                style = MaterialTheme.typography.bodySmall
             )
         },
         leadingIcon = {
