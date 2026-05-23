@@ -155,7 +155,7 @@ fun TimelineScreen(
                 )
             }
 
-            Spacer(modifier = Modifier.height(14.dp))
+            Spacer(modifier = Modifier.height(22.dp))
 
             projectError?.let {
                 Text(
@@ -247,7 +247,7 @@ fun TimelineBoardWithSummary(
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .height(500.dp)
+            .height(460.dp)
     ) {
         TimelineBoard(
             tasks = tasks,
@@ -262,7 +262,7 @@ fun TimelineBoardWithSummary(
             modifier = Modifier
                 .fillMaxWidth()
                 .align(Alignment.BottomCenter)
-                .offset(y = (-28).dp)
+                .offset(y = (-42).dp)
         )
     }
 }
@@ -297,10 +297,10 @@ fun TimelineBoard(
     BoxWithConstraints(
         modifier = Modifier.fillMaxWidth()
     ) {
-        val taskColumnWidth = 86.dp
+        val taskColumnWidth = 96.dp
         val gridWidth = maxWidth - taskColumnWidth
         val columnWidth = gridWidth / 5f
-        val boardHeight = 440.dp
+        val boardHeight = 390.dp
         val headerHeight = 42.dp
         val gridHeight = boardHeight - headerHeight
 
@@ -345,7 +345,7 @@ fun TimelineBoard(
                         columns.forEachIndexed { index, column ->
                             Text(
                                 text = column,
-                                style = MaterialTheme.typography.labelSmall,
+                                style = MaterialTheme.typography.bodySmall,
                                 textAlign = TextAlign.Center,
                                 modifier = Modifier
                                     .width(columnWidth)
@@ -396,11 +396,11 @@ fun TimelineBoard(
 
                             val barWidth =
                                 when {
-                                    progress >= 100 -> (columnWidth.value * 2.35f).dp
-                                    progress >= 70 -> (columnWidth.value * 2.2f).dp
-                                    progress >= 40 -> (columnWidth.value * 2.05f).dp
-                                    progress > 0 -> (columnWidth.value * 1.8f).dp
-                                    else -> (columnWidth.value * 2.2f).dp
+                                    progress >= 100 -> (columnWidth.value * 2.25f).dp
+                                    progress >= 70 -> (columnWidth.value * 2.1f).dp
+                                    progress >= 40 -> (columnWidth.value * 1.95f).dp
+                                    progress > 0 -> (columnWidth.value * 1.75f).dp
+                                    else -> (columnWidth.value * 2.0f).dp
                                 }
 
                             TimelineProgressBarPositioned(
@@ -448,7 +448,7 @@ fun TimelineGrid(
         }
 
         Column {
-            repeat(9) {
+            repeat(8) {
                 Box(
                     modifier = Modifier
                         .width(gridWidth)
@@ -475,7 +475,7 @@ fun TimelineProgressBarPositioned(
         modifier = Modifier
             .padding(start = start, top = top)
             .width(width)
-            .height(22.dp)
+            .height(18.dp)
             .clip(RoundedCornerShape(50))
             .background(MaterialTheme.colorScheme.tertiary),
         contentAlignment = Alignment.Center
@@ -522,7 +522,7 @@ fun TimelineSummary(
         modifier = modifier
     ) {
         Column(
-            modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp)
+            modifier = Modifier.padding(horizontal = 18.dp, vertical = 14.dp)
         ) {
             Text(
                 text = "Summary of the day",

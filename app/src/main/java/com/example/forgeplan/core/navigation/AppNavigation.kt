@@ -14,6 +14,7 @@ import com.example.forgeplan.projects.ui.CreateProjectScreen
 import com.example.forgeplan.projects.ui.EditProjectScreen
 import com.example.forgeplan.projects.ui.ManagerDashboardScreen
 import com.example.forgeplan.projects.ui.ProjectDetailScreen
+import com.example.forgeplan.projects.ui.ProjectReviewScreen
 import com.example.forgeplan.tasks.ui.CreateTaskScreen
 import com.example.forgeplan.tasks.ui.EditTaskScreen
 import com.example.forgeplan.tasks.ui.UserDashboardScreen
@@ -63,10 +64,13 @@ fun AppNavigation() {
         composable("manager") {
             ManagerDashboardScreen(
                 onProjectClick = { projectId ->
-                    navController.navigate("projectDetail/$projectId")
+                    navController.navigate("projectReview/$projectId")
                 },
                 onCreateProjectClick = {
                     navController.navigate("createProject")
+                },
+                onEditProjectClick = { projectId ->
+                    navController.navigate("editProject/$projectId")
                 },
                 onTimelineClick = {
                     navController.navigate("timeline")
@@ -99,6 +103,25 @@ fun AppNavigation() {
             EditProjectScreen(
                 projectId = projectId,
                 onProjectUpdated = {
+                    navController.popBackStack()
+                }
+            )
+        }
+
+        composable(
+            route = "projectReview/{projectId}",
+            arguments = listOf(
+                navArgument("projectId") { type = NavType.LongType }
+            )
+        ) { backStackEntry ->
+            val projectId = backStackEntry.arguments?.getLong("projectId") ?: 0L
+
+            ProjectReviewScreen(
+                projectId = projectId,
+                onBackClick = {
+                    navController.popBackStack()
+                },
+                onSaveClick = {
                     navController.popBackStack()
                 }
             )
