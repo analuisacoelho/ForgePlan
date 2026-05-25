@@ -8,7 +8,6 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.example.forgeplan.admin.ui.AdminDashboardScreen
 import com.example.forgeplan.auth.ui.LoginScreen
-import com.example.forgeplan.auth.ui.WelcomeScreen
 import com.example.forgeplan.progress.ui.ProgressScreen
 import com.example.forgeplan.projects.ui.CreateProjectScreen
 import com.example.forgeplan.projects.ui.EditProjectScreen
@@ -27,31 +26,21 @@ fun AppNavigation() {
 
     NavHost(
         navController = navController,
-        startDestination = "welcome"
+        startDestination = "login"
     ) {
-        composable("welcome") {
-            WelcomeScreen(
-                onRoleSelected = { role ->
-                    navController.navigate("login/$role")
-                }
-            )
-        }
-
-        composable(
-            route = "login/{role}",
-            arguments = listOf(
-                navArgument("role") { type = NavType.StringType }
-            )
-        ) { backStackEntry ->
-            val role = backStackEntry.arguments?.getString("role") ?: "USER"
-
+        composable("login") {
             LoginScreen(
-                selectedRole = role,
-                onLoginSuccess = {
+                onLoginSuccess = { role ->
                     when (role) {
-                        "ADMIN" -> navController.navigate("admin")
-                        "MANAGER" -> navController.navigate("manager")
-                        else -> navController.navigate("user")
+                        "ADMIN" -> navController.navigate("admin") {
+                            popUpTo("login") { inclusive = true }
+                        }
+                        "MANAGER" -> navController.navigate("manager") {
+                            popUpTo("login") { inclusive = true }
+                        }
+                        else -> navController.navigate("user") {
+                            popUpTo("login") { inclusive = true }
+                        }
                     }
                 }
             )
@@ -99,7 +88,6 @@ fun AppNavigation() {
             )
         ) { backStackEntry ->
             val projectId = backStackEntry.arguments?.getLong("projectId") ?: 0L
-
             EditProjectScreen(
                 projectId = projectId,
                 onProjectUpdated = {
@@ -115,57 +103,34 @@ fun AppNavigation() {
             )
         ) { backStackEntry ->
             val projectId = backStackEntry.arguments?.getLong("projectId") ?: 0L
-
             ProjectReviewScreen(
                 projectId = projectId,
-                onBackClick = {
-                    navController.popBackStack()
-                },
-                onSaveClick = {
-                    navController.popBackStack()
-                }
+                onBackClick = { navController.popBackStack() },
+                onSaveClick = { navController.popBackStack() }
             )
         }
 
         composable("timeline") {
             TimelineScreen(
-                onProjectsClick = {
-                    navController.navigate("manager")
-                },
-                onProgressClick = {
-                    navController.navigate("progress")
-                },
-                onTeamClick = {
-                    navController.navigate("team")
-                }
+                onProjectsClick = { navController.navigate("manager") },
+                onProgressClick = { navController.navigate("progress") },
+                onTeamClick = { navController.navigate("team") }
             )
         }
 
         composable("progress") {
             ProgressScreen(
-                onProjectsClick = {
-                    navController.navigate("manager")
-                },
-                onTimelineClick = {
-                    navController.navigate("timeline")
-                },
-                onTeamClick = {
-                    navController.navigate("team")
-                }
+                onProjectsClick = { navController.navigate("manager") },
+                onTimelineClick = { navController.navigate("timeline") },
+                onTeamClick = { navController.navigate("team") }
             )
         }
 
         composable("team") {
             TeamScreen(
-                onProjectsClick = {
-                    navController.navigate("manager")
-                },
-                onTimelineClick = {
-                    navController.navigate("timeline")
-                },
-                onProgressClick = {
-                    navController.navigate("progress")
-                }
+                onProjectsClick = { navController.navigate("manager") },
+                onTimelineClick = { navController.navigate("timeline") },
+                onProgressClick = { navController.navigate("progress") }
             )
         }
 
@@ -176,39 +141,22 @@ fun AppNavigation() {
             )
         ) { backStackEntry ->
             val projectId = backStackEntry.arguments?.getLong("projectId") ?: 0L
-
             ProjectDetailScreen(
                 projectId = projectId,
-                onCreateTaskClick = {
-                    navController.navigate("createTask/$projectId")
-                },
-                onEditProjectClick = {
-                    navController.navigate("editProject/$projectId")
-                },
-                onTaskClick = { taskId ->
-                    navController.navigate("editTask/$taskId")
-                },
-                onProjectsClick = {
-                    navController.navigate("manager")
-                },
-                onTimelineClick = {
-                    navController.navigate("timeline")
-                },
-                onProgressClick = {
-                    navController.navigate("progress")
-                },
-                onTeamClick = {
-                    navController.navigate("team")
-                }
+                onCreateTaskClick = { navController.navigate("createTask/$projectId") },
+                onEditProjectClick = { navController.navigate("editProject/$projectId") },
+                onTaskClick = { taskId -> navController.navigate("editTask/$taskId") },
+                onProjectsClick = { navController.navigate("manager") },
+                onTimelineClick = { navController.navigate("timeline") },
+                onProgressClick = { navController.navigate("progress") },
+                onTeamClick = { navController.navigate("team") }
             )
         }
 
         composable("createTask") {
             CreateTaskScreen(
                 projectId = null,
-                onTaskCreated = {
-                    navController.popBackStack()
-                }
+                onTaskCreated = { navController.popBackStack() }
             )
         }
 
@@ -219,12 +167,9 @@ fun AppNavigation() {
             )
         ) { backStackEntry ->
             val projectId = backStackEntry.arguments?.getLong("projectId")
-
             CreateTaskScreen(
                 projectId = projectId,
-                onTaskCreated = {
-                    navController.popBackStack()
-                }
+                onTaskCreated = { navController.popBackStack() }
             )
         }
 
@@ -235,12 +180,9 @@ fun AppNavigation() {
             )
         ) { backStackEntry ->
             val taskId = backStackEntry.arguments?.getLong("taskId") ?: 0L
-
             EditTaskScreen(
                 taskId = taskId,
-                onTaskUpdated = {
-                    navController.popBackStack()
-                }
+                onTaskUpdated = { navController.popBackStack() }
             )
         }
 
