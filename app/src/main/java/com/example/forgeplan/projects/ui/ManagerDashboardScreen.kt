@@ -1,5 +1,7 @@
 package com.example.forgeplan.projects.ui
 
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
@@ -20,7 +22,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -40,9 +41,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.forgeplan.core.model.Project
 import com.example.forgeplan.core.model.ProjectPayload
@@ -87,6 +93,8 @@ fun ManagerDashboardScreen(
     var searchText by remember { mutableStateOf("") }
     var selectedProjectId by remember { mutableStateOf<Long?>(null) }
     var exportProject by remember { mutableStateOf<Project?>(null) }
+
+    val context = LocalContext.current
 
     LaunchedEffect(Unit) {
         viewModel.loadProjects()
@@ -299,10 +307,24 @@ fun ManagerDashboardScreen(
         }
     }
 
-    exportProject?.let {
+    exportProject?.let { project ->
         ExportDialog(
-            projectName = it.name,
-            onDismiss = { exportProject = null }
+            projectName = project.name,
+            onExport = { format ->
+                val tasks = projectTasks[project.id] ?: emptyList()
+
+                exportProjectFile(
+                    context = context,
+                    project = project,
+                    tasks = tasks,
+                    format = format
+                )
+
+                exportProject = null
+            },
+            onDismiss = {
+                exportProject = null
+            }
         )
     }
 }
@@ -651,45 +673,125 @@ fun SmallTaskAvatar(user: User) {
 @Composable
 fun ExportDialog(
     projectName: String,
+    onExport: (String) -> Unit,
     onDismiss: () -> Unit
 ) {
-    AlertDialog(
+    Dialog(
         onDismissRequest = onDismiss,
-        confirmButton = { TextButton(onClick = onDismiss) { Text("Always") } },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Just Once") } },
-        title = { Text("Export as", fontWeight = FontWeight.Bold) },
-        text = {
-            Column {
-                Text(projectName)
-                Spacer(modifier = Modifier.height(16.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceAround
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 10.dp, vertical = 70.dp),
+            contentAlignment = Alignment.BottomCenter
+        ) {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(6.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = Color.White
+                ),
+                border = BorderStroke(
+                    width = 2.dp,
+                    color = MaterialTheme.colorScheme.tertiary
+                ),
+                elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+            ) {
+                Column(
+                    modifier = Modifier.padding(horizontal = 18.dp, vertical = 14.dp)
                 ) {
-                    ExportOption("PDF")
-                    ExportOption("X")
-                    ExportOption("W")
-                    ExportOption("...")
+                    Text(
+                        text = "Export as",
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold
+                    )
+
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceAround,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        ExportOption("PDF", Color(0xFFD62828)) { onExport("PDF") }
+                        ExportOption("X", Color(0xFF1F7A3A)) { onExport("X") }
+                        ExportOption("W", Color(0xFF1E5AA8)) { onExport("W") }
+                        ExportOption("•••", Color(0xFF8C8C8C)) { onExport("TXT") }
+                    }
+
+                    Spacer(modifier = Modifier.height(18.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(26.dp)
+                    ) {
+                        TextButton(
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(38.dp)
+                                .clip(RoundedCornerShape(50))
+                                .background(MaterialTheme.colorScheme.secondaryContainer),
+                            onClick = { onExport("PDF") }
+                        ) {
+                            Text(
+                                text = "Just Once",
+                                color = MaterialTheme.colorScheme.primary,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+
+                        TextButton(
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(38.dp)
+                                .clip(RoundedCornerShape(50))
+                                .background(MaterialTheme.colorScheme.primary),
+                            onClick = { onExport("PDF") }
+                        ) {
+                            Text(
+                                text = "Always",
+                                color = Color.White,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
                 }
             }
         }
-    )
+    }
 }
 
 @Composable
-fun ExportOption(text: String) {
+fun ExportOption(
+    text: String,
+    iconColor: Color,
+    onClick: () -> Unit
+) {
     Box(
         modifier = Modifier
-            .size(54.dp)
-            .clip(RoundedCornerShape(10.dp))
-            .background(MaterialTheme.colorScheme.secondaryContainer),
+            .size(64.dp)
+            .clickable { onClick() },
         contentAlignment = Alignment.Center
     ) {
-        Text(
-            text = text,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.primary
-        )
+        when (text) {
+            "PDF" -> FileExportIcon(
+                label = "PDF",
+                color = Color(0xFFE53935)
+            )
+
+            "X" -> OfficeExportIcon(
+                label = "X",
+                color = Color(0xFF168A45)
+            )
+
+            "W" -> OfficeExportIcon(
+                label = "W",
+                color = Color(0xFF1E5AA8)
+            )
+
+            else -> MoreExportIcon()
+        }
     }
 }
 
@@ -710,5 +812,113 @@ private fun shortName(user: User): String {
         parts.size >= 2 -> "${parts.first()} ${parts.last().first()}."
         parts.isNotEmpty() -> parts.first()
         else -> user.username
+    }
+}
+
+@Composable
+fun FileExportIcon(
+    label: String,
+    color: Color
+) {
+    Box(
+        modifier = Modifier.size(62.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Canvas(modifier = Modifier.size(58.dp)) {
+            val w = size.width
+            val h = size.height
+
+            drawRoundRect(
+                color = color,
+                topLeft = Offset(w * 0.22f, h * 0.08f),
+                size = Size(w * 0.56f, h * 0.72f),
+                cornerRadius = androidx.compose.ui.geometry.CornerRadius(w * 0.05f),
+                style = androidx.compose.ui.graphics.drawscope.Stroke(width = w * 0.055f)
+            )
+
+            drawLine(
+                color = color,
+                start = Offset(w * 0.58f, h * 0.08f),
+                end = Offset(w * 0.78f, h * 0.26f),
+                strokeWidth = w * 0.055f
+            )
+
+            drawRect(
+                color = color,
+                topLeft = Offset(w * 0.14f, h * 0.54f),
+                size = Size(w * 0.66f, h * 0.28f)
+            )
+        }
+
+        Text(
+            text = label,
+            color = Color.White,
+            fontWeight = FontWeight.Black,
+            style = MaterialTheme.typography.labelMedium,
+            modifier = Modifier.padding(top = 22.dp)
+        )
+    }
+}
+
+@Composable
+fun OfficeExportIcon(
+    label: String,
+    color: Color
+) {
+    Box(
+        modifier = Modifier.size(62.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Canvas(modifier = Modifier.size(58.dp)) {
+            val w = size.width
+            val h = size.height
+
+            drawRect(
+                color = color,
+                topLeft = Offset(w * 0.18f, h * 0.18f),
+                size = Size(w * 0.42f, h * 0.62f)
+            )
+
+            drawRect(
+                color = color.copy(alpha = 0.35f),
+                topLeft = Offset(w * 0.52f, h * 0.24f),
+                size = Size(w * 0.28f, h * 0.50f)
+            )
+
+            repeat(3) { i ->
+                val y = h * (0.34f + i * 0.13f)
+                drawLine(
+                    color = Color.White,
+                    start = Offset(w * 0.58f, y),
+                    end = Offset(w * 0.75f, y),
+                    strokeWidth = w * 0.035f
+                )
+            }
+        }
+
+        Text(
+            text = label,
+            color = Color.White,
+            fontWeight = FontWeight.Black,
+            style = MaterialTheme.typography.headlineSmall
+        )
+    }
+}
+
+@Composable
+fun MoreExportIcon() {
+    Box(
+        modifier = Modifier
+            .size(62.dp)
+            .clip(RoundedCornerShape(8.dp))
+            .background(MaterialTheme.colorScheme.secondaryContainer),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = "•••",
+            color = Color(0xFF8C8C8C),
+            fontWeight = FontWeight.Black,
+            style = MaterialTheme.typography.headlineMedium
+        )
     }
 }

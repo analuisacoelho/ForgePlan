@@ -1,5 +1,9 @@
 package com.example.forgeplan.progress.ui
 
+import android.net.Uri
+import android.provider.OpenableColumns
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -13,14 +17,23 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.AccountCircle
 import androidx.compose.material.icons.outlined.CheckCircle
+import androidx.compose.material.icons.outlined.KeyboardArrowDown
+import androidx.compose.material.icons.outlined.LocationOn
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -33,18 +46,15 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.forgeplan.core.model.Project
 import com.example.forgeplan.core.model.Task
-import com.example.forgeplan.core.ui.components.ForgeBigProgressCard
-import com.example.forgeplan.core.ui.components.ForgeInfoRow
-import com.example.forgeplan.core.ui.components.ForgeMiniChip
-import com.example.forgeplan.core.ui.components.ForgeOutlinedCard
 import com.example.forgeplan.core.ui.components.ForgePlanBottomBar
 import com.example.forgeplan.core.ui.components.ForgePlanTopBar
-import com.example.forgeplan.core.ui.components.ForgePrimaryLargeButton
-import com.example.forgeplan.core.ui.components.ForgeSectionTitle
 import com.example.forgeplan.projects.viewmodel.ProjectViewModel
 import com.example.forgeplan.tasks.viewmodel.TaskViewModel
 
@@ -58,13 +68,16 @@ fun ProgressScreen(
 ) {
     val projects by projectViewModel.projects.collectAsState()
     val projectError by projectViewModel.error.collectAsState()
-
     val tasks by taskViewModel.tasks.collectAsState()
     val taskError by taskViewModel.error.collectAsState()
 
     var selectedProject by remember { mutableStateOf<Project?>(null) }
     var selectedTask by remember { mutableStateOf<Task?>(null) }
     var progressValue by remember { mutableStateOf(0) }
+    var timeSpentHours by remember { mutableStateOf(3) }
+    var location by remember { mutableStateOf("Location") }
+    var notes by remember { mutableStateOf("") }
+    var selectedPhotoUri by remember { mutableStateOf<Uri?>(null) }
     var message by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(Unit) {
@@ -78,9 +91,9 @@ fun ProgressScreen(
     }
 
     LaunchedEffect(selectedProject?.id) {
-        selectedProject?.let { project ->
+        selectedProject?.let {
             selectedTask = null
-            taskViewModel.loadTasks(project.id)
+            taskViewModel.loadTasks(it.id)
         }
     }
 
@@ -92,118 +105,119 @@ fun ProgressScreen(
     }
 
     Column(
-        modifier = Modifier.fillMaxSize()
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
     ) {
         ForgePlanTopBar(
             title = "ForgePlan",
-            initials = "FP"
+            initials = "UN"
         )
 
         Column(
             modifier = Modifier
                 .weight(1f)
-                .padding(horizontal = 18.dp, vertical = 18.dp)
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 22.dp, vertical = 18.dp)
         ) {
-            ForgeSectionTitle(text = "Progress")
+            Text(
+                text = "Progress",
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.Bold
+            )
 
             Spacer(modifier = Modifier.height(18.dp))
 
             ProjectSelector(
                 selectedProject = selectedProject,
                 projects = projects,
-                onProjectSelected = { project ->
-                    selectedProject = project
+                onProjectSelected = {
+                    selectedProject = it
                     selectedTask = null
                     message = null
                 }
             )
 
-            Spacer(modifier = Modifier.height(10.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
             TaskSelector(
                 selectedTask = selectedTask,
                 tasks = tasks,
-                onTaskSelected = { task ->
-                    selectedTask = task
-                    progressValue = task.completion_rate ?: 0
+                onTaskSelected = {
+                    selectedTask = it
+                    progressValue = it.completion_rate ?: 0
                     message = null
                 }
             )
 
-            Spacer(modifier = Modifier.height(14.dp))
+            Spacer(modifier = Modifier.height(28.dp))
 
-            projectError?.let {
-                Text(
-                    text = it,
-                    color = MaterialTheme.colorScheme.error,
-                    style = MaterialTheme.typography.bodySmall
-                )
-
-                Spacer(modifier = Modifier.height(8.dp))
-            }
-
-            taskError?.let {
-                Text(
-                    text = it,
-                    color = MaterialTheme.colorScheme.error,
-                    style = MaterialTheme.typography.bodySmall
-                )
-
-                Spacer(modifier = Modifier.height(8.dp))
-            }
-
-            message?.let {
-                Text(
-                    text = it,
-                    color = MaterialTheme.colorScheme.primary,
-                    style = MaterialTheme.typography.bodySmall
-                )
-
-                Spacer(modifier = Modifier.height(8.dp))
-            }
-
-            ForgeBigProgressCard(
-                progress = progressValue
-            )
-
-            Spacer(modifier = Modifier.height(14.dp))
-
-            ProgressQuickActions(
-                selectedProgress = progressValue,
-                onProgressSelected = { value ->
-                    progressValue = value
+            ProgressMainCard(
+                progress = progressValue,
+                onProgressChange = {
+                    progressValue = it
                     message = null
                 }
             )
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(26.dp))
 
-            ForgeInfoRow(
-                title = "Time spent",
-                value = "3 hours",
-                icon = Icons.Outlined.CheckCircle
+            TimeSpentRow(
+                hours = timeSpentHours,
+                onIncrease = { timeSpentHours++ },
+                onDecrease = {
+                    if (timeSpentHours > 0) timeSpentHours--
+                }
             )
-
-            Spacer(modifier = Modifier.height(10.dp))
-
-            ForgeInfoRow(
-                title = "Location",
-                value = "Workshop A",
-                icon = Icons.Outlined.AccountCircle
-            )
-
-            Spacer(modifier = Modifier.height(10.dp))
-
-            AttachmentCard()
-
-            Spacer(modifier = Modifier.height(10.dp))
-
-            NotesCard()
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            ForgePrimaryLargeButton(
-                text = "Save progress",
+            LocationRow(
+                value = location,
+                onValueChange = { location = it }
+            )
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            PhotoAttachmentCard(
+                selectedPhotoUri = selectedPhotoUri,
+                onPhotoSelected = { selectedPhotoUri = it },
+                onRemovePhoto = { selectedPhotoUri = null }
+            )
+
+            Spacer(modifier = Modifier.height(14.dp))
+
+            NotesCard(
+                value = notes,
+                onValueChange = { notes = it }
+            )
+
+            projectError?.let {
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(it, color = MaterialTheme.colorScheme.error)
+            }
+
+            taskError?.let {
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(it, color = MaterialTheme.colorScheme.error)
+            }
+
+            message?.let {
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(it, color = MaterialTheme.colorScheme.primary)
+            }
+
+            Spacer(modifier = Modifier.height(18.dp))
+
+            Button(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(58.dp),
+                shape = RoundedCornerShape(8.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary
+                ),
                 onClick = {
                     val task = selectedTask
 
@@ -230,7 +244,19 @@ fun ProgressScreen(
                         )
                     }
                 }
-            )
+            ) {
+                Text("⇧", style = MaterialTheme.typography.titleMedium)
+
+                Spacer(modifier = Modifier.size(8.dp))
+
+                Text(
+                    text = "Save progress",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+
+            Spacer(modifier = Modifier.height(24.dp))
         }
 
         ForgePlanBottomBar(
@@ -253,7 +279,7 @@ fun ProjectSelector(
     Box {
         SelectorCard(
             text = selectedProject?.name ?: "Select your project",
-            icon = Icons.Outlined.AccountCircle,
+            iconText = "□",
             onClick = { expanded = true }
         )
 
@@ -263,12 +289,7 @@ fun ProjectSelector(
         ) {
             projects.forEach { project ->
                 DropdownMenuItem(
-                    text = {
-                        Text(
-                            text = project.name,
-                            style = MaterialTheme.typography.bodyMedium
-                        )
-                    },
+                    text = { Text(project.name) },
                     onClick = {
                         onProjectSelected(project)
                         expanded = false
@@ -290,7 +311,7 @@ fun TaskSelector(
     Box {
         SelectorCard(
             text = selectedTask?.title ?: "Select your task",
-            icon = Icons.Outlined.CheckCircle,
+            iconText = "☑",
             onClick = { expanded = true }
         )
 
@@ -300,12 +321,7 @@ fun TaskSelector(
         ) {
             tasks.forEach { task ->
                 DropdownMenuItem(
-                    text = {
-                        Text(
-                            text = task.title,
-                            style = MaterialTheme.typography.bodyMedium
-                        )
-                    },
+                    text = { Text(task.title) },
                     onClick = {
                         onTaskSelected(task)
                         expanded = false
@@ -319,29 +335,28 @@ fun TaskSelector(
 @Composable
 fun SelectorCard(
     text: String,
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    iconText: String,
     onClick: () -> Unit
 ) {
-    ForgeOutlinedCard(
+    Surface(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable { onClick() }
+            .height(42.dp)
+            .clickable { onClick() },
+        shape = RoundedCornerShape(6.dp),
+        color = MaterialTheme.colorScheme.surface,
+        border = BorderStroke(
+            width = 1.dp,
+            color = MaterialTheme.colorScheme.tertiary
+        )
     ) {
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(42.dp)
-                .padding(horizontal = 12.dp),
+            modifier = Modifier.padding(horizontal = 12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Icon(
-                imageVector = icon,
-                contentDescription = null,
-                modifier = Modifier.size(19.dp),
-                tint = MaterialTheme.colorScheme.onSurface
-            )
+            Text(iconText)
 
-            Spacer(modifier = Modifier.size(8.dp))
+            Spacer(modifier = Modifier.size(10.dp))
 
             Text(
                 text = text,
@@ -349,89 +364,77 @@ fun SelectorCard(
                 modifier = Modifier.weight(1f)
             )
 
-            Text(
-                text = "⌄",
-                style = MaterialTheme.typography.titleSmall
+            Icon(
+                imageVector = Icons.Outlined.KeyboardArrowDown,
+                contentDescription = null,
+                modifier = Modifier.size(20.dp)
             )
         }
     }
 }
 
 @Composable
-fun ProgressQuickActions(
-    selectedProgress: Int,
-    onProgressSelected: (Int) -> Unit
+fun ProgressMainCard(
+    progress: Int,
+    onProgressChange: (Int) -> Unit
 ) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(6.dp)
-    ) {
-        listOf(0, 25, 50, 75, 100).forEach { value ->
-            Box(
-                modifier = Modifier
-                    .weight(1f)
-                    .clickable {
-                        onProgressSelected(value)
-                    },
-                contentAlignment = Alignment.Center
-            ) {
-                ForgeMiniChip(
-                    text = "$value%",
-                    containerColor =
-                        if (selectedProgress == value) {
-                            MaterialTheme.colorScheme.primary
-                        } else {
-                            MaterialTheme.colorScheme.secondaryContainer
-                        },
-                    contentColor =
-                        if (selectedProgress == value) {
-                            MaterialTheme.colorScheme.onPrimary
-                        } else {
-                            MaterialTheme.colorScheme.onSecondaryContainer
-                        }
-                )
-            }
-        }
-    }
-}
-
-@Composable
-fun AttachmentCard() {
-    ForgeOutlinedCard(
-        modifier = Modifier.fillMaxWidth()
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(132.dp),
+        shape = RoundedCornerShape(8.dp),
+        color = MaterialTheme.colorScheme.primary
     ) {
         Column(
-            modifier = Modifier.padding(14.dp)
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp)
         ) {
             Row(
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Icon(
-                    imageVector = Icons.Outlined.AccountCircle,
-                    contentDescription = null,
-                    modifier = Modifier.size(20.dp),
-                    tint = MaterialTheme.colorScheme.onSurface
+                Text(
+                    text = "◔",
+                    color = MaterialTheme.colorScheme.tertiary,
+                    style = MaterialTheme.typography.headlineMedium
                 )
 
                 Spacer(modifier = Modifier.size(8.dp))
 
                 Text(
-                    text = "Photo attachment",
-                    style = MaterialTheme.typography.bodyMedium
+                    text = "Progress",
+                    style = MaterialTheme.typography.headlineSmall,
+                    color = MaterialTheme.colorScheme.onPrimary,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.weight(1f)
                 )
+
+                ProgressBadge(progress)
             }
 
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(30.dp))
 
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                UploadBox(
+            Slider(
+                value = progress.toFloat(),
+                onValueChange = { onProgressChange(it.toInt()) },
+                valueRange = 0f..100f,
+                colors = SliderDefaults.colors(
+                    thumbColor = Color(0xFF3A347F),
+                    activeTrackColor = MaterialTheme.colorScheme.tertiary,
+                    inactiveTrackColor = Color.White
+                )
+            )
+
+            Row(modifier = Modifier.fillMaxWidth()) {
+                Text(
+                    text = "0%",
+                    color = Color.White,
+                    style = MaterialTheme.typography.labelSmall,
                     modifier = Modifier.weight(1f)
                 )
 
-                PreviewBox(
-                    modifier = Modifier.weight(1f)
+                Text(
+                    text = "100%",
+                    color = Color.White,
+                    style = MaterialTheme.typography.labelSmall
                 )
             }
         }
@@ -439,98 +442,300 @@ fun AttachmentCard() {
 }
 
 @Composable
-fun UploadBox(
-    modifier: Modifier = Modifier
+fun ProgressBadge(progress: Int) {
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(50))
+            .background(Color(0xFF3A347F))
+            .padding(horizontal = 10.dp, vertical = 3.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = "${progress.coerceIn(0, 100)}%",
+            color = Color.White,
+            fontWeight = FontWeight.Bold
+        )
+    }
+}
+
+@Composable
+fun TimeSpentRow(
+    hours: Int,
+    onIncrease: () -> Unit,
+    onDecrease: () -> Unit
 ) {
     Surface(
-        modifier = modifier.height(82.dp),
-        shape = RoundedCornerShape(12.dp),
-        color = MaterialTheme.colorScheme.background,
-        border = BorderStroke(
-            width = 1.dp,
-            color = MaterialTheme.colorScheme.tertiary.copy(alpha = 0.55f)
-        )
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(46.dp),
+        shape = RoundedCornerShape(8.dp),
+        color = MaterialTheme.colorScheme.surface,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.tertiary)
     ) {
-        Column(
-            modifier = Modifier.padding(10.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
+        Row(
+            modifier = Modifier.padding(horizontal = 12.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
             Icon(
                 imageVector = Icons.Outlined.CheckCircle,
                 contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.55f),
-                modifier = Modifier.size(24.dp)
+                modifier = Modifier.size(20.dp)
             )
 
-            Spacer(modifier = Modifier.height(6.dp))
+            Spacer(modifier = Modifier.size(10.dp))
 
             Text(
-                text = "Add Photo",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.65f)
+                text = "Time spent",
+                modifier = Modifier.weight(1f)
             )
+
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(4.dp))
+                    .background(MaterialTheme.colorScheme.tertiary)
+                    .padding(horizontal = 12.dp, vertical = 6.dp)
+            ) {
+                Text(
+                    text = "$hours hours",
+                    color = MaterialTheme.colorScheme.onTertiary,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+
+            Spacer(modifier = Modifier.size(8.dp))
+
+            Column {
+                Text(
+                    text = "▲",
+                    modifier = Modifier.clickable { onIncrease() },
+                    style = MaterialTheme.typography.labelSmall
+                )
+
+                Text(
+                    text = "▼",
+                    modifier = Modifier.clickable { onDecrease() },
+                    style = MaterialTheme.typography.labelSmall
+                )
+            }
         }
     }
 }
 
 @Composable
-fun PreviewBox(
-    modifier: Modifier = Modifier
+fun LocationRow(
+    value: String,
+    onValueChange: (String) -> Unit
 ) {
-    Box(
-        modifier = modifier
-            .height(82.dp)
-            .clip(RoundedCornerShape(12.dp))
-            .background(MaterialTheme.colorScheme.secondaryContainer)
-            .padding(10.dp)
-    ) {
-        Text(
-            text = "Preview",
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSecondaryContainer,
-            modifier = Modifier.align(Alignment.Center)
-        )
+    var expanded by remember { mutableStateOf(false) }
 
-        Box(
+    Box {
+        Surface(
             modifier = Modifier
-                .align(Alignment.TopEnd)
-                .size(20.dp)
-                .clip(RoundedCornerShape(50))
-                .background(MaterialTheme.colorScheme.error),
-            contentAlignment = Alignment.Center
+                .fillMaxWidth()
+                .height(46.dp)
+                .clickable { expanded = true },
+            shape = RoundedCornerShape(8.dp),
+            color = MaterialTheme.colorScheme.surface,
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.tertiary)
         ) {
-            Text(
-                text = "×",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onPrimary
-            )
+            Row(
+                modifier = Modifier.padding(horizontal = 12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    imageVector = Icons.Outlined.LocationOn,
+                    contentDescription = null,
+                    modifier = Modifier.size(22.dp)
+                )
+
+                Spacer(modifier = Modifier.size(10.dp))
+
+                Text(
+                    text = value,
+                    modifier = Modifier.weight(1f)
+                )
+
+                Icon(
+                    imageVector = Icons.Outlined.KeyboardArrowDown,
+                    contentDescription = null,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+        }
+
+        DropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false }
+        ) {
+            listOf("Workshop A", "Workshop B", "Office", "Client site", "Remote").forEach {
+                DropdownMenuItem(
+                    text = { Text(it) },
+                    onClick = {
+                        onValueChange(it)
+                        expanded = false
+                    }
+                )
+            }
         }
     }
 }
 
 @Composable
-fun NotesCard() {
-    ForgeOutlinedCard(
-        modifier = Modifier.fillMaxWidth()
+fun PhotoAttachmentCard(
+    selectedPhotoUri: Uri?,
+    onPhotoSelected: (Uri) -> Unit,
+    onRemovePhoto: () -> Unit
+) {
+    val context = LocalContext.current
+
+    val photoLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri ->
+        uri?.let { onPhotoSelected(it) }
+    }
+
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(164.dp),
+        shape = RoundedCornerShape(8.dp),
+        color = MaterialTheme.colorScheme.surface,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.tertiary)
     ) {
         Column(
-            modifier = Modifier
-                .height(132.dp)
-                .padding(14.dp)
+            modifier = Modifier.padding(12.dp)
         ) {
-            Text(
-                text = "Notes",
-                style = MaterialTheme.typography.titleSmall
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = "▧",
+                    style = MaterialTheme.typography.titleLarge
+                )
 
-            Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.size(8.dp))
 
-            Text(
-                text = "Here you can write about your progress and any obstacles you may have encountered.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.65f)
-            )
+                Text("Photo attachment")
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            if (selectedPhotoUri == null) {
+                Surface(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(92.dp)
+                        .clickable { photoLauncher.launch("image/*") },
+                    shape = RoundedCornerShape(10.dp),
+                    color = MaterialTheme.colorScheme.background,
+                    border = BorderStroke(
+                        width = 1.dp,
+                        color = MaterialTheme.colorScheme.tertiary.copy(alpha = 0.45f)
+                    )
+                ) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center
+                    ) {
+                        Text(
+                            text = "▣",
+                            style = MaterialTheme.typography.headlineSmall,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.55f)
+                        )
+
+                        Spacer(modifier = Modifier.height(6.dp))
+
+                        Text(
+                            text = "Adicionar Foto",
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.65f)
+                        )
+                    }
+                }
+            } else {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(92.dp)
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(MaterialTheme.colorScheme.secondaryContainer)
+                        .padding(12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = getFileNameFromUri(context, selectedPhotoUri),
+                        modifier = Modifier.weight(1f),
+                        fontWeight = FontWeight.Bold
+                    )
+
+                    Box(
+                        modifier = Modifier
+                            .size(26.dp)
+                            .clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.error)
+                            .clickable { onRemovePhoto() },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "×",
+                            color = Color.White,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+            }
         }
     }
+}
+
+@Composable
+fun NotesCard(
+    value: String,
+    onValueChange: (String) -> Unit
+) {
+    OutlinedTextField(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(150.dp),
+        value = value,
+        onValueChange = onValueChange,
+        placeholder = {
+            Text(
+                text = "Here you can write about your progress and any obstacles you may have encountered."
+            )
+        },
+        label = {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("▤")
+
+                Spacer(modifier = Modifier.size(8.dp))
+
+                Text("Notes")
+            }
+        },
+        shape = RoundedCornerShape(8.dp)
+    )
+}
+
+private fun getFileNameFromUri(
+    context: android.content.Context,
+    uri: Uri
+): String {
+    var fileName = "photo_attachment"
+
+    val cursor = context.contentResolver.query(
+        uri,
+        null,
+        null,
+        null,
+        null
+    )
+
+    cursor?.use {
+        val nameIndex = it.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+
+        if (it.moveToFirst() && nameIndex >= 0) {
+            fileName = it.getString(nameIndex)
+        }
+    }
+
+    return fileName
 }

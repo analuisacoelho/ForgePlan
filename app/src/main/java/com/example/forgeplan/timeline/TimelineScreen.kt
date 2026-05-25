@@ -2,18 +2,18 @@ package com.example.forgeplan.timeline.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -27,6 +27,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -81,10 +83,7 @@ fun TimelineScreen(
                             ?: projects.first()
 
             TimelineStateHolder.selectedProjectId = selectedProject?.id
-
-            selectedProject?.let { project ->
-                taskViewModel.loadTasks(project.id)
-            }
+            selectedProject?.let { taskViewModel.loadTasks(it.id) }
         }
     }
 
@@ -104,9 +103,7 @@ fun TimelineScreen(
                 it.status?.uppercase() != "IN_PROGRESS"
     }
 
-    Column(
-        modifier = Modifier.fillMaxSize()
-    ) {
+    Column(modifier = Modifier.fillMaxSize()) {
         ForgePlanTopBar(
             title = "ForgePlan",
             initials = "FP"
@@ -115,7 +112,7 @@ fun TimelineScreen(
         Column(
             modifier = Modifier
                 .weight(1f)
-                .padding(horizontal = 18.dp, vertical = 16.dp)
+                .padding(horizontal = 14.dp, vertical = 16.dp)
         ) {
             ForgeSearchBar(
                 value = searchText,
@@ -123,23 +120,15 @@ fun TimelineScreen(
                 placeholder = "Search your task"
             )
 
-            Spacer(modifier = Modifier.height(22.dp))
+            Spacer(modifier = Modifier.height(24.dp))
 
             Text(
-                text = "Your Timeline",
-                style = MaterialTheme.typography.titleLarge,
-                color = MaterialTheme.colorScheme.onBackground
+                text = "Timeline",
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.Bold
             )
 
-            Spacer(modifier = Modifier.height(4.dp))
-
-            Text(
-                text = "Check here your timeline. Check your deadlines and starting dates according to your projects and tasks.",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.65f)
-            )
-
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(18.dp))
 
             Row {
                 TimelineToggle(
@@ -163,6 +152,7 @@ fun TimelineScreen(
                     color = MaterialTheme.colorScheme.error,
                     style = MaterialTheme.typography.bodySmall
                 )
+                Spacer(modifier = Modifier.height(8.dp))
             }
 
             taskError?.let {
@@ -171,15 +161,12 @@ fun TimelineScreen(
                     color = MaterialTheme.colorScheme.error,
                     style = MaterialTheme.typography.bodySmall
                 )
+                Spacer(modifier = Modifier.height(8.dp))
             }
 
             if (filteredTasks.isEmpty()) {
-                ForgeCard(
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Column(
-                        modifier = Modifier.padding(16.dp)
-                    ) {
+                ForgeCard(modifier = Modifier.fillMaxWidth()) {
+                    Column(modifier = Modifier.padding(16.dp)) {
                         Text(
                             text = "Não existem tarefas para apresentar.",
                             style = MaterialTheme.typography.bodyMedium
@@ -215,22 +202,22 @@ fun TimelineToggle(
 ) {
     Box(
         modifier = Modifier
-            .width(92.dp)
-            .height(34.dp)
+            .width(88.dp)
+            .height(36.dp)
             .clip(RoundedCornerShape(8.dp))
             .background(
                 if (selected) MaterialTheme.colorScheme.tertiary
-                else MaterialTheme.colorScheme.secondaryContainer
+                else Color(0xFFC9C3FF)
             )
             .clickable { onClick() },
         contentAlignment = Alignment.Center
     ) {
         Text(
             text = text,
-            style = MaterialTheme.typography.bodySmall,
+            style = MaterialTheme.typography.bodyMedium,
             color =
                 if (selected) MaterialTheme.colorScheme.onTertiary
-                else MaterialTheme.colorScheme.onSecondaryContainer
+                else MaterialTheme.colorScheme.onBackground
         )
     }
 }
@@ -244,25 +231,25 @@ fun TimelineBoardWithSummary(
     active: Int,
     pending: Int
 ) {
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(460.dp)
-    ) {
-        TimelineBoard(
-            tasks = tasks,
-            mode = mode,
-            projectName = projectName
-        )
+    Column {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(390.dp)
+                .horizontalScroll(rememberScrollState())
+        ) {
+            TimelineBoard(
+                tasks = tasks,
+                mode = mode,
+                projectName = projectName
+            )
+        }
 
         TimelineSummary(
             finished = finished,
             active = active,
             pending = pending,
-            modifier = Modifier
-                .fillMaxWidth()
-                .align(Alignment.BottomCenter)
-                .offset(y = (-42).dp)
+            modifier = Modifier.fillMaxWidth()
         )
     }
 }
@@ -294,122 +281,115 @@ fun TimelineBoard(
             )
         }
 
-    BoxWithConstraints(
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        val taskColumnWidth = 96.dp
-        val gridWidth = maxWidth - taskColumnWidth
-        val columnWidth = gridWidth / 5f
-        val boardHeight = 390.dp
-        val headerHeight = 42.dp
-        val gridHeight = boardHeight - headerHeight
+    val taskColumnWidth = 112.dp
+    val columnWidth = 98.dp
+    val boardWidth = taskColumnWidth + columnWidth * 5
+    val boardHeight = 390.dp
+    val headerHeight = 48.dp
+    val gridHeight = boardHeight - headerHeight
 
-        ForgeCard(
-            modifier = Modifier.fillMaxWidth()
+    ForgeCard(
+        modifier = Modifier.width(boardWidth)
+    ) {
+        Row(
+            modifier = Modifier
+                .width(boardWidth)
+                .height(boardHeight)
+                .background(Color(0xFFE9E6FF))
         ) {
-            Row(
+            Column(
                 modifier = Modifier
-                    .fillMaxWidth()
+                    .width(taskColumnWidth)
                     .height(boardHeight)
-                    .background(MaterialTheme.colorScheme.secondaryContainer)
+                    .background(Color(0xFFC6BFFF))
+                    .padding(horizontal = 12.dp, vertical = 12.dp)
             ) {
-                Column(
-                    modifier = Modifier
-                        .width(taskColumnWidth)
-                        .height(boardHeight)
-                        .background(MaterialTheme.colorScheme.secondaryContainer)
-                        .padding(horizontal = 6.dp, vertical = 8.dp)
-                ) {
-                    Text(
-                        text = "Tasks",
-                        style = MaterialTheme.typography.titleLarge,
-                        color = MaterialTheme.colorScheme.primary
+                Text(
+                    text = "Tasks",
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary
+                )
+
+                Spacer(modifier = Modifier.height(18.dp))
+
+                visibleTasks.forEach { task ->
+                    TimelineTaskLabel(
+                        task = task,
+                        projectName = projectName
                     )
 
-                    Spacer(modifier = Modifier.height(10.dp))
+                    Spacer(modifier = Modifier.height(12.dp))
+                }
+            }
 
-                    visibleTasks.forEach { task ->
-                        TimelineTaskLabel(
-                            task = task,
-                            projectName = projectName
+            Column(
+                modifier = Modifier.width(columnWidth * 5)
+            ) {
+                Row {
+                    columns.forEachIndexed { index, column ->
+                        Text(
+                            text = column,
+                            style = MaterialTheme.typography.labelSmall,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier
+                                .width(columnWidth)
+                                .height(headerHeight)
+                                .background(
+                                    if (index == 2) MaterialTheme.colorScheme.tertiary
+                                    else Color(0xFFE9E6FF)
+                                )
+                                .padding(top = 7.dp, start = 4.dp, end = 4.dp),
+                            color =
+                                if (index == 2) MaterialTheme.colorScheme.onTertiary
+                                else MaterialTheme.colorScheme.onBackground
                         )
-
-                        Spacer(modifier = Modifier.height(8.dp))
                     }
                 }
 
-                Column(
-                    modifier = Modifier.width(gridWidth)
+                Box(
+                    modifier = Modifier
+                        .width(columnWidth * 5)
+                        .height(gridHeight)
+                        .background(Color(0xFFE9E6FF))
                 ) {
-                    Row {
-                        columns.forEachIndexed { index, column ->
-                            Text(
-                                text = column,
-                                style = MaterialTheme.typography.bodySmall,
-                                textAlign = TextAlign.Center,
-                                modifier = Modifier
-                                    .width(columnWidth)
-                                    .height(headerHeight)
-                                    .background(
-                                        if (index == 2)
-                                            MaterialTheme.colorScheme.tertiary
-                                        else
-                                            MaterialTheme.colorScheme.secondaryContainer
-                                    )
-                                    .padding(top = 5.dp, start = 1.dp, end = 1.dp),
-                                color =
-                                    if (index == 2)
-                                        MaterialTheme.colorScheme.onTertiary
-                                    else
-                                        MaterialTheme.colorScheme.onSecondaryContainer
-                            )
+                    TimelineGrid(
+                        gridWidth = columnWidth * 5,
+                        columnWidth = columnWidth,
+                        gridHeight = gridHeight
+                    )
+
+                    visibleTasks.forEachIndexed { index, task ->
+                        val progress = task.completion_rate ?: 0
+                        val normalizedStatus = task.status?.uppercase()
+
+                        val statusText = when (normalizedStatus) {
+                            "DONE" -> "100% Finished"
+                            "IN_PROGRESS" -> "$progress% Active"
+                            else -> "$progress% Pending"
                         }
-                    }
 
-                    Box(
-                        modifier = Modifier
-                            .width(gridWidth)
-                            .height(gridHeight)
-                            .background(MaterialTheme.colorScheme.secondaryContainer)
-                    ) {
-                        TimelineGrid(
-                            gridWidth = gridWidth,
-                            columnWidth = columnWidth,
-                            gridHeight = gridHeight
-                        )
-
-                        visibleTasks.forEachIndexed { index, task ->
-                            val progress = task.completion_rate ?: 0
-
-                            val statusText = when (task.status?.uppercase()) {
-                                "DONE" -> "100% Finished"
-                                "IN_PROGRESS" -> "$progress% Active"
-                                else -> "$progress% Pending"
+                        val barStart =
+                            if (mode == "Week") {
+                                (columnWidth.value * (index % 4) + 12f).dp
+                            } else {
+                                (columnWidth.value * (index % 5) + 12f).dp
                             }
 
-                            val barStart =
-                                if (mode == "Week") {
-                                    (columnWidth.value * (index % 4) + 4f).dp
-                                } else {
-                                    (columnWidth.value * (index % 5) + 4f).dp
-                                }
-
-                            val barWidth =
-                                when {
-                                    progress >= 100 -> (columnWidth.value * 2.25f).dp
-                                    progress >= 70 -> (columnWidth.value * 2.1f).dp
-                                    progress >= 40 -> (columnWidth.value * 1.95f).dp
-                                    progress > 0 -> (columnWidth.value * 1.75f).dp
-                                    else -> (columnWidth.value * 2.0f).dp
-                                }
-
-                            TimelineProgressBarPositioned(
-                                text = statusText,
-                                width = barWidth,
-                                top = (index * 38 + 8).dp,
-                                start = barStart
-                            )
-                        }
+                        TimelineProgressBarPositioned(
+                            text = statusText,
+                            width = when {
+                                progress >= 100 -> 190.dp
+                                progress >= 70 -> 180.dp
+                                progress >= 40 -> 170.dp
+                                progress > 0 -> 160.dp
+                                else -> 160.dp
+                            },
+                            top = (index * 46 + 12).dp,
+                            start = barStart,
+                            pending = normalizedStatus != "DONE" &&
+                                    normalizedStatus != "IN_PROGRESS"
+                        )
                     }
                 }
             }
@@ -439,26 +419,22 @@ fun TimelineGrid(
                         modifier = Modifier
                             .width(1.dp)
                             .height(gridHeight)
-                            .background(
-                                MaterialTheme.colorScheme.primary.copy(alpha = 0.18f)
-                            )
+                            .background(Color(0xFF8C86C8).copy(alpha = 0.35f))
                     )
                 }
             }
         }
 
         Column {
-            repeat(8) {
+            repeat(7) {
                 Box(
                     modifier = Modifier
                         .width(gridWidth)
                         .height(1.dp)
-                        .background(
-                            MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
-                        )
+                        .background(Color(0xFF8C86C8).copy(alpha = 0.28f))
                 )
 
-                Spacer(modifier = Modifier.height(39.dp))
+                Spacer(modifier = Modifier.height(45.dp))
             }
         }
     }
@@ -469,21 +445,29 @@ fun TimelineProgressBarPositioned(
     text: String,
     width: Dp,
     top: Dp,
-    start: Dp
+    start: Dp,
+    pending: Boolean
 ) {
+    val barColor =
+        if (pending) MaterialTheme.colorScheme.primary
+        else MaterialTheme.colorScheme.tertiary
+
     Box(
         modifier = Modifier
             .padding(start = start, top = top)
             .width(width)
-            .height(18.dp)
+            .height(22.dp)
             .clip(RoundedCornerShape(50))
-            .background(MaterialTheme.colorScheme.tertiary),
+            .background(barColor),
         contentAlignment = Alignment.Center
     ) {
         Text(
             text = text,
             style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onTertiary
+            fontWeight = FontWeight.Bold,
+            color =
+                if (pending) MaterialTheme.colorScheme.onPrimary
+                else MaterialTheme.colorScheme.onTertiary
         )
     }
 }
@@ -494,18 +478,19 @@ fun TimelineTaskLabel(
     projectName: String
 ) {
     Column(
-        modifier = Modifier.height(32.dp)
+        modifier = Modifier.height(38.dp)
     ) {
         Text(
             text = task.title,
-            style = MaterialTheme.typography.labelSmall,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onBackground,
             maxLines = 1
         )
 
         Text(
             text = "From $projectName",
             style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.55f),
+            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
             maxLines = 1
         )
     }
@@ -518,18 +503,17 @@ fun TimelineSummary(
     pending: Int,
     modifier: Modifier = Modifier
 ) {
-    ForgeOutlinedCard(
-        modifier = modifier
-    ) {
+    ForgeOutlinedCard(modifier = modifier) {
         Column(
-            modifier = Modifier.padding(horizontal = 18.dp, vertical = 14.dp)
+            modifier = Modifier.padding(horizontal = 18.dp, vertical = 12.dp)
         ) {
             Text(
                 text = "Summary of the day",
-                style = MaterialTheme.typography.titleSmall
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold
             )
 
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(6.dp))
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -567,10 +551,8 @@ fun TimelineDivider() {
     Box(
         modifier = Modifier
             .width(1.dp)
-            .height(58.dp)
-            .background(
-                MaterialTheme.colorScheme.tertiary.copy(alpha = 0.7f)
-            )
+            .height(52.dp)
+            .background(MaterialTheme.colorScheme.tertiary)
     )
 }
 
@@ -584,7 +566,7 @@ fun TimelineSummaryItem(
         when (variant) {
             "finished" -> MaterialTheme.colorScheme.secondary
             "active" -> MaterialTheme.colorScheme.primary
-            else -> MaterialTheme.colorScheme.onBackground
+            else -> Color(0xFF05051F)
         }
 
     Column(
@@ -593,13 +575,13 @@ fun TimelineSummaryItem(
         Text(
             text = number,
             style = MaterialTheme.typography.headlineLarge,
+            fontWeight = FontWeight.Bold,
             color = numberColor
         )
 
         Text(
             text = label,
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onBackground
+            style = MaterialTheme.typography.bodySmall
         )
     }
 }
