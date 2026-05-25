@@ -61,6 +61,7 @@ fun ProjectReviewScreen(
     val isLoading by projectViewModel.isLoading.collectAsState()
     val error by projectViewModel.error.collectAsState()
     val tasks by taskViewModel.tasks.collectAsState()
+    val evaluations by evaluationViewModel.evaluations.collectAsState()
     val evaluationError by evaluationViewModel.error.collectAsState()
 
     var reviewText by remember { mutableStateOf("") }
@@ -89,6 +90,8 @@ fun ProjectReviewScreen(
             else -> averageProgress.coerceIn(0, 100)
         }
 
+    val latestEvaluation = evaluations.maxByOrNull { it.id }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -96,7 +99,21 @@ fun ProjectReviewScreen(
     ) {
         ProjectReviewTopBar(
             title = "ForgePlan",
-            onBackClick = onBackClick
+            onBackClick = onBackClick,
+            onSaveClick = {
+                evaluationViewModel.createEvaluation(
+                    evaluation = ProjectEvaluationPayload(
+                        project_id = projectId,
+                        rating = 5,
+                        comment = reviewText.trim().ifBlank { null }
+                    ),
+                    onSuccess = {
+                        reviewText = ""
+                        message = "Review guardada com sucesso."
+                        evaluationViewModel.loadEvaluations(projectId)
+                    }
+                )
+            }
         )
 
         Column(
@@ -222,9 +239,9 @@ fun ProjectReviewScreen(
                                         comment = reviewText.trim().ifBlank { null }
                                     ),
                                     onSuccess = {
-                                        evaluationViewModel.loadEvaluations(projectId)
-                                        message = "Review guardada com sucesso."
                                         reviewText = ""
+                                        message = "Review guardada com sucesso."
+                                        evaluationViewModel.loadEvaluations(projectId)
                                     }
                                 )
                             },
@@ -256,7 +273,8 @@ fun ProjectReviewScreen(
 @Composable
 fun ProjectReviewTopBar(
     title: String,
-    onBackClick: () -> Unit
+    onBackClick: () -> Unit,
+    onSaveClick: () -> Unit
 ) {
     Row(
         modifier = Modifier
@@ -287,9 +305,11 @@ fun ProjectReviewTopBar(
 
         Icon(
             imageVector = Icons.Outlined.CheckCircle,
-            contentDescription = null,
+            contentDescription = "Guardar",
             tint = MaterialTheme.colorScheme.onTertiary,
-            modifier = Modifier.size(34.dp)
+            modifier = Modifier
+                .size(34.dp)
+                .clickable { onSaveClick() }
         )
     }
 }
