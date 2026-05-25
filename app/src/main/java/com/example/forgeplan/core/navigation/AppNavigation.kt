@@ -67,10 +67,10 @@ fun AppNavigation() {
                     navController.navigate("projectReview/$projectId")
                 },
                 onCreateProjectClick = {
-                    navController.navigate("createProject")
+                    navController.navigate("createTask")
                 },
-                onEditProjectClick = { projectId ->
-                    navController.navigate("editProject/$projectId")
+                onEditTaskClick = { taskId ->
+                    navController.navigate("editTask/$taskId")
                 },
                 onTimelineClick = {
                     navController.navigate("timeline")
@@ -203,13 +203,22 @@ fun AppNavigation() {
             )
         }
 
+        composable("createTask") {
+            CreateTaskScreen(
+                projectId = null,
+                onTaskCreated = {
+                    navController.popBackStack()
+                }
+            )
+        }
+
         composable(
             route = "createTask/{projectId}",
             arguments = listOf(
                 navArgument("projectId") { type = NavType.LongType }
             )
         ) { backStackEntry ->
-            val projectId = backStackEntry.arguments?.getLong("projectId") ?: 0L
+            val projectId = backStackEntry.arguments?.getLong("projectId")
 
             CreateTaskScreen(
                 projectId = projectId,

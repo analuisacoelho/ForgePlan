@@ -8,6 +8,8 @@ import com.example.forgeplan.core.model.ProjectUser
 import com.example.forgeplan.core.model.ProjectUserPayload
 import com.example.forgeplan.core.model.Task
 import com.example.forgeplan.core.model.TaskAssignment
+import com.example.forgeplan.core.model.TaskAttachment
+import com.example.forgeplan.core.model.TaskAttachmentPayload
 import com.example.forgeplan.core.model.TaskDependency
 import com.example.forgeplan.core.model.TaskPayload
 import com.example.forgeplan.core.model.User
@@ -92,6 +94,20 @@ interface SupabaseService {
     fun assignUserToTask(
         @Body assignment: TaskAssignment
     ): Call<List<TaskAssignment>>
+
+    // TASK ATTACHMENTS
+
+    @GET("task_attachments")
+    fun getTaskAttachmentsByTaskId(
+        @Query("task_id") taskId: String,
+        @Query("select") select: String = "*"
+    ): Call<List<TaskAttachment>>
+
+    @Headers("Prefer: return=representation")
+    @POST("task_attachments")
+    fun createTaskAttachment(
+        @Body attachment: TaskAttachmentPayload
+    ): Call<List<TaskAttachment>>
 
     // PROJECT USERS
 

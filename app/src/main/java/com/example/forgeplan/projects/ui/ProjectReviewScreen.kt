@@ -61,11 +61,26 @@ fun ProjectReviewScreen(
     val isLoading by projectViewModel.isLoading.collectAsState()
     val error by projectViewModel.error.collectAsState()
     val tasks by taskViewModel.tasks.collectAsState()
-    val evaluations by evaluationViewModel.evaluations.collectAsState()
     val evaluationError by evaluationViewModel.error.collectAsState()
 
     var reviewText by remember { mutableStateOf("") }
     var message by remember { mutableStateOf<String?>(null) }
+
+    fun saveReview() {
+        evaluationViewModel.createEvaluation(
+            evaluation = ProjectEvaluationPayload(
+                project_id = projectId,
+                rating = 5,
+                comment = reviewText.trim().ifBlank { null }
+            ),
+            onSuccess = {
+                reviewText = ""
+                message = "Review guardada com sucesso."
+                evaluationViewModel.loadEvaluations(projectId)
+                onSaveClick()
+            }
+        )
+    }
 
     LaunchedEffect(projectId) {
         projectViewModel.loadProjectById(projectId)
@@ -90,8 +105,6 @@ fun ProjectReviewScreen(
             else -> averageProgress.coerceIn(0, 100)
         }
 
-    val latestEvaluation = evaluations.maxByOrNull { it.id }
-
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -100,20 +113,7 @@ fun ProjectReviewScreen(
         ProjectReviewTopBar(
             title = "ForgePlan",
             onBackClick = onBackClick,
-            onSaveClick = {
-                evaluationViewModel.createEvaluation(
-                    evaluation = ProjectEvaluationPayload(
-                        project_id = projectId,
-                        rating = 5,
-                        comment = reviewText.trim().ifBlank { null }
-                    ),
-                    onSuccess = {
-                        reviewText = ""
-                        message = "Review guardada com sucesso."
-                        evaluationViewModel.loadEvaluations(projectId)
-                    }
-                )
-            }
+            onSaveClick = { saveReview() }
         )
 
         Column(
@@ -231,20 +231,7 @@ fun ProjectReviewScreen(
                             modifier = Modifier
                                 .weight(1f)
                                 .height(56.dp),
-                            onClick = {
-                                evaluationViewModel.createEvaluation(
-                                    evaluation = ProjectEvaluationPayload(
-                                        project_id = projectId,
-                                        rating = 5,
-                                        comment = reviewText.trim().ifBlank { null }
-                                    ),
-                                    onSuccess = {
-                                        reviewText = ""
-                                        message = "Review guardada com sucesso."
-                                        evaluationViewModel.loadEvaluations(projectId)
-                                    }
-                                )
-                            },
+                            onClick = { saveReview() },
                             shape = RoundedCornerShape(8.dp),
                             colors = ButtonDefaults.buttonColors(
                                 containerColor = MaterialTheme.colorScheme.primary,

@@ -66,7 +66,7 @@ import retrofit2.Response
 fun ManagerDashboardScreen(
     onProjectClick: (Long) -> Unit,
     onCreateProjectClick: () -> Unit,
-    onEditProjectClick: (Long) -> Unit,
+    onEditTaskClick: (Long) -> Unit,
     onTimelineClick: () -> Unit,
     onProgressClick: () -> Unit,
     onTeamClick: () -> Unit,
@@ -224,6 +224,7 @@ fun ManagerDashboardScreen(
                                     selectedProjectId = project.id
                                     onProjectClick(project.id)
                                 },
+                                onEditTaskClick = onEditTaskClick,
                                 onFinishedChange = { checked ->
                                     selectedProjectId = project.id
 
@@ -272,7 +273,14 @@ fun ManagerDashboardScreen(
             }
 
             FloatingActionButton(
-                onClick = { selectedProject?.let { onEditProjectClick(it.id) } },
+                onClick = {
+                    val project = selectedProject
+                    val firstTask = project?.let { projectTasks[it.id]?.firstOrNull() }
+
+                    if (firstTask != null) {
+                        onEditTaskClick(firstTask.id)
+                    }
+                },
                 containerColor = MaterialTheme.colorScheme.secondaryContainer,
                 contentColor = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.size(52.dp)
@@ -308,6 +316,7 @@ fun ProjectCard(
     searchText: String,
     onSelectProject: () -> Unit,
     onReviewClick: () -> Unit,
+    onEditTaskClick: (Long) -> Unit,
     onFinishedChange: (Boolean) -> Unit
 ) {
     val isFinished = project.status?.uppercase() == "DONE"
@@ -421,7 +430,10 @@ fun ProjectCard(
 
                         ProjectTaskPreviewCard(
                             task = task,
-                            assignedUsers = assignedUsers
+                            assignedUsers = assignedUsers,
+                            onEditClick = {
+                                onEditTaskClick(task.id)
+                            }
                         )
                     }
                 }
@@ -530,7 +542,8 @@ fun ProjectMemberAvatars(members: List<User>) {
 @Composable
 fun ProjectTaskPreviewCard(
     task: Task,
-    assignedUsers: List<User>
+    assignedUsers: List<User>,
+    onEditClick: () -> Unit
 ) {
     val priority = task.priority ?: "LOW"
     val finished = task.status?.uppercase() == "DONE"
@@ -609,7 +622,8 @@ fun ProjectTaskPreviewCard(
                 text = "•••",
                 modifier = Modifier
                     .align(Alignment.TopEnd)
-                    .padding(end = 10.dp, top = 6.dp),
+                    .padding(end = 10.dp, top = 6.dp)
+                    .clickable { onEditClick() },
                 color = if (finished) Color.White else MaterialTheme.colorScheme.onSurface
             )
         }

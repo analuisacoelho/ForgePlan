@@ -77,6 +77,27 @@ class TaskViewModel : ViewModel() {
         )
     }
 
+    fun createTaskReturning(
+        task: Task,
+        onSuccess: (Task?) -> Unit
+    ) {
+        _isLoading.value = true
+        _error.value = null
+
+        repository.createTask(
+            task = task,
+            onSuccess = { createdTask ->
+                _isLoading.value = false
+                loadTasks(task.project_id)
+                onSuccess(createdTask)
+            },
+            onError = { message ->
+                _error.value = message
+                _isLoading.value = false
+            }
+        )
+    }
+
     fun updateTask(
         task: Task,
         onSuccess: () -> Unit
