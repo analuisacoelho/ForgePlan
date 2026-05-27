@@ -1,5 +1,6 @@
 package com.example.forgeplan.progress.ui
 
+import android.content.res.Configuration
 import android.net.Uri
 import android.provider.OpenableColumns
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -46,11 +47,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.forgeplan.core.language.appText
 import com.example.forgeplan.core.model.Project
 import com.example.forgeplan.core.model.Task
 import com.example.forgeplan.core.ui.components.ForgePlanBottomBar
@@ -66,6 +68,9 @@ fun ProgressScreen(
     projectViewModel: ProjectViewModel = viewModel(),
     taskViewModel: TaskViewModel = viewModel()
 ) {
+    val configuration = LocalConfiguration.current
+    val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+
     val projects by projectViewModel.projects.collectAsState()
     val projectError by projectViewModel.error.collectAsState()
     val tasks by taskViewModel.tasks.collectAsState()
@@ -75,7 +80,7 @@ fun ProgressScreen(
     var selectedTask by remember { mutableStateOf<Task?>(null) }
     var progressValue by remember { mutableStateOf(0) }
     var timeSpentHours by remember { mutableStateOf(3) }
-    var location by remember { mutableStateOf("Location") }
+    var location by remember { mutableStateOf("") }
     var notes by remember { mutableStateOf("") }
     var selectedPhotoUri by remember { mutableStateOf<Uri?>(null) }
     var message by remember { mutableStateOf<String?>(null) }
@@ -118,93 +123,187 @@ fun ProgressScreen(
             modifier = Modifier
                 .weight(1f)
                 .verticalScroll(rememberScrollState())
-                .padding(horizontal = 22.dp, vertical = 18.dp)
+                .padding(
+                    horizontal = if (isLandscape) 32.dp else 22.dp,
+                    vertical = if (isLandscape) 14.dp else 18.dp
+                )
         ) {
             Text(
-                text = "Progress",
+                text = appText(en = "Progress", pt = "Progresso"),
                 style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.Bold
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onBackground
             )
 
-            Spacer(modifier = Modifier.height(18.dp))
+            Spacer(modifier = Modifier.height(if (isLandscape) 12.dp else 18.dp))
 
-            ProjectSelector(
-                selectedProject = selectedProject,
-                projects = projects,
-                onProjectSelected = {
-                    selectedProject = it
-                    selectedTask = null
-                    message = null
+            if (isLandscape) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    ProjectSelector(
+                        selectedProject = selectedProject,
+                        projects = projects,
+                        modifier = Modifier.weight(1f),
+                        onProjectSelected = {
+                            selectedProject = it
+                            selectedTask = null
+                            message = null
+                        }
+                    )
+
+                    TaskSelector(
+                        selectedTask = selectedTask,
+                        tasks = tasks,
+                        modifier = Modifier.weight(1f),
+                        onTaskSelected = {
+                            selectedTask = it
+                            progressValue = it.completion_rate ?: 0
+                            message = null
+                        }
+                    )
                 }
-            )
 
-            Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(16.dp))
 
-            TaskSelector(
-                selectedTask = selectedTask,
-                tasks = tasks,
-                onTaskSelected = {
-                    selectedTask = it
-                    progressValue = it.completion_rate ?: 0
-                    message = null
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        ProgressMainCard(
+                            progress = progressValue,
+                            onProgressChange = {
+                                progressValue = it
+                                message = null
+                            }
+                        )
+
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        TimeSpentRow(
+                            hours = timeSpentHours,
+                            onIncrease = { timeSpentHours++ },
+                            onDecrease = {
+                                if (timeSpentHours > 0) timeSpentHours--
+                            }
+                        )
+
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        LocationRow(
+                            value = location,
+                            onValueChange = { location = it }
+                        )
+                    }
+
+                    Column(modifier = Modifier.weight(1f)) {
+                        PhotoAttachmentCard(
+                            selectedPhotoUri = selectedPhotoUri,
+                            onPhotoSelected = { selectedPhotoUri = it },
+                            onRemovePhoto = { selectedPhotoUri = null }
+                        )
+
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        NotesCard(
+                            value = notes,
+                            onValueChange = { notes = it }
+                        )
+                    }
                 }
-            )
+            } else {
+                ProjectSelector(
+                    selectedProject = selectedProject,
+                    projects = projects,
+                    onProjectSelected = {
+                        selectedProject = it
+                        selectedTask = null
+                        message = null
+                    }
+                )
 
-            Spacer(modifier = Modifier.height(28.dp))
+                Spacer(modifier = Modifier.height(12.dp))
 
-            ProgressMainCard(
-                progress = progressValue,
-                onProgressChange = {
-                    progressValue = it
-                    message = null
-                }
-            )
+                TaskSelector(
+                    selectedTask = selectedTask,
+                    tasks = tasks,
+                    onTaskSelected = {
+                        selectedTask = it
+                        progressValue = it.completion_rate ?: 0
+                        message = null
+                    }
+                )
 
-            Spacer(modifier = Modifier.height(26.dp))
+                Spacer(modifier = Modifier.height(28.dp))
 
-            TimeSpentRow(
-                hours = timeSpentHours,
-                onIncrease = { timeSpentHours++ },
-                onDecrease = {
-                    if (timeSpentHours > 0) timeSpentHours--
-                }
-            )
+                ProgressMainCard(
+                    progress = progressValue,
+                    onProgressChange = {
+                        progressValue = it
+                        message = null
+                    }
+                )
 
-            Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(26.dp))
 
-            LocationRow(
-                value = location,
-                onValueChange = { location = it }
-            )
+                TimeSpentRow(
+                    hours = timeSpentHours,
+                    onIncrease = { timeSpentHours++ },
+                    onDecrease = {
+                        if (timeSpentHours > 0) timeSpentHours--
+                    }
+                )
 
-            Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(12.dp))
 
-            PhotoAttachmentCard(
-                selectedPhotoUri = selectedPhotoUri,
-                onPhotoSelected = { selectedPhotoUri = it },
-                onRemovePhoto = { selectedPhotoUri = null }
-            )
+                LocationRow(
+                    value = location,
+                    onValueChange = { location = it }
+                )
 
-            Spacer(modifier = Modifier.height(14.dp))
+                Spacer(modifier = Modifier.height(12.dp))
 
-            NotesCard(
-                value = notes,
-                onValueChange = { notes = it }
-            )
+                PhotoAttachmentCard(
+                    selectedPhotoUri = selectedPhotoUri,
+                    onPhotoSelected = { selectedPhotoUri = it },
+                    onRemovePhoto = { selectedPhotoUri = null }
+                )
+
+                Spacer(modifier = Modifier.height(14.dp))
+
+                NotesCard(
+                    value = notes,
+                    onValueChange = { notes = it }
+                )
+            }
 
             projectError?.let {
                 Spacer(modifier = Modifier.height(8.dp))
-                Text(it, color = MaterialTheme.colorScheme.error)
+                Text(
+                    text = it,
+                    color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.bodySmall
+                )
             }
 
             taskError?.let {
                 Spacer(modifier = Modifier.height(8.dp))
-                Text(it, color = MaterialTheme.colorScheme.error)
+                Text(
+                    text = it,
+                    color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.bodySmall
+                )
             }
 
             message?.let {
                 Spacer(modifier = Modifier.height(8.dp))
-                Text(it, color = MaterialTheme.colorScheme.primary)
+                Text(
+                    text = it,
+                    color = MaterialTheme.colorScheme.primary,
+                    style = MaterialTheme.typography.bodySmall
+                )
             }
 
             Spacer(modifier = Modifier.height(18.dp))
@@ -222,7 +321,10 @@ fun ProgressScreen(
                     val task = selectedTask
 
                     if (task == null) {
-                        message = "Seleciona uma tarefa antes de guardar."
+                        message = appText(
+                            en = "Select a task before saving.",
+                            pt = "Seleciona uma tarefa antes de guardar."
+                        )
                     } else {
                         val newStatus = when {
                             progressValue >= 100 -> "DONE"
@@ -239,7 +341,10 @@ fun ProgressScreen(
                             task = updatedTask,
                             onSuccess = {
                                 selectedTask = updatedTask
-                                message = "Progresso guardado com sucesso."
+                                message = appText(
+                                    en = "Progress saved successfully.",
+                                    pt = "Progresso guardado com sucesso."
+                                )
                             }
                         )
                     }
@@ -250,7 +355,7 @@ fun ProgressScreen(
                 Spacer(modifier = Modifier.size(8.dp))
 
                 Text(
-                    text = "Save progress",
+                    text = appText(en = "Save progress", pt = "Guardar progresso"),
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Bold
                 )
@@ -272,13 +377,17 @@ fun ProgressScreen(
 fun ProjectSelector(
     selectedProject: Project?,
     projects: List<Project>,
+    modifier: Modifier = Modifier,
     onProjectSelected: (Project) -> Unit
 ) {
     var expanded by remember { mutableStateOf(false) }
 
-    Box {
+    Box(modifier = modifier) {
         SelectorCard(
-            text = selectedProject?.name ?: "Select your project",
+            text = selectedProject?.name ?: appText(
+                en = "Select your project",
+                pt = "Selecionar projeto"
+            ),
             iconText = "□",
             onClick = { expanded = true }
         )
@@ -304,13 +413,17 @@ fun ProjectSelector(
 fun TaskSelector(
     selectedTask: Task?,
     tasks: List<Task>,
+    modifier: Modifier = Modifier,
     onTaskSelected: (Task) -> Unit
 ) {
     var expanded by remember { mutableStateOf(false) }
 
-    Box {
+    Box(modifier = modifier) {
         SelectorCard(
-            text = selectedTask?.title ?: "Select your task",
+            text = selectedTask?.title ?: appText(
+                en = "Select your task",
+                pt = "Selecionar tarefa"
+            ),
             iconText = "☑",
             onClick = { expanded = true }
         )
@@ -354,20 +467,25 @@ fun SelectorCard(
             modifier = Modifier.padding(horizontal = 12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(iconText)
+            Text(
+                text = iconText,
+                color = MaterialTheme.colorScheme.onSurface
+            )
 
             Spacer(modifier = Modifier.size(10.dp))
 
             Text(
                 text = text,
                 style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurface,
                 modifier = Modifier.weight(1f)
             )
 
             Icon(
                 imageVector = Icons.Outlined.KeyboardArrowDown,
                 contentDescription = null,
-                modifier = Modifier.size(20.dp)
+                modifier = Modifier.size(20.dp),
+                tint = MaterialTheme.colorScheme.onSurface
             )
         }
     }
@@ -400,7 +518,7 @@ fun ProgressMainCard(
                 Spacer(modifier = Modifier.size(8.dp))
 
                 Text(
-                    text = "Progress",
+                    text = appText(en = "Progress", pt = "Progresso"),
                     style = MaterialTheme.typography.headlineSmall,
                     color = MaterialTheme.colorScheme.onPrimary,
                     fontWeight = FontWeight.Bold,
@@ -417,23 +535,23 @@ fun ProgressMainCard(
                 onValueChange = { onProgressChange(it.toInt()) },
                 valueRange = 0f..100f,
                 colors = SliderDefaults.colors(
-                    thumbColor = Color(0xFF3A347F),
+                    thumbColor = MaterialTheme.colorScheme.tertiary,
                     activeTrackColor = MaterialTheme.colorScheme.tertiary,
-                    inactiveTrackColor = Color.White
+                    inactiveTrackColor = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.35f)
                 )
             )
 
             Row(modifier = Modifier.fillMaxWidth()) {
                 Text(
                     text = "0%",
-                    color = Color.White,
+                    color = MaterialTheme.colorScheme.onPrimary,
                     style = MaterialTheme.typography.labelSmall,
                     modifier = Modifier.weight(1f)
                 )
 
                 Text(
                     text = "100%",
-                    color = Color.White,
+                    color = MaterialTheme.colorScheme.onPrimary,
                     style = MaterialTheme.typography.labelSmall
                 )
             }
@@ -446,13 +564,13 @@ fun ProgressBadge(progress: Int) {
     Box(
         modifier = Modifier
             .clip(RoundedCornerShape(50))
-            .background(Color(0xFF3A347F))
+            .background(MaterialTheme.colorScheme.tertiary)
             .padding(horizontal = 10.dp, vertical = 3.dp),
         contentAlignment = Alignment.Center
     ) {
         Text(
             text = "${progress.coerceIn(0, 100)}%",
-            color = Color.White,
+            color = MaterialTheme.colorScheme.onTertiary,
             fontWeight = FontWeight.Bold
         )
     }
@@ -464,6 +582,13 @@ fun TimeSpentRow(
     onIncrease: () -> Unit,
     onDecrease: () -> Unit
 ) {
+    val hourText =
+        if (hours == 1) {
+            appText(en = "1 hour", pt = "1 hora")
+        } else {
+            appText(en = "$hours hours", pt = "$hours horas")
+        }
+
     Surface(
         modifier = Modifier
             .fillMaxWidth()
@@ -479,13 +604,15 @@ fun TimeSpentRow(
             Icon(
                 imageVector = Icons.Outlined.CheckCircle,
                 contentDescription = null,
-                modifier = Modifier.size(20.dp)
+                modifier = Modifier.size(20.dp),
+                tint = MaterialTheme.colorScheme.onSurface
             )
 
             Spacer(modifier = Modifier.size(10.dp))
 
             Text(
-                text = "Time spent",
+                text = appText(en = "Time spent", pt = "Tempo gasto"),
+                color = MaterialTheme.colorScheme.onSurface,
                 modifier = Modifier.weight(1f)
             )
 
@@ -496,7 +623,7 @@ fun TimeSpentRow(
                     .padding(horizontal = 12.dp, vertical = 6.dp)
             ) {
                 Text(
-                    text = "$hours hours",
+                    text = hourText,
                     color = MaterialTheme.colorScheme.onTertiary,
                     fontWeight = FontWeight.Bold
                 )
@@ -508,13 +635,15 @@ fun TimeSpentRow(
                 Text(
                     text = "▲",
                     modifier = Modifier.clickable { onIncrease() },
-                    style = MaterialTheme.typography.labelSmall
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurface
                 )
 
                 Text(
                     text = "▼",
                     modifier = Modifier.clickable { onDecrease() },
-                    style = MaterialTheme.typography.labelSmall
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurface
                 )
             }
         }
@@ -527,6 +656,19 @@ fun LocationRow(
     onValueChange: (String) -> Unit
 ) {
     var expanded by remember { mutableStateOf(false) }
+
+    val locations = listOf(
+        appText(en = "Workshop A", pt = "Oficina A"),
+        appText(en = "Workshop B", pt = "Oficina B"),
+        appText(en = "Office", pt = "Escritório"),
+        appText(en = "Client site", pt = "Cliente"),
+        appText(en = "Remote", pt = "Remoto")
+    )
+
+    val displayValue =
+        value.ifBlank {
+            appText(en = "Location", pt = "Localização")
+        }
 
     Box {
         Surface(
@@ -545,20 +687,23 @@ fun LocationRow(
                 Icon(
                     imageVector = Icons.Outlined.LocationOn,
                     contentDescription = null,
-                    modifier = Modifier.size(22.dp)
+                    modifier = Modifier.size(22.dp),
+                    tint = MaterialTheme.colorScheme.onSurface
                 )
 
                 Spacer(modifier = Modifier.size(10.dp))
 
                 Text(
-                    text = value,
+                    text = displayValue,
+                    color = MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier.weight(1f)
                 )
 
                 Icon(
                     imageVector = Icons.Outlined.KeyboardArrowDown,
                     contentDescription = null,
-                    modifier = Modifier.size(20.dp)
+                    modifier = Modifier.size(20.dp),
+                    tint = MaterialTheme.colorScheme.onSurface
                 )
             }
         }
@@ -567,7 +712,7 @@ fun LocationRow(
             expanded = expanded,
             onDismissRequest = { expanded = false }
         ) {
-            listOf("Workshop A", "Workshop B", "Office", "Client site", "Remote").forEach {
+            locations.forEach {
                 DropdownMenuItem(
                     text = { Text(it) },
                     onClick = {
@@ -608,12 +753,16 @@ fun PhotoAttachmentCard(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     text = "▧",
-                    style = MaterialTheme.typography.titleLarge
+                    style = MaterialTheme.typography.titleLarge,
+                    color = MaterialTheme.colorScheme.onSurface
                 )
 
                 Spacer(modifier = Modifier.size(8.dp))
 
-                Text("Photo attachment")
+                Text(
+                    text = appText(en = "Photo attachment", pt = "Anexo fotográfico"),
+                    color = MaterialTheme.colorScheme.onSurface
+                )
             }
 
             Spacer(modifier = Modifier.height(12.dp))
@@ -638,15 +787,15 @@ fun PhotoAttachmentCard(
                         Text(
                             text = "▣",
                             style = MaterialTheme.typography.headlineSmall,
-                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.55f)
+                            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.65f)
                         )
 
                         Spacer(modifier = Modifier.height(6.dp))
 
                         Text(
-                            text = "Adicionar Foto",
+                            text = appText(en = "Add Photo", pt = "Adicionar foto"),
                             fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.65f)
+                            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.75f)
                         )
                     }
                 }
@@ -663,7 +812,8 @@ fun PhotoAttachmentCard(
                     Text(
                         text = getFileNameFromUri(context, selectedPhotoUri),
                         modifier = Modifier.weight(1f),
-                        fontWeight = FontWeight.Bold
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSecondaryContainer
                     )
 
                     Box(
@@ -676,7 +826,7 @@ fun PhotoAttachmentCard(
                     ) {
                         Text(
                             text = "×",
-                            color = Color.White,
+                            color = MaterialTheme.colorScheme.onPrimary,
                             fontWeight = FontWeight.Bold
                         )
                     }
@@ -699,7 +849,10 @@ fun NotesCard(
         onValueChange = onValueChange,
         placeholder = {
             Text(
-                text = "Here you can write about your progress and any obstacles you may have encountered."
+                text = appText(
+                    en = "Here you can write about your progress and any obstacles you may have encountered.",
+                    pt = "Aqui podes escrever sobre o progresso e eventuais obstáculos encontrados."
+                )
             )
         },
         label = {
@@ -708,7 +861,7 @@ fun NotesCard(
 
                 Spacer(modifier = Modifier.size(8.dp))
 
-                Text("Notes")
+                Text(appText(en = "Notes", pt = "Notas"))
             }
         },
         shape = RoundedCornerShape(8.dp)

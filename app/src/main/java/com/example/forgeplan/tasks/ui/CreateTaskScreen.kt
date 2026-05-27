@@ -1,6 +1,7 @@
 package com.example.forgeplan.tasks.ui
 
 import android.content.Context
+import android.content.res.Configuration
 import android.net.Uri
 import android.provider.OpenableColumns
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -44,11 +45,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.forgeplan.core.language.appText
 import com.example.forgeplan.core.model.Project
 import com.example.forgeplan.core.model.Task
 import com.example.forgeplan.core.model.User
@@ -69,6 +72,9 @@ fun CreateTaskScreen(
     assignmentViewModel: TaskAssignmentViewModel = viewModel(),
     dependencyViewModel: TaskDependencyViewModel = viewModel()
 ) {
+    val configuration = LocalConfiguration.current
+    val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+
     val context = LocalContext.current
     val attachmentRepository = remember { TaskAttachmentRepository() }
 
@@ -102,12 +108,18 @@ fun CreateTaskScreen(
         val project = selectedProject
 
         if (project == null) {
-            projectError = "Seleciona um projeto."
+            projectError = appText(
+                en = "Select a project.",
+                pt = "Seleciona um projeto."
+            )
             hasError = true
         }
 
         if (title.isBlank()) {
-            titleError = "O título é obrigatório."
+            titleError = appText(
+                en = "The title is required.",
+                pt = "O título é obrigatório."
+            )
             hasError = true
         }
 
@@ -116,13 +128,19 @@ fun CreateTaskScreen(
             endDate.isNotBlank() &&
             endDate < startDate
         ) {
-            dateError = "A data de fim não pode ser anterior à data de início."
+            dateError = appText(
+                en = "The end date cannot be earlier than the start date.",
+                pt = "A data de fim não pode ser anterior à data de início."
+            )
             hasError = true
         }
 
         if (!hasError && project != null && !isSaving) {
             isSaving = true
-            message = "A guardar tarefa..."
+            message = appText(
+                en = "Saving task...",
+                pt = "A guardar tarefa..."
+            )
 
             val newTask = Task(
                 id = 0,
@@ -144,7 +162,10 @@ fun CreateTaskScreen(
 
                     if (createdId == null || createdId == 0L) {
                         isSaving = false
-                        message = "Erro: tarefa criada sem ID válido."
+                        message = appText(
+                            en = "Error: task created without a valid ID.",
+                            pt = "Erro: tarefa criada sem ID válido."
+                        )
                         return@createTaskReturning
                     }
 
@@ -233,335 +254,577 @@ fun CreateTaskScreen(
             .background(MaterialTheme.colorScheme.background)
     ) {
         NewTaskTopBar(
-            onClose = onTaskCreated,
+            onClose = onTaskCreated
         )
 
         Column(
             modifier = Modifier
                 .weight(1f)
                 .verticalScroll(rememberScrollState())
-                .padding(horizontal = 22.dp, vertical = 22.dp)
+                .padding(
+                    horizontal = if (isLandscape) 32.dp else 22.dp,
+                    vertical = if (isLandscape) 14.dp else 22.dp
+                )
         ) {
-            Text("Project", style = MaterialTheme.typography.titleMedium)
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            ProjectDropdown(
-                selectedProject = selectedProject,
-                projects = projects,
-                onProjectSelected = {
-                    selectedProject = it
-                    projectError = null
-                    message = null
-                }
-            )
-
-            projectError?.let {
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
-            }
-
-            Spacer(modifier = Modifier.height(18.dp))
-
-            Text("Task name", style = MaterialTheme.typography.titleMedium)
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            TaskTextField(
-                value = title,
-                onValueChange = {
-                    title = it
-                    titleError = null
-                    message = null
-                },
-                placeholder = "Name your task",
-                isError = titleError != null
-            )
-
-            titleError?.let {
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
-            }
-
-            Spacer(modifier = Modifier.height(18.dp))
-
-            Text("Description", style = MaterialTheme.typography.titleMedium)
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            TaskTextField(
-                value = description,
-                onValueChange = { description = it },
-                placeholder = "Describe the task and all it needs",
-                height = 150.dp,
-                leadingSymbol = "▤"
-            )
-
-            Spacer(modifier = Modifier.height(18.dp))
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(28.dp)
-            ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text("Start", style = MaterialTheme.typography.titleMedium)
-                    Spacer(modifier = Modifier.height(8.dp))
-                    TaskTextField(
-                        value = startDate,
-                        onValueChange = {
-                            startDate = it
-                            dateError = null
-                        },
-                        placeholder = "mm/dd/yyyy",
-                        height = 48.dp
-                    )
-                }
-
-                Column(modifier = Modifier.weight(1f)) {
-                    Text("End", style = MaterialTheme.typography.titleMedium)
-                    Spacer(modifier = Modifier.height(8.dp))
-                    TaskTextField(
-                        value = endDate,
-                        onValueChange = {
-                            endDate = it
-                            dateError = null
-                        },
-                        placeholder = "mm/dd/yyyy",
-                        height = 48.dp,
-                        isError = dateError != null
-                    )
-                }
-            }
-
-            dateError?.let {
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
-            }
-
-            Spacer(modifier = Modifier.height(18.dp))
-
-            Text("Depends on", style = MaterialTheme.typography.titleMedium)
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            DependencyBox(
-                tasks = tasks,
-                selectedDependency = selectedDependency,
-                onDependencySelected = {
-                    selectedDependency = it
-                    message = null
-                }
-            )
-
-            Spacer(modifier = Modifier.height(18.dp))
-
-            Text("Priority", style = MaterialTheme.typography.titleMedium)
-
-            Spacer(modifier = Modifier.height(10.dp))
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                PriorityButton(
-                    text = "Low",
-                    selected = priority == "LOW",
-                    selectedColor = Color(0xFFFFF8EF),
-                    borderColor = Color(0xFFE8B77E),
-                    onClick = { priority = "LOW" }
-                )
-
-                PriorityButton(
-                    text = "Medium",
-                    selected = priority == "MEDIUM",
-                    selectedColor = MaterialTheme.colorScheme.tertiary,
-                    borderColor = MaterialTheme.colorScheme.primary,
-                    onClick = { priority = "MEDIUM" }
-                )
-
-                PriorityButton(
-                    text = "High",
-                    selected = priority == "HIGH",
-                    selectedColor = Color(0xFFFFB4A9),
-                    borderColor = Color(0xFFB3261E),
-                    onClick = { priority = "HIGH" }
-                )
-            }
-
-            Spacer(modifier = Modifier.height(22.dp))
-
-            Text("In charge", style = MaterialTheme.typography.titleMedium)
-
-            Spacer(modifier = Modifier.height(10.dp))
-
-            SearchUsersField(
-                value = userSearch,
-                onValueChange = { userSearch = it }
-            )
-
-            val filteredUsers =
-                if (userSearch.isBlank()) {
-                    emptyList()
-                } else {
-                    users.filter { user ->
-                        selectedUsers.none { it.id == user.id } &&
-                                (
-                                        user.name.contains(userSearch, ignoreCase = true) ||
-                                                user.username.contains(userSearch, ignoreCase = true) ||
-                                                user.email.contains(userSearch, ignoreCase = true)
-                                        )
-                    }
-                }
-
-            if (filteredUsers.isNotEmpty()) {
-                Spacer(modifier = Modifier.height(12.dp))
-
+            if (isLandscape) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    horizontalArrangement = Arrangement.spacedBy(18.dp)
                 ) {
-                    filteredUsers.take(2).forEach { user ->
-                        UserSelectableChip(
-                            user = user,
-                            onClick = {
-                                selectedUsers.add(user)
-                                userSearch = ""
+                    Column(modifier = Modifier.weight(1f)) {
+                        CreateTaskMainFields(
+                            selectedProject = selectedProject,
+                            projects = projects,
+                            projectError = projectError,
+                            title = title,
+                            titleError = titleError,
+                            description = description,
+                            startDate = startDate,
+                            endDate = endDate,
+                            dateError = dateError,
+                            tasks = tasks,
+                            selectedDependency = selectedDependency,
+                            priority = priority,
+                            onProjectSelected = {
+                                selectedProject = it
+                                projectError = null
+                                message = null
+                            },
+                            onTitleChange = {
+                                title = it
+                                titleError = null
+                                message = null
+                            },
+                            onDescriptionChange = { description = it },
+                            onStartDateChange = {
+                                startDate = it
+                                dateError = null
+                            },
+                            onEndDateChange = {
+                                endDate = it
+                                dateError = null
+                            },
+                            onDependencySelected = {
+                                selectedDependency = it
+                                message = null
+                            },
+                            onPriorityChange = { priority = it }
+                        )
+                    }
+
+                    Column(modifier = Modifier.weight(1f)) {
+                        CreateTaskUsersAndAttachments(
+                            users = users,
+                            userSearch = userSearch,
+                            selectedUsers = selectedUsers,
+                            attachments = attachments,
+                            context = context,
+                            message = message,
+                            taskError = taskError,
+                            assignmentError = assignmentError,
+                            dependencyError = dependencyError,
+                            onUserSearchChange = { userSearch = it },
+                            onDocumentClick = { documentPicker.launch("*/*") },
+                            onImageClick = { imagePicker.launch("image/*") },
+                            onMessageColorIsError = {
+                                it.contains("Erro", ignoreCase = true) ||
+                                        it.contains("Error", ignoreCase = true)
                             }
                         )
-                    }
-                }
-            }
 
-            if (selectedUsers.isNotEmpty()) {
-                Spacer(modifier = Modifier.height(12.dp))
+                        Spacer(modifier = Modifier.height(18.dp))
 
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    selectedUsers.take(2).forEach { user ->
-                        SelectedUserChip(
-                            user = user,
-                            onRemove = { selectedUsers.remove(user) }
+                        CreateTaskActionButtons(
+                            isSaving = isSaving,
+                            onCancel = onTaskCreated,
+                            onSave = saveTask
                         )
                     }
                 }
-            }
-
-            Spacer(modifier = Modifier.height(22.dp))
-
-            Text("Attachments", style = MaterialTheme.typography.titleMedium)
-
-            Spacer(modifier = Modifier.height(10.dp))
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(14.dp)
-            ) {
-                AttachmentBox(
-                    symbol = "⇧",
-                    text = "Upload Doc",
-                    modifier = Modifier.weight(1f),
-                    onClick = { documentPicker.launch("*/*") }
-                )
-
-                AttachmentBox(
-                    symbol = "▣",
-                    text = "Tirar Foto",
-                    modifier = Modifier.weight(1f),
-                    onClick = { imagePicker.launch("image/*") }
-                )
-            }
-
-            if (attachments.isNotEmpty()) {
-                Spacer(modifier = Modifier.height(12.dp))
-
-                attachments.forEach { uri ->
-                    AttachmentSelectedRow(
-                        fileName = getFileNameFromUri(context, uri),
-                        onRemove = { attachments.remove(uri) }
-                    )
-
-                    Spacer(modifier = Modifier.height(8.dp))
-                }
-            }
-
-            taskError?.let {
-                Spacer(modifier = Modifier.height(8.dp))
-                Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
-            }
-
-            assignmentError?.let {
-                Spacer(modifier = Modifier.height(8.dp))
-                Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
-            }
-
-            dependencyError?.let {
-                Spacer(modifier = Modifier.height(8.dp))
-                Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
-            }
-
-            message?.let {
-                Spacer(modifier = Modifier.height(8.dp))
-                Text(
-                    text = it,
-                    color = if (it.contains("Erro", ignoreCase = true)) {
-                        MaterialTheme.colorScheme.error
-                    } else {
-                        MaterialTheme.colorScheme.primary
+            } else {
+                CreateTaskMainFields(
+                    selectedProject = selectedProject,
+                    projects = projects,
+                    projectError = projectError,
+                    title = title,
+                    titleError = titleError,
+                    description = description,
+                    startDate = startDate,
+                    endDate = endDate,
+                    dateError = dateError,
+                    tasks = tasks,
+                    selectedDependency = selectedDependency,
+                    priority = priority,
+                    onProjectSelected = {
+                        selectedProject = it
+                        projectError = null
+                        message = null
                     },
-                    style = MaterialTheme.typography.bodySmall
+                    onTitleChange = {
+                        title = it
+                        titleError = null
+                        message = null
+                    },
+                    onDescriptionChange = { description = it },
+                    onStartDateChange = {
+                        startDate = it
+                        dateError = null
+                    },
+                    onEndDateChange = {
+                        endDate = it
+                        dateError = null
+                    },
+                    onDependencySelected = {
+                        selectedDependency = it
+                        message = null
+                    },
+                    onPriorityChange = { priority = it }
+                )
+
+                CreateTaskUsersAndAttachments(
+                    users = users,
+                    userSearch = userSearch,
+                    selectedUsers = selectedUsers,
+                    attachments = attachments,
+                    context = context,
+                    message = message,
+                    taskError = taskError,
+                    assignmentError = assignmentError,
+                    dependencyError = dependencyError,
+                    onUserSearchChange = { userSearch = it },
+                    onDocumentClick = { documentPicker.launch("*/*") },
+                    onImageClick = { imagePicker.launch("image/*") },
+                    onMessageColorIsError = {
+                        it.contains("Erro", ignoreCase = true) ||
+                                it.contains("Error", ignoreCase = true)
+                    }
+                )
+
+                Spacer(modifier = Modifier.height(26.dp))
+
+                CreateTaskActionButtons(
+                    isSaving = isSaving,
+                    onCancel = onTaskCreated,
+                    onSave = saveTask
+                )
+
+                Spacer(modifier = Modifier.height(24.dp))
+            }
+        }
+    }
+}
+
+@Composable
+fun CreateTaskMainFields(
+    selectedProject: Project?,
+    projects: List<Project>,
+    projectError: String?,
+    title: String,
+    titleError: String?,
+    description: String,
+    startDate: String,
+    endDate: String,
+    dateError: String?,
+    tasks: List<Task>,
+    selectedDependency: Task?,
+    priority: String,
+    onProjectSelected: (Project) -> Unit,
+    onTitleChange: (String) -> Unit,
+    onDescriptionChange: (String) -> Unit,
+    onStartDateChange: (String) -> Unit,
+    onEndDateChange: (String) -> Unit,
+    onDependencySelected: (Task?) -> Unit,
+    onPriorityChange: (String) -> Unit
+) {
+    Text(
+        text = appText(en = "Project", pt = "Projeto"),
+        style = MaterialTheme.typography.titleMedium,
+        color = MaterialTheme.colorScheme.onBackground
+    )
+
+    Spacer(modifier = Modifier.height(8.dp))
+
+    ProjectDropdown(
+        selectedProject = selectedProject,
+        projects = projects,
+        onProjectSelected = onProjectSelected
+    )
+
+    projectError?.let {
+        Spacer(modifier = Modifier.height(4.dp))
+        Text(
+            text = it,
+            color = MaterialTheme.colorScheme.error,
+            style = MaterialTheme.typography.bodySmall
+        )
+    }
+
+    Spacer(modifier = Modifier.height(18.dp))
+
+    Text(
+        text = appText(en = "Task name", pt = "Nome da tarefa"),
+        style = MaterialTheme.typography.titleMedium,
+        color = MaterialTheme.colorScheme.onBackground
+    )
+
+    Spacer(modifier = Modifier.height(8.dp))
+
+    TaskTextField(
+        value = title,
+        onValueChange = onTitleChange,
+        placeholder = appText(en = "Name your task", pt = "Nome da tarefa"),
+        isError = titleError != null
+    )
+
+    titleError?.let {
+        Spacer(modifier = Modifier.height(4.dp))
+        Text(
+            text = it,
+            color = MaterialTheme.colorScheme.error,
+            style = MaterialTheme.typography.bodySmall
+        )
+    }
+
+    Spacer(modifier = Modifier.height(18.dp))
+
+    Text(
+        text = appText(en = "Description", pt = "Descrição"),
+        style = MaterialTheme.typography.titleMedium,
+        color = MaterialTheme.colorScheme.onBackground
+    )
+
+    Spacer(modifier = Modifier.height(8.dp))
+
+    TaskTextField(
+        value = description,
+        onValueChange = onDescriptionChange,
+        placeholder = appText(
+            en = "Describe the task and all it needs",
+            pt = "Descreve a tarefa e tudo o que é necessário"
+        ),
+        height = 150.dp,
+        leadingSymbol = "▤"
+    )
+
+    Spacer(modifier = Modifier.height(18.dp))
+
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(28.dp)
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = appText(en = "Start", pt = "Início"),
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onBackground
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            TaskTextField(
+                value = startDate,
+                onValueChange = onStartDateChange,
+                placeholder = "yyyy-mm-dd",
+                height = 48.dp
+            )
+        }
+
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = appText(en = "End", pt = "Fim"),
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onBackground
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            TaskTextField(
+                value = endDate,
+                onValueChange = onEndDateChange,
+                placeholder = "yyyy-mm-dd",
+                height = 48.dp,
+                isError = dateError != null
+            )
+        }
+    }
+
+    dateError?.let {
+        Spacer(modifier = Modifier.height(4.dp))
+        Text(
+            text = it,
+            color = MaterialTheme.colorScheme.error,
+            style = MaterialTheme.typography.bodySmall
+        )
+    }
+
+    Spacer(modifier = Modifier.height(18.dp))
+
+    Text(
+        text = appText(en = "Depends on", pt = "Depende de"),
+        style = MaterialTheme.typography.titleMedium,
+        color = MaterialTheme.colorScheme.onBackground
+    )
+
+    Spacer(modifier = Modifier.height(8.dp))
+
+    DependencyBox(
+        tasks = tasks,
+        selectedDependency = selectedDependency,
+        onDependencySelected = onDependencySelected
+    )
+
+    Spacer(modifier = Modifier.height(18.dp))
+
+    Text(
+        text = appText(en = "Priority", pt = "Prioridade"),
+        style = MaterialTheme.typography.titleMedium,
+        color = MaterialTheme.colorScheme.onBackground
+    )
+
+    Spacer(modifier = Modifier.height(10.dp))
+
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        PriorityButton(
+            text = appText(en = "Low", pt = "Baixa"),
+            selected = priority == "LOW",
+            priorityKey = "LOW",
+            onClick = { onPriorityChange("LOW") }
+        )
+
+        PriorityButton(
+            text = appText(en = "Medium", pt = "Média"),
+            selected = priority == "MEDIUM",
+            priorityKey = "MEDIUM",
+            onClick = { onPriorityChange("MEDIUM") }
+        )
+
+        PriorityButton(
+            text = appText(en = "High", pt = "Alta"),
+            selected = priority == "HIGH",
+            priorityKey = "HIGH",
+            onClick = { onPriorityChange("HIGH") }
+        )
+    }
+
+    Spacer(modifier = Modifier.height(22.dp))
+}
+
+@Composable
+fun CreateTaskUsersAndAttachments(
+    users: List<User>,
+    userSearch: String,
+    selectedUsers: MutableList<User>,
+    attachments: MutableList<Uri>,
+    context: Context,
+    message: String?,
+    taskError: String?,
+    assignmentError: String?,
+    dependencyError: String?,
+    onUserSearchChange: (String) -> Unit,
+    onDocumentClick: () -> Unit,
+    onImageClick: () -> Unit,
+    onMessageColorIsError: (String) -> Boolean
+) {
+    Text(
+        text = appText(en = "In charge", pt = "Responsável"),
+        style = MaterialTheme.typography.titleMedium,
+        color = MaterialTheme.colorScheme.onBackground
+    )
+
+    Spacer(modifier = Modifier.height(10.dp))
+
+    SearchUsersField(
+        value = userSearch,
+        onValueChange = onUserSearchChange
+    )
+
+    val filteredUsers =
+        if (userSearch.isBlank()) {
+            emptyList()
+        } else {
+            users.filter { user ->
+                selectedUsers.none { it.id == user.id } &&
+                        (
+                                user.name.contains(userSearch, ignoreCase = true) ||
+                                        user.username.contains(userSearch, ignoreCase = true) ||
+                                        user.email.contains(userSearch, ignoreCase = true)
+                                )
+            }
+        }
+
+    if (filteredUsers.isNotEmpty()) {
+        Spacer(modifier = Modifier.height(12.dp))
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            filteredUsers.take(2).forEach { user ->
+                UserSelectableChip(
+                    user = user,
+                    onClick = {
+                        selectedUsers.add(user)
+                        onUserSearchChange("")
+                    }
                 )
             }
+        }
+    }
 
-            Spacer(modifier = Modifier.height(26.dp))
+    if (selectedUsers.isNotEmpty()) {
+        Spacer(modifier = Modifier.height(12.dp))
 
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(18.dp)
-            ) {
-                OutlinedButton(
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(58.dp),
-                    onClick = onTaskCreated,
-                    enabled = !isSaving,
-                    shape = RoundedCornerShape(8.dp),
-                    border = BorderStroke(2.dp, MaterialTheme.colorScheme.primary)
-                ) {
-                    Text(
-                        text = "Cancel",
-                        color = MaterialTheme.colorScheme.primary,
-                        fontWeight = FontWeight.Bold,
-                        style = MaterialTheme.typography.titleMedium
-                    )
-                }
-
-                Button(
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(58.dp),
-                    enabled = !isSaving,
-                    onClick = saveTask,
-                    shape = RoundedCornerShape(8.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.primary,
-                        contentColor = MaterialTheme.colorScheme.onPrimary
-                    )
-                ) {
-                    Text("☑", style = MaterialTheme.typography.titleMedium)
-
-                    Spacer(modifier = Modifier.width(8.dp))
-
-                    Text(
-                        text = if (isSaving) "Saving..." else "Save task",
-                        fontWeight = FontWeight.Bold,
-                        style = MaterialTheme.typography.titleMedium
-                    )
-                }
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            selectedUsers.take(2).forEach { user ->
+                SelectedUserChip(
+                    user = user,
+                    onRemove = { selectedUsers.remove(user) }
+                )
             }
+        }
+    }
 
-            Spacer(modifier = Modifier.height(24.dp))
+    Spacer(modifier = Modifier.height(22.dp))
+
+    Text(
+        text = appText(en = "Attachments", pt = "Anexos"),
+        style = MaterialTheme.typography.titleMedium,
+        color = MaterialTheme.colorScheme.onBackground
+    )
+
+    Spacer(modifier = Modifier.height(10.dp))
+
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(14.dp)
+    ) {
+        AttachmentBox(
+            symbol = "⇧",
+            text = appText(en = "Upload Doc", pt = "Carregar documento"),
+            modifier = Modifier.weight(1f),
+            onClick = onDocumentClick
+        )
+
+        AttachmentBox(
+            symbol = "▣",
+            text = appText(en = "Take Photo", pt = "Adicionar foto"),
+            modifier = Modifier.weight(1f),
+            onClick = onImageClick
+        )
+    }
+
+    if (attachments.isNotEmpty()) {
+        Spacer(modifier = Modifier.height(12.dp))
+
+        attachments.forEach { uri ->
+            AttachmentSelectedRow(
+                fileName = getFileNameFromUri(context, uri),
+                onRemove = { attachments.remove(uri) }
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
+        }
+    }
+
+    taskError?.let {
+        Spacer(modifier = Modifier.height(8.dp))
+        Text(
+            text = it,
+            color = MaterialTheme.colorScheme.error,
+            style = MaterialTheme.typography.bodySmall
+        )
+    }
+
+    assignmentError?.let {
+        Spacer(modifier = Modifier.height(8.dp))
+        Text(
+            text = it,
+            color = MaterialTheme.colorScheme.error,
+            style = MaterialTheme.typography.bodySmall
+        )
+    }
+
+    dependencyError?.let {
+        Spacer(modifier = Modifier.height(8.dp))
+        Text(
+            text = it,
+            color = MaterialTheme.colorScheme.error,
+            style = MaterialTheme.typography.bodySmall
+        )
+    }
+
+    message?.let {
+        Spacer(modifier = Modifier.height(8.dp))
+        Text(
+            text = it,
+            color = if (onMessageColorIsError(it)) {
+                MaterialTheme.colorScheme.error
+            } else {
+                MaterialTheme.colorScheme.primary
+            },
+            style = MaterialTheme.typography.bodySmall
+        )
+    }
+}
+
+@Composable
+fun CreateTaskActionButtons(
+    isSaving: Boolean,
+    onCancel: () -> Unit,
+    onSave: () -> Unit
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(18.dp)
+    ) {
+        OutlinedButton(
+            modifier = Modifier
+                .weight(1f)
+                .height(58.dp),
+            onClick = onCancel,
+            enabled = !isSaving,
+            shape = RoundedCornerShape(8.dp),
+            border = BorderStroke(2.dp, MaterialTheme.colorScheme.primary)
+        ) {
+            Text(
+                text = appText(en = "Cancel", pt = "Cancelar"),
+                color = MaterialTheme.colorScheme.primary,
+                fontWeight = FontWeight.Bold,
+                style = MaterialTheme.typography.titleMedium
+            )
+        }
+
+        Button(
+            modifier = Modifier
+                .weight(1f)
+                .height(58.dp),
+            enabled = !isSaving,
+            onClick = onSave,
+            shape = RoundedCornerShape(8.dp),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = MaterialTheme.colorScheme.primary,
+                contentColor = MaterialTheme.colorScheme.onPrimary
+            )
+        ) {
+            Text("☑", style = MaterialTheme.typography.titleMedium)
+
+            Spacer(modifier = Modifier.width(8.dp))
+
+            Text(
+                text = if (isSaving) {
+                    appText(en = "Saving...", pt = "A guardar...")
+                } else {
+                    appText(en = "Save task", pt = "Guardar tarefa")
+                },
+                fontWeight = FontWeight.Bold,
+                style = MaterialTheme.typography.titleMedium
+            )
         }
     }
 }
@@ -631,7 +894,7 @@ fun NewTaskTopBar(
         )
 
         Text(
-            text = "New Task",
+            text = appText(en = "New Task", pt = "Nova Tarefa"),
             style = MaterialTheme.typography.titleLarge,
             fontWeight = FontWeight.Bold,
             color = MaterialTheme.colorScheme.onTertiary
@@ -661,17 +924,29 @@ fun ProjectDropdown(
                 modifier = Modifier.padding(horizontal = 12.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("□", style = MaterialTheme.typography.titleLarge)
+                Text(
+                    text = "□",
+                    style = MaterialTheme.typography.titleLarge,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
 
                 Spacer(modifier = Modifier.width(10.dp))
 
                 Text(
-                    text = selectedProject?.name ?: "Select your project",
+                    text = selectedProject?.name ?: appText(
+                        en = "Select your project",
+                        pt = "Selecionar projeto"
+                    ),
                     style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier.weight(1f)
                 )
 
-                Text("⌄", style = MaterialTheme.typography.titleSmall)
+                Text(
+                    text = "⌄",
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
             }
         }
 
@@ -717,17 +992,29 @@ fun DependencyBox(
                     .padding(horizontal = 12.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("□", style = MaterialTheme.typography.titleLarge)
+                Text(
+                    text = "□",
+                    style = MaterialTheme.typography.titleLarge,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
 
                 Spacer(modifier = Modifier.width(10.dp))
 
                 Text(
-                    text = selectedDependency?.title ?: "Select your tasks",
+                    text = selectedDependency?.title ?: appText(
+                        en = "Select your tasks",
+                        pt = "Selecionar tarefa"
+                    ),
                     style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier.weight(1f)
                 )
 
-                Text("⌄", style = MaterialTheme.typography.titleSmall)
+                Text(
+                    text = "⌄",
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
             }
 
             val visibleTasks = tasks.take(3)
@@ -741,8 +1028,12 @@ fun DependencyBox(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = "No tasks available",
-                        style = MaterialTheme.typography.bodyMedium
+                        text = appText(
+                            en = "No tasks available",
+                            pt = "Sem tarefas disponíveis"
+                        ),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurface
                     )
                 }
             } else {
@@ -762,6 +1053,7 @@ fun DependencyBox(
                         Text(
                             text = task.title,
                             style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurface,
                             modifier = Modifier.weight(1f)
                         )
 
@@ -786,7 +1078,7 @@ fun TaskTextField(
     onValueChange: (String) -> Unit,
     placeholder: String,
     modifier: Modifier = Modifier,
-    height: androidx.compose.ui.unit.Dp = 48.dp,
+    height: Dp = 48.dp,
     leadingSymbol: String? = null,
     isError: Boolean = false
 ) {
@@ -799,11 +1091,20 @@ fun TaskTextField(
         placeholder = {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 leadingSymbol?.let {
-                    Text(it, style = MaterialTheme.typography.titleMedium)
+                    Text(
+                        text = it,
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.65f)
+                    )
+
                     Spacer(modifier = Modifier.width(8.dp))
                 }
 
-                Text(placeholder, style = MaterialTheme.typography.bodyMedium)
+                Text(
+                    text = placeholder,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.65f)
+                )
             }
         },
         isError = isError,
@@ -812,7 +1113,9 @@ fun TaskTextField(
             focusedContainerColor = MaterialTheme.colorScheme.surface,
             unfocusedContainerColor = MaterialTheme.colorScheme.surface,
             focusedIndicatorColor = MaterialTheme.colorScheme.tertiary,
-            unfocusedIndicatorColor = MaterialTheme.colorScheme.tertiary
+            unfocusedIndicatorColor = MaterialTheme.colorScheme.tertiary,
+            focusedTextColor = MaterialTheme.colorScheme.onSurface,
+            unfocusedTextColor = MaterialTheme.colorScheme.onSurface
         )
     )
 }
@@ -821,28 +1124,46 @@ fun TaskTextField(
 fun PriorityButton(
     text: String,
     selected: Boolean,
-    selectedColor: Color,
-    borderColor: Color,
+    priorityKey: String,
     onClick: () -> Unit
 ) {
+    val selectedColor =
+        when (priorityKey) {
+            "HIGH" -> MaterialTheme.colorScheme.error
+            "MEDIUM" -> MaterialTheme.colorScheme.tertiary
+            else -> MaterialTheme.colorScheme.secondaryContainer
+        }
+
+    val borderColor =
+        when (priorityKey) {
+            "HIGH" -> MaterialTheme.colorScheme.error
+            "MEDIUM" -> MaterialTheme.colorScheme.primary
+            else -> MaterialTheme.colorScheme.secondary
+        }
+
+    val contentColor =
+        if (selected && priorityKey == "HIGH") {
+            MaterialTheme.colorScheme.onPrimary
+        } else if (selected && priorityKey == "MEDIUM") {
+            MaterialTheme.colorScheme.onTertiary
+        } else {
+            MaterialTheme.colorScheme.onSurface
+        }
+
     Surface(
         modifier = Modifier
             .width(104.dp)
             .height(42.dp)
             .clickable { onClick() },
         shape = RoundedCornerShape(8.dp),
-        color = if (selected) selectedColor else Color.Transparent,
+        color = if (selected) selectedColor else MaterialTheme.colorScheme.background,
         border = BorderStroke(1.dp, borderColor)
     ) {
         Box(contentAlignment = Alignment.Center) {
             Text(
                 text = text,
                 style = MaterialTheme.typography.bodyMedium,
-                color = if (selected && text == "High") {
-                    Color.White
-                } else {
-                    MaterialTheme.colorScheme.onSurface
-                }
+                color = contentColor
             )
         }
     }
@@ -863,22 +1184,25 @@ fun SearchUsersField(
             Text(
                 text = "⌕",
                 style = MaterialTheme.typography.titleLarge,
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.55f)
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.65f)
             )
         },
         placeholder = {
             Text(
-                text = "Search user",
-                style = MaterialTheme.typography.bodyMedium
+                text = appText(en = "Search user", pt = "Pesquisar utilizador"),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.65f)
             )
         },
         singleLine = true,
         shape = RoundedCornerShape(50),
         colors = TextFieldDefaults.colors(
-            focusedContainerColor = Color(0xFFEDEDED),
-            unfocusedContainerColor = Color(0xFFEDEDED),
-            focusedIndicatorColor = Color.Transparent,
-            unfocusedIndicatorColor = Color.Transparent
+            focusedContainerColor = MaterialTheme.colorScheme.surface,
+            unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+            focusedIndicatorColor = androidx.compose.ui.graphics.Color.Transparent,
+            unfocusedIndicatorColor = androidx.compose.ui.graphics.Color.Transparent,
+            focusedTextColor = MaterialTheme.colorScheme.onSurface,
+            unfocusedTextColor = MaterialTheme.colorScheme.onSurface
         )
     )
 }
@@ -903,7 +1227,8 @@ fun UserSelectableChip(
 
             Text(
                 text = shortName(user),
-                style = MaterialTheme.typography.bodyMedium
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSecondaryContainer
             )
         }
     }
@@ -928,7 +1253,8 @@ fun SelectedUserChip(
 
             Text(
                 text = shortName(user),
-                style = MaterialTheme.typography.bodyMedium
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSecondaryContainer
             )
 
             Spacer(modifier = Modifier.width(8.dp))
@@ -936,7 +1262,8 @@ fun SelectedUserChip(
             Text(
                 text = "×",
                 modifier = Modifier.clickable { onRemove() },
-                style = MaterialTheme.typography.bodyMedium
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSecondaryContainer
             )
         }
     }
@@ -948,12 +1275,12 @@ fun UserCircle(user: User) {
         modifier = Modifier
             .size(34.dp)
             .clip(RoundedCornerShape(50))
-            .background(Color(0xFFB4546D)),
+            .background(MaterialTheme.colorScheme.primary),
         contentAlignment = Alignment.Center
     ) {
         Text(
             text = userInitials(user),
-            color = Color.White,
+            color = MaterialTheme.colorScheme.onPrimary,
             style = MaterialTheme.typography.labelSmall,
             fontWeight = FontWeight.Bold
         )
@@ -972,7 +1299,7 @@ fun AttachmentBox(
             .height(170.dp)
             .clickable { onClick() },
         shape = RoundedCornerShape(8.dp),
-        color = MaterialTheme.colorScheme.background,
+        color = MaterialTheme.colorScheme.surface,
         border = BorderStroke(
             width = 1.dp,
             color = MaterialTheme.colorScheme.tertiary.copy(alpha = 0.45f)
@@ -985,7 +1312,7 @@ fun AttachmentBox(
             Text(
                 text = symbol,
                 style = MaterialTheme.typography.headlineMedium,
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.45f)
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.55f)
             )
 
             Spacer(modifier = Modifier.height(8.dp))
@@ -994,7 +1321,7 @@ fun AttachmentBox(
                 text = text,
                 style = MaterialTheme.typography.bodyMedium,
                 fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.45f)
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.65f)
             )
         }
     }
@@ -1039,6 +1366,7 @@ fun AttachmentSelectedRow(
                 text = fileName,
                 style = MaterialTheme.typography.bodyMedium,
                 fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface,
                 modifier = Modifier.weight(1f),
                 maxLines = 1
             )

@@ -1,5 +1,6 @@
 package com.example.forgeplan.projects.ui
 
+import android.content.res.Configuration
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -39,10 +40,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.forgeplan.core.language.appText
 import com.example.forgeplan.core.model.ProjectEvaluationPayload
 import com.example.forgeplan.projects.viewmodel.ProjectEvaluationViewModel
 import com.example.forgeplan.projects.viewmodel.ProjectViewModel
@@ -57,6 +59,9 @@ fun ProjectReviewScreen(
     taskViewModel: TaskViewModel = viewModel(),
     evaluationViewModel: ProjectEvaluationViewModel = viewModel()
 ) {
+    val configuration = LocalConfiguration.current
+    val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+
     val project by projectViewModel.selectedProject.collectAsState()
     val isLoading by projectViewModel.isLoading.collectAsState()
     val error by projectViewModel.error.collectAsState()
@@ -75,7 +80,10 @@ fun ProjectReviewScreen(
             ),
             onSuccess = {
                 reviewText = ""
-                message = "Review guardada com sucesso."
+                message = appText(
+                    en = "Review saved successfully.",
+                    pt = "Review guardada com sucesso."
+                )
                 evaluationViewModel.loadEvaluations(projectId)
                 onSaveClick()
             }
@@ -120,139 +128,235 @@ fun ProjectReviewScreen(
             modifier = Modifier
                 .weight(1f)
                 .verticalScroll(rememberScrollState())
-                .padding(horizontal = 22.dp, vertical = 22.dp)
+                .padding(
+                    horizontal = if (isLandscape) 32.dp else 22.dp,
+                    vertical = if (isLandscape) 14.dp else 22.dp
+                )
         ) {
             when {
                 isLoading && project == null -> CircularProgressIndicator()
 
                 error != null -> {
                     Text(
-                        text = error ?: "Erro desconhecido",
+                        text = error ?: appText(en = "Unknown error", pt = "Erro desconhecido"),
                         color = MaterialTheme.colorScheme.error
                     )
                 }
 
                 project == null -> {
                     Text(
-                        text = "Projeto não encontrado.",
-                        style = MaterialTheme.typography.bodyMedium
+                        text = appText(
+                            en = "Project not found.",
+                            pt = "Projeto não encontrado."
+                        ),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onBackground
                     )
                 }
 
                 else -> {
                     Text(
-                        text = "Project Review",
+                        text = appText(
+                            en = "Project Review",
+                            pt = "Avaliação do Projeto"
+                        ),
                         style = MaterialTheme.typography.headlineSmall,
-                        fontWeight = FontWeight.Bold
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onBackground
                     )
 
-                    Spacer(modifier = Modifier.height(18.dp))
+                    Spacer(modifier = Modifier.height(if (isLandscape) 10.dp else 18.dp))
 
                     Text(
                         text = project!!.name,
                         style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onBackground
                     )
 
-                    Spacer(modifier = Modifier.height(18.dp))
+                    Spacer(modifier = Modifier.height(if (isLandscape) 12.dp else 18.dp))
 
-                    ReviewProgressMainCard(
-                        title = "Progress",
-                        progress = averageProgress
-                    )
-
-                    Spacer(modifier = Modifier.height(18.dp))
-
-                    ReviewProgressSmallCard(
-                        title = "Completion Rate",
-                        progress = completionRate
-                    )
-
-                    Spacer(modifier = Modifier.height(18.dp))
-
-                    ReviewProgressSmallCard(
-                        title = "Deadline Adherence",
-                        progress = deadlineAdherence
-                    )
-
-                    Spacer(modifier = Modifier.height(20.dp))
-
-                    AddReviewCard(
-                        value = reviewText,
-                        onValueChange = {
-                            reviewText = it
-                            message = null
-                        }
-                    )
-
-                    message?.let {
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text(
-                            text = it,
-                            color = MaterialTheme.colorScheme.primary,
-                            style = MaterialTheme.typography.bodySmall
-                        )
-                    }
-
-                    evaluationError?.let {
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text(
-                            text = it,
-                            color = MaterialTheme.colorScheme.error,
-                            style = MaterialTheme.typography.bodySmall
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.height(28.dp))
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(18.dp)
-                    ) {
-                        OutlinedButton(
-                            modifier = Modifier
-                                .weight(1f)
-                                .height(56.dp),
-                            onClick = onBackClick,
-                            shape = RoundedCornerShape(8.dp),
-                            border = BorderStroke(
-                                width = 2.dp,
-                                color = MaterialTheme.colorScheme.primary
-                            )
+                    if (isLandscape) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(14.dp)
                         ) {
-                            Text(
-                                text = "Cancel",
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.primary
-                            )
+                            Column(modifier = Modifier.weight(1f)) {
+                                ReviewProgressMainCard(
+                                    title = appText(en = "Progress", pt = "Progresso"),
+                                    progress = averageProgress
+                                )
+
+                                Spacer(modifier = Modifier.height(12.dp))
+
+                                ReviewProgressSmallCard(
+                                    title = appText(
+                                        en = "Completion Rate",
+                                        pt = "Taxa de Conclusão"
+                                    ),
+                                    progress = completionRate
+                                )
+
+                                Spacer(modifier = Modifier.height(12.dp))
+
+                                ReviewProgressSmallCard(
+                                    title = appText(
+                                        en = "Deadline Adherence",
+                                        pt = "Cumprimento de Prazos"
+                                    ),
+                                    progress = deadlineAdherence
+                                )
+                            }
+
+                            Column(modifier = Modifier.weight(1f)) {
+                                AddReviewCard(
+                                    value = reviewText,
+                                    onValueChange = {
+                                        reviewText = it
+                                        message = null
+                                    }
+                                )
+
+                                ReviewMessages(
+                                    message = message,
+                                    evaluationError = evaluationError
+                                )
+
+                                Spacer(modifier = Modifier.height(18.dp))
+
+                                ProjectReviewButtons(
+                                    onBackClick = onBackClick,
+                                    onSaveClick = { saveReview() }
+                                )
+                            }
                         }
+                    } else {
+                        ReviewProgressMainCard(
+                            title = appText(en = "Progress", pt = "Progresso"),
+                            progress = averageProgress
+                        )
 
-                        Button(
-                            modifier = Modifier
-                                .weight(1f)
-                                .height(56.dp),
-                            onClick = { saveReview() },
-                            shape = RoundedCornerShape(8.dp),
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = MaterialTheme.colorScheme.primary,
-                                contentColor = MaterialTheme.colorScheme.onPrimary
-                            )
-                        ) {
-                            Text(
-                                text = "▧",
-                                style = MaterialTheme.typography.titleMedium
-                            )
+                        Spacer(modifier = Modifier.height(18.dp))
 
-                            Spacer(modifier = Modifier.size(8.dp))
+                        ReviewProgressSmallCard(
+                            title = appText(
+                                en = "Completion Rate",
+                                pt = "Taxa de Conclusão"
+                            ),
+                            progress = completionRate
+                        )
 
-                            Text(
-                                text = "Save changes",
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
+                        Spacer(modifier = Modifier.height(18.dp))
+
+                        ReviewProgressSmallCard(
+                            title = appText(
+                                en = "Deadline Adherence",
+                                pt = "Cumprimento de Prazos"
+                            ),
+                            progress = deadlineAdherence
+                        )
+
+                        Spacer(modifier = Modifier.height(20.dp))
+
+                        AddReviewCard(
+                            value = reviewText,
+                            onValueChange = {
+                                reviewText = it
+                                message = null
+                            }
+                        )
+
+                        ReviewMessages(
+                            message = message,
+                            evaluationError = evaluationError
+                        )
+
+                        Spacer(modifier = Modifier.height(28.dp))
+
+                        ProjectReviewButtons(
+                            onBackClick = onBackClick,
+                            onSaveClick = { saveReview() }
+                        )
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+fun ReviewMessages(
+    message: String?,
+    evaluationError: String?
+) {
+    message?.let {
+        Spacer(modifier = Modifier.height(8.dp))
+        Text(
+            text = it,
+            color = MaterialTheme.colorScheme.primary,
+            style = MaterialTheme.typography.bodySmall
+        )
+    }
+
+    evaluationError?.let {
+        Spacer(modifier = Modifier.height(8.dp))
+        Text(
+            text = it,
+            color = MaterialTheme.colorScheme.error,
+            style = MaterialTheme.typography.bodySmall
+        )
+    }
+}
+
+@Composable
+fun ProjectReviewButtons(
+    onBackClick: () -> Unit,
+    onSaveClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(18.dp)
+    ) {
+        OutlinedButton(
+            modifier = Modifier
+                .weight(1f)
+                .height(56.dp),
+            onClick = onBackClick,
+            shape = RoundedCornerShape(8.dp),
+            border = BorderStroke(
+                width = 2.dp,
+                color = MaterialTheme.colorScheme.primary
+            )
+        ) {
+            Text(
+                text = appText(en = "Cancel", pt = "Cancelar"),
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary
+            )
+        }
+
+        Button(
+            modifier = Modifier
+                .weight(1f)
+                .height(56.dp),
+            onClick = onSaveClick,
+            shape = RoundedCornerShape(8.dp),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = MaterialTheme.colorScheme.primary,
+                contentColor = MaterialTheme.colorScheme.onPrimary
+            )
+        ) {
+            Text(
+                text = "▧",
+                style = MaterialTheme.typography.titleMedium
+            )
+
+            Spacer(modifier = Modifier.size(8.dp))
+
+            Text(
+                text = appText(en = "Save changes", pt = "Guardar"),
+                fontWeight = FontWeight.Bold
+            )
         }
     }
 }
@@ -273,7 +377,7 @@ fun ProjectReviewTopBar(
     ) {
         Icon(
             imageVector = Icons.Outlined.Close,
-            contentDescription = "Voltar",
+            contentDescription = appText(en = "Back", pt = "Voltar"),
             tint = MaterialTheme.colorScheme.onTertiary,
             modifier = Modifier
                 .size(32.dp)
@@ -292,7 +396,7 @@ fun ProjectReviewTopBar(
 
         Icon(
             imageVector = Icons.Outlined.CheckCircle,
-            contentDescription = "Guardar",
+            contentDescription = appText(en = "Save", pt = "Guardar"),
             tint = MaterialTheme.colorScheme.onTertiary,
             modifier = Modifier
                 .size(34.dp)
@@ -334,7 +438,7 @@ fun ReviewProgressMainCard(
                     modifier = Modifier.weight(1f)
                 )
 
-                ProgressBadge(progress = progress)
+                ReviewProgressBadge(progress = progress)
             }
 
             Spacer(modifier = Modifier.height(42.dp))
@@ -369,10 +473,11 @@ fun ReviewProgressSmallCard(
                     text = title,
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier.weight(1f)
                 )
 
-                ProgressBadge(progress = progress)
+                ReviewProgressBadge(progress = progress)
             }
 
             Spacer(modifier = Modifier.height(22.dp))
@@ -383,17 +488,17 @@ fun ReviewProgressSmallCard(
 }
 
 @Composable
-fun ProgressBadge(progress: Int) {
+fun ReviewProgressBadge(progress: Int) {
     Box(
         modifier = Modifier
             .clip(RoundedCornerShape(50))
-            .background(Color(0xFF3A347F))
+            .background(MaterialTheme.colorScheme.tertiary)
             .padding(horizontal = 10.dp, vertical = 3.dp),
         contentAlignment = Alignment.Center
     ) {
         Text(
             text = "${progress.coerceIn(0, 100)}%",
-            color = Color.White,
+            color = MaterialTheme.colorScheme.onTertiary,
             fontWeight = FontWeight.Bold,
             style = MaterialTheme.typography.titleSmall
         )
@@ -407,13 +512,27 @@ fun ReviewProgressBar(
 ) {
     val progressFraction = progress.coerceIn(0, 100) / 100f
 
+    val backgroundColor =
+        if (dark) {
+            MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.35f)
+        } else {
+            MaterialTheme.colorScheme.onSurface.copy(alpha = 0.18f)
+        }
+
+    val labelColor =
+        if (dark) {
+            MaterialTheme.colorScheme.onPrimary
+        } else {
+            MaterialTheme.colorScheme.onSurface
+        }
+
     Column {
         Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(9.dp)
                 .clip(RoundedCornerShape(50))
-                .background(if (dark) Color.White.copy(alpha = 0.9f) else Color.LightGray)
+                .background(backgroundColor)
         ) {
             Box(
                 modifier = Modifier
@@ -428,14 +547,14 @@ fun ReviewProgressBar(
             Text(
                 text = "0%",
                 style = MaterialTheme.typography.labelSmall,
-                color = if (dark) Color.White else MaterialTheme.colorScheme.onSurface,
+                color = labelColor,
                 modifier = Modifier.weight(1f)
             )
 
             Text(
                 text = "100%",
                 style = MaterialTheme.typography.labelSmall,
-                color = if (dark) Color.White else MaterialTheme.colorScheme.onSurface
+                color = labelColor
             )
         }
     }
@@ -462,11 +581,19 @@ fun AddReviewCard(
                 Spacer(modifier = Modifier.size(8.dp))
 
                 Text(
-                    text = "Add review",
+                    text = appText(en = "Add review", pt = "Adicionar review"),
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold
                 )
             }
+        },
+        placeholder = {
+            Text(
+                text = appText(
+                    en = "Write your project review here.",
+                    pt = "Escreve aqui a avaliação do projeto."
+                )
+            )
         },
         shape = RoundedCornerShape(8.dp)
     )

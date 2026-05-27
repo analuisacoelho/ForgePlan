@@ -1,5 +1,6 @@
 package com.example.forgeplan.projects.ui
 
+import android.content.res.Configuration
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -44,12 +45,14 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.forgeplan.core.language.appText
 import com.example.forgeplan.core.model.Project
 import com.example.forgeplan.core.model.ProjectPayload
 import com.example.forgeplan.core.model.ProjectUser
@@ -78,6 +81,9 @@ fun ManagerDashboardScreen(
     onTeamClick: () -> Unit,
     viewModel: ProjectViewModel = viewModel()
 ) {
+    val configuration = LocalConfiguration.current
+    val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+
     val projects by viewModel.projects.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
     val error by viewModel.error.collectAsState()
@@ -172,50 +178,63 @@ fun ManagerDashboardScreen(
 
     val visibleMembers = users.filter { visibleUserIds.contains(it.id) }
 
-    Box(modifier = Modifier.fillMaxSize()) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+    ) {
         Column(modifier = Modifier.fillMaxSize()) {
             ForgePlanTopBar(title = "ForgePlan", initials = "FP")
 
             Column(
                 modifier = Modifier
                     .weight(1f)
-                    .padding(horizontal = 18.dp, vertical = 16.dp)
+                    .padding(
+                        horizontal = if (isLandscape) 30.dp else 18.dp,
+                        vertical = if (isLandscape) 12.dp else 16.dp
+                    )
             ) {
                 ForgeSearchBar(
                     value = searchText,
                     onValueChange = { searchText = it },
-                    placeholder = "Search task"
+                    placeholder = appText(en = "Search task", pt = "Pesquisar tarefa")
                 )
 
-                Spacer(modifier = Modifier.height(22.dp))
+                Spacer(modifier = Modifier.height(if (isLandscape) 14.dp else 22.dp))
 
                 Text(
-                    text = "Projects",
+                    text = appText(en = "Projects", pt = "Projetos"),
                     style = MaterialTheme.typography.headlineSmall,
-                    fontWeight = FontWeight.Bold
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onBackground
                 )
 
                 Spacer(modifier = Modifier.height(14.dp))
 
                 ProjectMemberAvatars(members = visibleMembers)
 
-                Spacer(modifier = Modifier.height(20.dp))
+                Spacer(modifier = Modifier.height(if (isLandscape) 14.dp else 20.dp))
 
                 when {
                     isLoading -> CircularProgressIndicator()
 
                     error != null -> Text(
-                        text = error ?: "Erro desconhecido",
+                        text = error ?: appText(en = "Unknown error", pt = "Erro desconhecido"),
                         color = MaterialTheme.colorScheme.error
                     )
 
                     visibleProjects.isEmpty() -> Text(
-                        text = if (searchText.isBlank()) "No projects found." else "No tasks found.",
-                        style = MaterialTheme.typography.bodyMedium
+                        text = if (searchText.isBlank()) {
+                            appText(en = "No projects found.", pt = "Nenhum projeto encontrado.")
+                        } else {
+                            appText(en = "No tasks found.", pt = "Nenhuma tarefa encontrada.")
+                        },
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onBackground
                     )
 
                     else -> LazyColumn(
-                        verticalArrangement = Arrangement.spacedBy(22.dp),
+                        verticalArrangement = Arrangement.spacedBy(if (isLandscape) 16.dp else 22.dp),
                         modifier = Modifier.padding(bottom = 96.dp)
                     ) {
                         items(visibleProjects) { project ->
@@ -225,6 +244,7 @@ fun ManagerDashboardScreen(
                                 taskAssignments = taskAssignments,
                                 users = users,
                                 searchText = searchText,
+                                isLandscape = isLandscape,
                                 onSelectProject = {
                                     selectedProjectId = project.id
                                 },
@@ -268,13 +288,16 @@ fun ManagerDashboardScreen(
         Column(
             modifier = Modifier
                 .align(Alignment.BottomEnd)
-                .padding(end = 18.dp, bottom = 104.dp),
+                .padding(
+                    end = if (isLandscape) 30.dp else 18.dp,
+                    bottom = if (isLandscape) 88.dp else 104.dp
+                ),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             FloatingActionButton(
                 onClick = { selectedProject?.let { exportProject = it } },
                 containerColor = MaterialTheme.colorScheme.secondaryContainer,
-                contentColor = MaterialTheme.colorScheme.primary,
+                contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
                 modifier = Modifier.size(52.dp)
             ) {
                 Text("↗", style = MaterialTheme.typography.titleLarge)
@@ -282,18 +305,20 @@ fun ManagerDashboardScreen(
 
             FloatingActionButton(
                 onClick = {
-                    val project = selectedProject
-                    val firstTask = project?.let { projectTasks[it.id]?.firstOrNull() }
+                    val allTasks = projectTasks.values.flatten()
 
-                    if (firstTask != null) {
-                        onEditTaskClick(firstTask.id)
+                    if (allTasks.isNotEmpty()) {
+                        onEditTaskClick(allTasks.first().id)
                     }
                 },
                 containerColor = MaterialTheme.colorScheme.secondaryContainer,
-                contentColor = MaterialTheme.colorScheme.primary,
+                contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
                 modifier = Modifier.size(52.dp)
             ) {
-                Text("✎", style = MaterialTheme.typography.titleLarge)
+                Text(
+                    text = "✎",
+                    style = MaterialTheme.typography.titleLarge
+                )
             }
 
             FloatingActionButton(
@@ -322,9 +347,7 @@ fun ManagerDashboardScreen(
 
                 exportProject = null
             },
-            onDismiss = {
-                exportProject = null
-            }
+            onDismiss = { exportProject = null }
         )
     }
 }
@@ -336,6 +359,7 @@ fun ProjectCard(
     taskAssignments: Map<Long, List<TaskAssignment>>,
     users: List<User>,
     searchText: String,
+    isLandscape: Boolean,
     onSelectProject: () -> Unit,
     onReviewClick: () -> Unit,
     onEditTaskClick: (Long) -> Unit,
@@ -346,18 +370,24 @@ fun ProjectCard(
 
     val visibleTasks =
         if (searchText.isBlank()) {
-            tasks.take(6)
+            tasks.take(if (isLandscape) 8 else 6)
         } else {
             tasks.filter {
                 it.title.contains(searchText, ignoreCase = true) ||
                         (it.description ?: "").contains(searchText, ignoreCase = true)
-            }.take(6)
+            }.take(if (isLandscape) 8 else 6)
         }
 
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .height(if (visibleTasks.isEmpty()) 230.dp else 292.dp)
+            .height(
+                when {
+                    isLandscape -> 248.dp
+                    visibleTasks.isEmpty() -> 230.dp
+                    else -> 292.dp
+                }
+            )
             .clickable { onSelectProject() },
         shape = RoundedCornerShape(22.dp),
         colors = CardDefaults.cardColors(
@@ -375,7 +405,8 @@ fun ProjectCard(
                     Text(
                         text = project.name,
                         style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
                     )
 
                     Spacer(modifier = Modifier.height(8.dp))
@@ -392,9 +423,10 @@ fun ProjectCard(
                         Spacer(modifier = Modifier.width(8.dp))
 
                         Text(
-                            text = "To do",
+                            text = appText(en = "To do", pt = "Por fazer"),
                             style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface
                         )
 
                         Spacer(modifier = Modifier.width(8.dp))
@@ -408,7 +440,7 @@ fun ProjectCard(
                         ) {
                             Text(
                                 text = pendingTasks.size.toString().padStart(2, '0'),
-                                color = Color.White,
+                                color = MaterialTheme.colorScheme.onPrimary,
                                 fontWeight = FontWeight.Bold,
                                 style = MaterialTheme.typography.labelMedium
                             )
@@ -418,20 +450,24 @@ fun ProjectCard(
 
                 ProjectFinishedPill(
                     isFinished = isFinished,
-                    onClick = {
-                        onFinishedChange(!isFinished)
-                    }
+                    onClick = { onFinishedChange(!isFinished) }
                 )
             }
 
-            Spacer(modifier = Modifier.height(18.dp))
+            Spacer(modifier = Modifier.height(if (isLandscape) 12.dp else 18.dp))
 
             if (visibleTasks.isEmpty()) {
                 Text(
                     text = if (searchText.isBlank()) {
-                        "Ainda não existem tarefas associadas a este projeto."
+                        appText(
+                            en = "There are no tasks associated with this project yet.",
+                            pt = "Ainda não existem tarefas associadas a este projeto."
+                        )
                     } else {
-                        "Nenhuma tarefa deste projeto corresponde à pesquisa."
+                        appText(
+                            en = "No task in this project matches the search.",
+                            pt = "Nenhuma tarefa deste projeto corresponde à pesquisa."
+                        )
                     },
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.65f)
@@ -453,9 +489,7 @@ fun ProjectCard(
                         ProjectTaskPreviewCard(
                             task = task,
                             assignedUsers = assignedUsers,
-                            onEditClick = {
-                                onEditTaskClick(task.id)
-                            }
+                            onEditClick = { onEditTaskClick(task.id) }
                         )
                     }
                 }
@@ -467,8 +501,11 @@ fun ProjectCard(
                 Text(
                     text = "⚑",
                     style = MaterialTheme.typography.titleLarge,
-                    color = if (project.priority?.uppercase() == "HIGH") Color(0xFFB3261E)
-                    else MaterialTheme.colorScheme.onSurface
+                    color = if (project.priority?.uppercase() == "HIGH") {
+                        MaterialTheme.colorScheme.error
+                    } else {
+                        MaterialTheme.colorScheme.onSurface
+                    }
                 )
 
                 Spacer(modifier = Modifier.weight(1f))
@@ -476,6 +513,7 @@ fun ProjectCard(
                 Text(
                     text = "☑",
                     style = MaterialTheme.typography.titleLarge,
+                    color = MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier.clickable { onReviewClick() }
                 )
             }
@@ -491,15 +529,19 @@ fun ProjectFinishedPill(
     Row(
         modifier = Modifier
             .clip(RoundedCornerShape(12.dp))
-            .background(Color.White)
+            .background(MaterialTheme.colorScheme.background)
             .clickable { onClick() }
             .padding(start = 10.dp, end = 6.dp, top = 6.dp, bottom = 6.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(
-            text = if (isFinished) "Is finished" else "Mark as finished",
+            text = if (isFinished) {
+                appText(en = "Is finished", pt = "Concluído")
+            } else {
+                appText(en = "Mark as finished", pt = "Marcar como concluído")
+            },
             style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurface
+            color = MaterialTheme.colorScheme.onBackground
         )
 
         Spacer(modifier = Modifier.width(4.dp))
@@ -577,7 +619,12 @@ fun ProjectTaskPreviewCard(
             .height(104.dp),
         shape = RoundedCornerShape(14.dp),
         colors = CardDefaults.cardColors(
-            containerColor = if (finished) Color(0xFF777777) else Color.White
+            containerColor =
+                if (finished) {
+                    MaterialTheme.colorScheme.secondaryContainer
+                } else {
+                    MaterialTheme.colorScheme.background
+                }
         ),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
@@ -588,9 +635,9 @@ fun ProjectTaskPreviewCard(
                     .height(104.dp)
                     .background(
                         when (priority.uppercase()) {
-                            "HIGH" -> Color(0xFFB3261E)
-                            "MEDIUM" -> Color(0xFF1D1B6E)
-                            else -> Color(0xFF8A6A3A)
+                            "HIGH" -> MaterialTheme.colorScheme.error
+                            "MEDIUM" -> MaterialTheme.colorScheme.primary
+                            else -> MaterialTheme.colorScheme.secondary
                         }
                     )
                     .align(Alignment.CenterStart)
@@ -614,10 +661,13 @@ fun ProjectTaskPreviewCard(
                         Spacer(modifier = Modifier.width(6.dp))
 
                         Text(
-                            text = "${shortName(firstUser)} finished this task",
+                            text = appText(
+                                en = "${shortName(firstUser)} finished this task",
+                                pt = "${shortName(firstUser)} concluiu esta tarefa"
+                            ),
                             style = MaterialTheme.typography.bodySmall,
                             fontWeight = FontWeight.Bold,
-                            color = Color.White,
+                            color = MaterialTheme.colorScheme.onSecondaryContainer,
                             maxLines = 2
                         )
                     }
@@ -626,7 +676,12 @@ fun ProjectTaskPreviewCard(
                         text = task.title,
                         style = MaterialTheme.typography.bodyMedium,
                         fontWeight = FontWeight.Bold,
-                        color = if (finished) Color.White else MaterialTheme.colorScheme.onSurface,
+                        color =
+                            if (finished) {
+                                MaterialTheme.colorScheme.onSecondaryContainer
+                            } else {
+                                MaterialTheme.colorScheme.onBackground
+                            },
                         maxLines = 1
                     )
                 }
@@ -634,9 +689,18 @@ fun ProjectTaskPreviewCard(
                 Spacer(modifier = Modifier.weight(1f))
 
                 Text(
-                    text = if (finished) "Done ✓" else "Mark as done ○",
+                    text = if (finished) {
+                        appText(en = "Done ✓", pt = "Feita ✓")
+                    } else {
+                        appText(en = "Mark as done ○", pt = "Marcar feita ○")
+                    },
                     style = MaterialTheme.typography.bodySmall,
-                    color = if (finished) Color.White else MaterialTheme.colorScheme.onSurface
+                    color =
+                        if (finished) {
+                            MaterialTheme.colorScheme.onSecondaryContainer
+                        } else {
+                            MaterialTheme.colorScheme.onBackground
+                        }
                 )
             }
 
@@ -646,7 +710,12 @@ fun ProjectTaskPreviewCard(
                     .align(Alignment.TopEnd)
                     .padding(end = 10.dp, top = 6.dp)
                     .clickable { onEditClick() },
-                color = if (finished) Color.White else MaterialTheme.colorScheme.onSurface
+                color =
+                    if (finished) {
+                        MaterialTheme.colorScheme.onSecondaryContainer
+                    } else {
+                        MaterialTheme.colorScheme.onBackground
+                    }
             )
         }
     }
@@ -658,12 +727,12 @@ fun SmallTaskAvatar(user: User) {
         modifier = Modifier
             .size(34.dp)
             .clip(CircleShape)
-            .background(Color(0xFF30258A)),
+            .background(MaterialTheme.colorScheme.primary),
         contentAlignment = Alignment.Center
     ) {
         Text(
             text = userInitials(user),
-            color = Color.White,
+            color = MaterialTheme.colorScheme.onPrimary,
             style = MaterialTheme.typography.labelSmall,
             fontWeight = FontWeight.Bold
         )
@@ -690,7 +759,7 @@ fun ExportDialog(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(6.dp),
                 colors = CardDefaults.cardColors(
-                    containerColor = Color.White
+                    containerColor = MaterialTheme.colorScheme.surface
                 ),
                 border = BorderStroke(
                     width = 2.dp,
@@ -702,9 +771,10 @@ fun ExportDialog(
                     modifier = Modifier.padding(horizontal = 18.dp, vertical = 14.dp)
                 ) {
                     Text(
-                        text = "Export as",
+                        text = appText(en = "Export as", pt = "Exportar como"),
                         style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
                     )
 
                     Spacer(modifier = Modifier.height(14.dp))
@@ -714,10 +784,12 @@ fun ExportDialog(
                         horizontalArrangement = Arrangement.SpaceAround,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        ExportOption("PDF", Color(0xFFD62828)) { onExport("PDF") }
-                        ExportOption("X", Color(0xFF1F7A3A)) { onExport("X") }
+                        ExportOption("PDF", Color(0xFFE53935)) { onExport("PDF") }
+                        ExportOption("X", Color(0xFF168A45)) { onExport("X") }
                         ExportOption("W", Color(0xFF1E5AA8)) { onExport("W") }
-                        ExportOption("•••", Color(0xFF8C8C8C)) { onExport("TXT") }
+                        ExportOption("•••", MaterialTheme.colorScheme.onSurface.copy(alpha = 0.55f)) {
+                            onExport("TXT")
+                        }
                     }
 
                     Spacer(modifier = Modifier.height(18.dp))
@@ -735,8 +807,8 @@ fun ExportDialog(
                             onClick = { onExport("PDF") }
                         ) {
                             Text(
-                                text = "Just Once",
-                                color = MaterialTheme.colorScheme.primary,
+                                text = appText(en = "Just Once", pt = "Só uma vez"),
+                                color = MaterialTheme.colorScheme.onSecondaryContainer,
                                 fontWeight = FontWeight.Bold
                             )
                         }
@@ -750,8 +822,8 @@ fun ExportDialog(
                             onClick = { onExport("PDF") }
                         ) {
                             Text(
-                                text = "Always",
-                                color = Color.White,
+                                text = appText(en = "Always", pt = "Sempre"),
+                                color = MaterialTheme.colorScheme.onPrimary,
                                 fontWeight = FontWeight.Bold
                             )
                         }
@@ -775,21 +847,9 @@ fun ExportOption(
         contentAlignment = Alignment.Center
     ) {
         when (text) {
-            "PDF" -> FileExportIcon(
-                label = "PDF",
-                color = Color(0xFFE53935)
-            )
-
-            "X" -> OfficeExportIcon(
-                label = "X",
-                color = Color(0xFF168A45)
-            )
-
-            "W" -> OfficeExportIcon(
-                label = "W",
-                color = Color(0xFF1E5AA8)
-            )
-
+            "PDF" -> FileExportIcon(label = "PDF", color = Color(0xFFE53935))
+            "X" -> OfficeExportIcon(label = "X", color = Color(0xFF168A45))
+            "W" -> OfficeExportIcon(label = "W", color = Color(0xFF1E5AA8))
             else -> MoreExportIcon()
         }
     }
@@ -916,7 +976,7 @@ fun MoreExportIcon() {
     ) {
         Text(
             text = "•••",
-            color = Color(0xFF8C8C8C),
+            color = MaterialTheme.colorScheme.onSecondaryContainer,
             fontWeight = FontWeight.Black,
             style = MaterialTheme.typography.headlineMedium
         )

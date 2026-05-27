@@ -41,11 +41,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.forgeplan.core.language.appText
 import com.example.forgeplan.core.model.Project
 import com.example.forgeplan.core.model.Task
 import com.example.forgeplan.core.model.TaskAttachment
@@ -133,6 +133,7 @@ fun EditTaskScreen(
         userViewModel.loadUsers()
         assignmentViewModel.loadAssignments(taskId)
         dependencyViewModel.loadDependencies(taskId)
+
         loadTaskAttachments(
             taskId = taskId,
             onSuccess = {
@@ -186,7 +187,10 @@ fun EditTaskScreen(
         var hasError = false
 
         if (title.isBlank()) {
-            titleError = "O título é obrigatório."
+            titleError = appText(
+                en = "The title is required.",
+                pt = "O título é obrigatório."
+            )
             hasError = true
         }
 
@@ -195,30 +199,45 @@ fun EditTaskScreen(
             endDate.isNotBlank() &&
             endDate < startDate
         ) {
-            dateError = "A data de fim não pode ser anterior à data de início."
+            dateError = appText(
+                en = "The end date cannot be earlier than the start date.",
+                pt = "A data de fim não pode ser anterior à data de início."
+            )
             hasError = true
         }
 
         if (task == null || project == null) {
-            message = "Erro: tarefa ou projeto inválido."
+            message = appText(
+                en = "Error: invalid task or project.",
+                pt = "Erro: tarefa ou projeto inválido."
+            )
             hasError = true
         }
 
         val dateRegex = Regex("""^\d{4}-\d{2}-\d{2}$""")
 
         if (startDate.isNotBlank() && !dateRegex.matches(startDate)) {
-            dateError = "A data de início deve estar no formato YYYY-MM-DD."
+            dateError = appText(
+                en = "The start date must be in YYYY-MM-DD format.",
+                pt = "A data de início deve estar no formato YYYY-MM-DD."
+            )
             hasError = true
         }
 
         if (endDate.isNotBlank() && !dateRegex.matches(endDate)) {
-            dateError = "A data de fim deve estar no formato YYYY-MM-DD."
+            dateError = appText(
+                en = "The end date must be in YYYY-MM-DD format.",
+                pt = "A data de fim deve estar no formato YYYY-MM-DD."
+            )
             hasError = true
         }
 
         if (!hasError && task != null && project != null && !isSaving) {
             isSaving = true
-            message = "A guardar alterações..."
+            message = appText(
+                en = "Saving changes...",
+                pt = "A guardar alterações..."
+            )
 
             val updatedStatus = when {
                 completionRate >= 100 -> "DONE"
@@ -320,7 +339,11 @@ fun EditTaskScreen(
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 22.dp, vertical = 22.dp)
         ) {
-            Text("Project", style = MaterialTheme.typography.titleMedium)
+            Text(
+                text = appText(en = "Project", pt = "Projeto"),
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onBackground
+            )
 
             Spacer(modifier = Modifier.height(8.dp))
 
@@ -336,7 +359,11 @@ fun EditTaskScreen(
 
             Spacer(modifier = Modifier.height(18.dp))
 
-            Text("Task", style = MaterialTheme.typography.titleMedium)
+            Text(
+                text = appText(en = "Task", pt = "Tarefa"),
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onBackground
+            )
 
             Spacer(modifier = Modifier.height(8.dp))
 
@@ -360,7 +387,11 @@ fun EditTaskScreen(
 
             Spacer(modifier = Modifier.height(18.dp))
 
-            Text("Edit name", style = MaterialTheme.typography.titleMedium)
+            Text(
+                text = appText(en = "Edit name", pt = "Editar nome"),
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onBackground
+            )
 
             Spacer(modifier = Modifier.height(8.dp))
 
@@ -371,25 +402,36 @@ fun EditTaskScreen(
                     titleError = null
                     message = null
                 },
-                placeholder = "Edit",
+                placeholder = appText(en = "Edit", pt = "Editar"),
                 isError = titleError != null
             )
 
             titleError?.let {
                 Spacer(modifier = Modifier.height(4.dp))
-                Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                Text(
+                    text = it,
+                    color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.bodySmall
+                )
             }
 
             Spacer(modifier = Modifier.height(18.dp))
 
-            Text("Description", style = MaterialTheme.typography.titleMedium)
+            Text(
+                text = appText(en = "Description", pt = "Descrição"),
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onBackground
+            )
 
             Spacer(modifier = Modifier.height(8.dp))
 
             TaskTextField(
                 value = description,
                 onValueChange = { description = it },
-                placeholder = "Describe the task and all it needs",
+                placeholder = appText(
+                    en = "Describe the task and all it needs",
+                    pt = "Descreve a tarefa e tudo o que é necessário"
+                ),
                 height = 170.dp,
                 leadingSymbol = "▤"
             )
@@ -401,29 +443,41 @@ fun EditTaskScreen(
                 horizontalArrangement = Arrangement.spacedBy(28.dp)
             ) {
                 Column(modifier = Modifier.weight(1f)) {
-                    Text("Start", style = MaterialTheme.typography.titleMedium)
+                    Text(
+                        text = appText(en = "Start", pt = "Início"),
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.onBackground
+                    )
+
                     Spacer(modifier = Modifier.height(8.dp))
+
                     TaskTextField(
                         value = startDate,
                         onValueChange = {
                             startDate = it
                             dateError = null
                         },
-                        placeholder = "mm/dd/yyyy",
+                        placeholder = "yyyy-mm-dd",
                         height = 48.dp
                     )
                 }
 
                 Column(modifier = Modifier.weight(1f)) {
-                    Text("End", style = MaterialTheme.typography.titleMedium)
+                    Text(
+                        text = appText(en = "End", pt = "Fim"),
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.onBackground
+                    )
+
                     Spacer(modifier = Modifier.height(8.dp))
+
                     TaskTextField(
                         value = endDate,
                         onValueChange = {
                             endDate = it
                             dateError = null
                         },
-                        placeholder = "mm/dd/yyyy",
+                        placeholder = "yyyy-mm-dd",
                         height = 48.dp,
                         isError = dateError != null
                     )
@@ -432,7 +486,11 @@ fun EditTaskScreen(
 
             dateError?.let {
                 Spacer(modifier = Modifier.height(4.dp))
-                Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                Text(
+                    text = it,
+                    color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.bodySmall
+                )
             }
 
             Spacer(modifier = Modifier.height(18.dp))
@@ -442,13 +500,14 @@ fun EditTaskScreen(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = "Priority",
+                    text = appText(en = "Priority", pt = "Prioridade"),
                     style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onBackground,
                     modifier = Modifier.weight(1f)
                 )
 
                 Text(
-                    text = "+ Add",
+                    text = appText(en = "+ Add", pt = "+ Adicionar"),
                     style = MaterialTheme.typography.titleMedium,
                     color = MaterialTheme.colorScheme.primary
                 )
@@ -461,33 +520,34 @@ fun EditTaskScreen(
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 PriorityButton(
-                    text = "Low",
+                    text = appText(en = "Low", pt = "Baixa"),
                     selected = priority == "LOW",
-                    selectedColor = Color(0xFFFFF8EF),
-                    borderColor = Color(0xFFE8B77E),
+                    priorityKey = "LOW",
                     onClick = { priority = "LOW" }
                 )
 
                 PriorityButton(
-                    text = "Medium",
+                    text = appText(en = "Medium", pt = "Média"),
                     selected = priority == "MEDIUM",
-                    selectedColor = MaterialTheme.colorScheme.tertiary,
-                    borderColor = MaterialTheme.colorScheme.primary,
+                    priorityKey = "MEDIUM",
                     onClick = { priority = "MEDIUM" }
                 )
 
                 PriorityButton(
-                    text = "High",
+                    text = appText(en = "High", pt = "Alta"),
                     selected = priority == "HIGH",
-                    selectedColor = Color(0xFFFFB4A9),
-                    borderColor = Color(0xFFB3261E),
+                    priorityKey = "HIGH",
                     onClick = { priority = "HIGH" }
                 )
             }
 
             Spacer(modifier = Modifier.height(22.dp))
 
-            Text("In charge", style = MaterialTheme.typography.titleMedium)
+            Text(
+                text = appText(en = "In charge", pt = "Responsável"),
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onBackground
+            )
 
             Spacer(modifier = Modifier.height(10.dp))
 
@@ -549,7 +609,11 @@ fun EditTaskScreen(
 
             Spacer(modifier = Modifier.height(22.dp))
 
-            Text("Attachments", style = MaterialTheme.typography.titleMedium)
+            Text(
+                text = appText(en = "Attachments", pt = "Anexos"),
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onBackground
+            )
 
             Spacer(modifier = Modifier.height(10.dp))
 
@@ -559,14 +623,14 @@ fun EditTaskScreen(
             ) {
                 AttachmentBox(
                     symbol = "⇧",
-                    text = "Upload Doc",
+                    text = appText(en = "Upload Doc", pt = "Carregar documento"),
                     modifier = Modifier.weight(1f),
                     onClick = { documentPicker.launch("*/*") }
                 )
 
                 AttachmentBox(
                     symbol = "▣",
-                    text = "Tirar Foto",
+                    text = appText(en = "Take Photo", pt = "Adicionar foto"),
                     modifier = Modifier.weight(1f),
                     onClick = { imagePicker.launch("image/*") }
                 )
@@ -599,24 +663,39 @@ fun EditTaskScreen(
 
             taskError?.let {
                 Spacer(modifier = Modifier.height(8.dp))
-                Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                Text(
+                    text = it,
+                    color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.bodySmall
+                )
             }
 
             assignmentError?.let {
                 Spacer(modifier = Modifier.height(8.dp))
-                Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                Text(
+                    text = it,
+                    color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.bodySmall
+                )
             }
 
             dependencyError?.let {
                 Spacer(modifier = Modifier.height(8.dp))
-                Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                Text(
+                    text = it,
+                    color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.bodySmall
+                )
             }
 
             message?.let {
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
                     text = it,
-                    color = if (it.contains("Erro", ignoreCase = true)) {
+                    color = if (
+                        it.contains("Erro", ignoreCase = true) ||
+                        it.contains("Error", ignoreCase = true)
+                    ) {
                         MaterialTheme.colorScheme.error
                     } else {
                         MaterialTheme.colorScheme.primary
@@ -641,7 +720,7 @@ fun EditTaskScreen(
                     border = BorderStroke(2.dp, MaterialTheme.colorScheme.primary)
                 ) {
                     Text(
-                        text = "Cancel",
+                        text = appText(en = "Cancel", pt = "Cancelar"),
                         color = MaterialTheme.colorScheme.primary,
                         fontWeight = FontWeight.Bold,
                         style = MaterialTheme.typography.titleMedium
@@ -665,7 +744,11 @@ fun EditTaskScreen(
                     Spacer(modifier = Modifier.width(8.dp))
 
                     Text(
-                        text = if (isSaving) "Saving..." else "Save changes",
+                        text = if (isSaving) {
+                            appText(en = "Saving...", pt = "A guardar...")
+                        } else {
+                            appText(en = "Save changes", pt = "Guardar alterações")
+                        },
                         fontWeight = FontWeight.Bold,
                         style = MaterialTheme.typography.titleMedium
                     )
@@ -707,7 +790,7 @@ fun EditTaskTopBar(
         )
 
         Text(
-            text = "Edit Task",
+            text = appText(en = "Edit Task", pt = "Editar Tarefa"),
             style = MaterialTheme.typography.titleLarge,
             fontWeight = FontWeight.Bold,
             color = MaterialTheme.colorScheme.onTertiary
@@ -742,12 +825,20 @@ fun EditTaskDropdown(
                 Spacer(modifier = Modifier.width(10.dp))
 
                 Text(
-                    text = selectedTask?.title ?: "Select your task",
+                    text = selectedTask?.title ?: appText(
+                        en = "Select your task",
+                        pt = "Selecionar tarefa"
+                    ),
                     style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier.weight(1f)
                 )
 
-                Text("⌄", style = MaterialTheme.typography.titleSmall)
+                Text(
+                    text = "⌄",
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
             }
         }
 
@@ -810,6 +901,7 @@ fun ExistingAttachmentRow(
                 text = fileName,
                 style = MaterialTheme.typography.bodyMedium,
                 fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface,
                 modifier = Modifier.weight(1f),
                 maxLines = 1
             )
@@ -869,7 +961,12 @@ private fun uploadEditTaskAttachmentsSequentially(
             )
         },
         onError = { error ->
-            onError("Erro ao guardar anexo: $error")
+            onError(
+                appText(
+                    en = "Error saving attachment: $error",
+                    pt = "Erro ao guardar anexo: $error"
+                )
+            )
         }
     )
 }
