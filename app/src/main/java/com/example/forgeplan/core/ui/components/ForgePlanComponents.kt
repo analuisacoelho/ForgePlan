@@ -37,6 +37,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
+import com.example.forgeplan.core.language.appText
 
 @Composable
 fun ForgePlanTopBar(
@@ -71,7 +72,7 @@ fun ForgePlanTopBar(
 
             Icon(
                 imageVector = Icons.Outlined.Notifications,
-                contentDescription = "Notifications",
+                contentDescription = appText(en = "Notifications", pt = "Notificações"),
                 tint = MaterialTheme.colorScheme.onPrimary,
                 modifier = Modifier.size(21.dp)
             )
@@ -92,11 +93,11 @@ fun ForgePlanBottomBar(
         modifier = Modifier
             .fillMaxWidth()
             .height(82.dp),
-        color = Color.White,
+        color = MaterialTheme.colorScheme.surface,
         shape = RoundedCornerShape(topStart = 10.dp, topEnd = 10.dp),
         border = BorderStroke(
             width = 1.dp,
-            color = Color.Black.copy(alpha = 0.25f)
+            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.18f)
         )
     ) {
         Row(
@@ -107,35 +108,35 @@ fun ForgePlanBottomBar(
             verticalAlignment = Alignment.CenterVertically
         ) {
             ForgeBottomBarItem(
-                label = "Tasks",
+                label = appText(en = "Tasks", pt = "Tarefas"),
                 icon = "☑",
                 selected = selectedItem == "Projects" || selectedItem == "Tasks",
                 onClick = onProjectsClick
             )
 
             ForgeBottomBarItem(
-                label = "Timeline",
+                label = appText(en = "Timeline", pt = "Cronologia"),
                 icon = "◷",
                 selected = selectedItem == "Timeline",
                 onClick = onTimelineClick
             )
 
             ForgeBottomBarItem(
-                label = "Progress",
+                label = appText(en = "Progress", pt = "Progresso"),
                 icon = "↗",
                 selected = selectedItem == "Progress",
                 onClick = onProgressClick
             )
 
             ForgeBottomBarItem(
-                label = "Team",
+                label = appText(en = "Team", pt = "Equipa"),
                 icon = "♧",
                 selected = selectedItem == "Team",
                 onClick = onTeamClick
             )
 
             ForgeBottomBarItem(
-                label = "Profile",
+                label = appText(en = "Profile", pt = "Perfil"),
                 icon = "◎",
                 selected = selectedItem == "Profile",
                 onClick = onProfileClick
@@ -168,7 +169,11 @@ fun ForgeBottomBarItem(
         Text(
             text = icon,
             style = MaterialTheme.typography.headlineSmall,
-            color = Color.Black
+            color = if (selected) {
+                MaterialTheme.colorScheme.onSecondary
+            } else {
+                MaterialTheme.colorScheme.onSurface
+            }
         )
 
         Spacer(modifier = Modifier.height(2.dp))
@@ -176,7 +181,12 @@ fun ForgeBottomBarItem(
         Text(
             text = label,
             style = MaterialTheme.typography.labelSmall,
-            color = Color.Black
+            color = if (selected) {
+                MaterialTheme.colorScheme.onSecondary
+            } else {
+                MaterialTheme.colorScheme.onSurface
+            },
+            maxLines = 1
         )
     }
 }
@@ -340,7 +350,8 @@ fun ForgeSecondaryButton(
     ) {
         Text(
             text = text,
-            style = MaterialTheme.typography.labelLarge
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.primary
         )
     }
 }
@@ -372,7 +383,8 @@ fun ForgeSearchBar(
         placeholder = {
             Text(
                 text = placeholder,
-                style = MaterialTheme.typography.bodySmall
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.55f)
             )
         },
         leadingIcon = {
@@ -427,6 +439,7 @@ fun ForgeDropdownCard(
             Text(
                 text = text,
                 style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurface,
                 modifier = Modifier.weight(1f)
             )
 
@@ -471,6 +484,7 @@ fun ForgeInfoRow(
             Text(
                 text = title,
                 style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurface,
                 modifier = Modifier.weight(1f)
             )
 
@@ -509,7 +523,7 @@ fun ForgeBigProgressCard(
                 Spacer(modifier = Modifier.width(8.dp))
 
                 Text(
-                    text = "Progress",
+                    text = appText(en = "Progress", pt = "Progresso"),
                     style = MaterialTheme.typography.titleMedium,
                     color = MaterialTheme.colorScheme.onPrimary,
                     modifier = Modifier.weight(1f)

@@ -1,5 +1,8 @@
 package com.example.forgeplan.projects.ui
 
+import android.content.res.Configuration
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -11,9 +14,12 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -24,15 +30,15 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.forgeplan.core.language.appText
 import com.example.forgeplan.core.model.ProjectPayload
 import com.example.forgeplan.core.ui.components.ForgeCard
 import com.example.forgeplan.core.ui.components.ForgePlanBottomBar
 import com.example.forgeplan.core.ui.components.ForgePlanTopBar
-import com.example.forgeplan.core.ui.components.ForgePrimaryButton
-import com.example.forgeplan.core.ui.components.ForgeSecondaryButton
-import com.example.forgeplan.core.ui.components.ForgeSectionTitle
 import com.example.forgeplan.projects.viewmodel.ProjectViewModel
 
 @Composable
@@ -41,6 +47,9 @@ fun EditProjectScreen(
     onProjectUpdated: () -> Unit,
     viewModel: ProjectViewModel = viewModel()
 ) {
+    val configuration = LocalConfiguration.current
+    val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+
     val project by viewModel.selectedProject.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
     val error by viewModel.error.collectAsState()
@@ -70,11 +79,73 @@ fun EditProjectScreen(
         }
     }
 
+    fun saveProject() {
+        var hasError = false
+        val dateRegex = Regex("""^\d{4}-\d{2}-\d{2}$""")
+
+        if (name.isBlank()) {
+            nameError = appText(
+                en = "Project name is required.",
+                pt = "O nome do projeto é obrigatório."
+            )
+            hasError = true
+        }
+
+        if (startDate.isNotBlank() && !dateRegex.matches(startDate)) {
+            dateError = appText(
+                en = "The start date must be in YYYY-MM-DD format.",
+                pt = "A data de início deve estar no formato YYYY-MM-DD."
+            )
+            hasError = true
+        }
+
+        if (endDate.isNotBlank() && !dateRegex.matches(endDate)) {
+            dateError = appText(
+                en = "The end date must be in YYYY-MM-DD format.",
+                pt = "A data de fim deve estar no formato YYYY-MM-DD."
+            )
+            hasError = true
+        }
+
+        if (
+            startDate.isNotBlank() &&
+            endDate.isNotBlank() &&
+            endDate < startDate
+        ) {
+            dateError = appText(
+                en = "The end date cannot be earlier than the start date.",
+                pt = "A data de fim não pode ser anterior à data de início."
+            )
+            hasError = true
+        }
+
+        if (!hasError) {
+            val payload = ProjectPayload(
+                created_by_id = project?.created_by_id,
+                manager_id = project?.manager_id,
+                name = name.trim(),
+                description = description.trim().ifBlank { null },
+                priority = priority,
+                status = status,
+                start_date = startDate.trim().ifBlank { null },
+                end_date = endDate.trim().ifBlank { null }
+            )
+
+            viewModel.updateProject(
+                projectId = projectId,
+                project = payload,
+                onSuccess = onProjectUpdated
+            )
+        }
+    }
+
     Column(
-        modifier = Modifier.fillMaxSize()
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
     ) {
         ForgePlanTopBar(
-            title = "Edit Project",
+            title = appText(en = "Edit Project", pt = "Editar Projeto"),
             initials = "FP"
         )
 
@@ -82,194 +153,120 @@ fun EditProjectScreen(
             modifier = Modifier
                 .weight(1f)
                 .verticalScroll(rememberScrollState())
-                .padding(horizontal = 18.dp, vertical = 16.dp)
+                .padding(
+                    horizontal = if (isLandscape) 32.dp else 18.dp,
+                    vertical = if (isLandscape) 14.dp else 16.dp
+                )
         ) {
-            ForgeSectionTitle(text = "Edit project")
+            Text(
+                text = appText(en = "Edit project", pt = "Editar projeto"),
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onBackground
+            )
 
-            Spacer(modifier = Modifier.height(14.dp))
+            Spacer(modifier = Modifier.height(if (isLandscape) 12.dp else 14.dp))
 
             if (isLoading && project == null) {
                 CircularProgressIndicator()
             } else {
-                ForgeCard(
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Column(
-                        modifier = Modifier.padding(14.dp)
+                if (isLandscape) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(18.dp)
                     ) {
-                        OutlinedTextField(
-                            modifier = Modifier.fillMaxWidth(),
-                            value = name,
-                            onValueChange = {
-                                name = it
-                                nameError = null
-                            },
-                            label = { Text("Project name") },
-                            isError = nameError != null,
-                            supportingText = {
-                                nameError?.let { Text(it) }
-                            },
-                            shape = RoundedCornerShape(14.dp)
-                        )
+                        Column(modifier = Modifier.weight(1f)) {
+                            EditProjectMainFields(
+                                name = name,
+                                description = description,
+                                nameError = nameError,
+                                onNameChange = {
+                                    name = it
+                                    nameError = null
+                                },
+                                onDescriptionChange = { description = it }
+                            )
+                        }
 
-                        Spacer(modifier = Modifier.height(12.dp))
-
-                        OutlinedTextField(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(132.dp),
-                            value = description,
-                            onValueChange = { description = it },
-                            label = { Text("Description") },
-                            shape = RoundedCornerShape(14.dp)
-                        )
-
-                        Spacer(modifier = Modifier.height(16.dp))
-
-                        Text(
-                            text = "Dates",
-                            style = MaterialTheme.typography.titleSmall
-                        )
-
-                        Spacer(modifier = Modifier.height(8.dp))
-
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(10.dp)
-                        ) {
-                            OutlinedTextField(
-                                modifier = Modifier.weight(1f),
-                                value = startDate,
-                                onValueChange = {
+                        Column(modifier = Modifier.weight(1f)) {
+                            EditProjectDatePriorityStatusFields(
+                                startDate = startDate,
+                                endDate = endDate,
+                                dateError = dateError,
+                                priority = priority,
+                                status = status,
+                                onStartDateChange = {
                                     startDate = it
                                     dateError = null
                                 },
-                                label = { Text("Start") },
-                                placeholder = { Text("YYYY-MM-DD") },
-                                shape = RoundedCornerShape(14.dp)
-                            )
-
-                            OutlinedTextField(
-                                modifier = Modifier.weight(1f),
-                                value = endDate,
-                                onValueChange = {
+                                onEndDateChange = {
                                     endDate = it
                                     dateError = null
                                 },
-                                label = { Text("End") },
-                                placeholder = { Text("YYYY-MM-DD") },
-                                isError = dateError != null,
-                                supportingText = {
-                                    dateError?.let { Text(it) }
-                                },
-                                shape = RoundedCornerShape(14.dp)
+                                onPriorityChange = { priority = it },
+                                onStatusChange = { status = it }
                             )
-                        }
 
-                        Spacer(modifier = Modifier.height(16.dp))
+                            EditProjectErrorMessage(error = error)
 
-                        Text(
-                            text = "Priority",
-                            style = MaterialTheme.typography.titleSmall
-                        )
+                            Spacer(modifier = Modifier.height(18.dp))
 
-                        Spacer(modifier = Modifier.height(8.dp))
-
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            ProjectEditChip("LOW", priority == "LOW") { priority = "LOW" }
-                            ProjectEditChip("MEDIUM", priority == "MEDIUM") { priority = "MEDIUM" }
-                            ProjectEditChip("HIGH", priority == "HIGH") { priority = "HIGH" }
-                        }
-
-                        Spacer(modifier = Modifier.height(16.dp))
-
-                        Text(
-                            text = "Status",
-                            style = MaterialTheme.typography.titleSmall
-                        )
-
-                        Spacer(modifier = Modifier.height(8.dp))
-
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            ProjectEditChip("IN_PROGRESS", status == "IN_PROGRESS") {
-                                status = "IN_PROGRESS"
-                            }
-
-                            ProjectEditChip("DONE", status == "DONE") {
-                                status = "DONE"
-                            }
-                        }
-
-                        error?.let {
-                            Spacer(modifier = Modifier.height(12.dp))
-
-                            Text(
-                                text = it,
-                                color = MaterialTheme.colorScheme.error,
-                                style = MaterialTheme.typography.bodyMedium
+                            EditProjectButtons(
+                                onCancel = onProjectUpdated,
+                                onSave = { saveProject() }
                             )
                         }
                     }
-                }
+                } else {
+                    ForgeCard(
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(14.dp)
+                        ) {
+                            EditProjectMainFields(
+                                name = name,
+                                description = description,
+                                nameError = nameError,
+                                onNameChange = {
+                                    name = it
+                                    nameError = null
+                                },
+                                onDescriptionChange = { description = it }
+                            )
 
-                Spacer(modifier = Modifier.height(18.dp))
+                            Spacer(modifier = Modifier.height(16.dp))
 
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    ForgeSecondaryButton(
-                        text = "Cancel",
-                        modifier = Modifier.weight(1f),
-                        onClick = onProjectUpdated
-                    )
+                            EditProjectDatePriorityStatusFields(
+                                startDate = startDate,
+                                endDate = endDate,
+                                dateError = dateError,
+                                priority = priority,
+                                status = status,
+                                onStartDateChange = {
+                                    startDate = it
+                                    dateError = null
+                                },
+                                onEndDateChange = {
+                                    endDate = it
+                                    dateError = null
+                                },
+                                onPriorityChange = { priority = it },
+                                onStatusChange = { status = it }
+                            )
 
-                    ForgePrimaryButton(
-                        text = "Save changes",
-                        modifier = Modifier.weight(1f),
-                        onClick = {
-                            var hasError = false
-
-                            if (name.isBlank()) {
-                                nameError = "O nome do projeto é obrigatório."
-                                hasError = true
-                            }
-
-                            if (
-                                startDate.isNotBlank() &&
-                                endDate.isNotBlank() &&
-                                endDate < startDate
-                            ) {
-                                dateError = "A data de fim não pode ser anterior à data de início."
-                                hasError = true
-                            }
-
-                            if (!hasError) {
-                                val payload = ProjectPayload(
-                                    created_by_id = project?.created_by_id,
-                                    manager_id = project?.manager_id,
-                                    name = name.trim(),
-                                    description = description.trim().ifBlank { null },
-                                    priority = priority,
-                                    status = status,
-                                    start_date = startDate.trim().ifBlank { null },
-                                    end_date = endDate.trim().ifBlank { null }
-                                )
-
-                                viewModel.updateProject(
-                                    projectId = projectId,
-                                    project = payload,
-                                    onSuccess = onProjectUpdated
-                                )
-                            }
+                            EditProjectErrorMessage(error = error)
                         }
+                    }
+
+                    Spacer(modifier = Modifier.height(18.dp))
+
+                    EditProjectButtons(
+                        onCancel = onProjectUpdated,
+                        onSave = { saveProject() }
                     )
+
+                    Spacer(modifier = Modifier.height(24.dp))
                 }
             }
         }
@@ -277,6 +274,222 @@ fun EditProjectScreen(
         ForgePlanBottomBar(
             selectedItem = "Projects"
         )
+    }
+}
+
+@Composable
+fun EditProjectMainFields(
+    name: String,
+    description: String,
+    nameError: String?,
+    onNameChange: (String) -> Unit,
+    onDescriptionChange: (String) -> Unit
+) {
+    OutlinedTextField(
+        modifier = Modifier.fillMaxWidth(),
+        value = name,
+        onValueChange = onNameChange,
+        label = {
+            Text(appText(en = "Project name", pt = "Nome do projeto"))
+        },
+        placeholder = {
+            Text(appText(en = "Name your project", pt = "Nome do projeto"))
+        },
+        isError = nameError != null,
+        supportingText = {
+            nameError?.let { Text(it) }
+        },
+        shape = RoundedCornerShape(14.dp)
+    )
+
+    Spacer(modifier = Modifier.height(12.dp))
+
+    OutlinedTextField(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(132.dp),
+        value = description,
+        onValueChange = onDescriptionChange,
+        label = {
+            Text(appText(en = "Description", pt = "Descrição"))
+        },
+        placeholder = {
+            Text(appText(en = "Describe the project", pt = "Descreve o projeto"))
+        },
+        shape = RoundedCornerShape(14.dp)
+    )
+}
+
+@Composable
+fun EditProjectDatePriorityStatusFields(
+    startDate: String,
+    endDate: String,
+    dateError: String?,
+    priority: String,
+    status: String,
+    onStartDateChange: (String) -> Unit,
+    onEndDateChange: (String) -> Unit,
+    onPriorityChange: (String) -> Unit,
+    onStatusChange: (String) -> Unit
+) {
+    Text(
+        text = appText(en = "Dates", pt = "Datas"),
+        style = MaterialTheme.typography.titleSmall,
+        color = MaterialTheme.colorScheme.onBackground
+    )
+
+    Spacer(modifier = Modifier.height(8.dp))
+
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        OutlinedTextField(
+            modifier = Modifier.weight(1f),
+            value = startDate,
+            onValueChange = onStartDateChange,
+            label = {
+                Text(appText(en = "Start", pt = "Início"))
+            },
+            placeholder = { Text("YYYY-MM-DD") },
+            shape = RoundedCornerShape(14.dp)
+        )
+
+        OutlinedTextField(
+            modifier = Modifier.weight(1f),
+            value = endDate,
+            onValueChange = onEndDateChange,
+            label = {
+                Text(appText(en = "End", pt = "Fim"))
+            },
+            placeholder = { Text("YYYY-MM-DD") },
+            isError = dateError != null,
+            supportingText = {
+                dateError?.let { Text(it) }
+            },
+            shape = RoundedCornerShape(14.dp)
+        )
+    }
+
+    Spacer(modifier = Modifier.height(16.dp))
+
+    Text(
+        text = appText(en = "Priority", pt = "Prioridade"),
+        style = MaterialTheme.typography.titleSmall,
+        color = MaterialTheme.colorScheme.onBackground
+    )
+
+    Spacer(modifier = Modifier.height(8.dp))
+
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        ProjectEditChip(
+            text = appText(en = "LOW", pt = "BAIXA"),
+            selected = priority == "LOW",
+            onClick = { onPriorityChange("LOW") }
+        )
+
+        ProjectEditChip(
+            text = appText(en = "MEDIUM", pt = "MÉDIA"),
+            selected = priority == "MEDIUM",
+            onClick = { onPriorityChange("MEDIUM") }
+        )
+
+        ProjectEditChip(
+            text = appText(en = "HIGH", pt = "ALTA"),
+            selected = priority == "HIGH",
+            onClick = { onPriorityChange("HIGH") }
+        )
+    }
+
+    Spacer(modifier = Modifier.height(16.dp))
+
+    Text(
+        text = appText(en = "Status", pt = "Estado"),
+        style = MaterialTheme.typography.titleSmall,
+        color = MaterialTheme.colorScheme.onBackground
+    )
+
+    Spacer(modifier = Modifier.height(8.dp))
+
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        ProjectEditChip(
+            text = appText(en = "IN PROGRESS", pt = "EM CURSO"),
+            selected = status == "IN_PROGRESS",
+            onClick = { onStatusChange("IN_PROGRESS") }
+        )
+
+        ProjectEditChip(
+            text = appText(en = "DONE", pt = "CONCLUÍDO"),
+            selected = status == "DONE",
+            onClick = { onStatusChange("DONE") }
+        )
+    }
+}
+
+@Composable
+fun EditProjectErrorMessage(
+    error: String?
+) {
+    error?.let {
+        Spacer(modifier = Modifier.height(12.dp))
+
+        Text(
+            text = it,
+            color = MaterialTheme.colorScheme.error,
+            style = MaterialTheme.typography.bodyMedium
+        )
+    }
+}
+
+@Composable
+fun EditProjectButtons(
+    onCancel: () -> Unit,
+    onSave: () -> Unit
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        OutlinedButton(
+            modifier = Modifier
+                .weight(1f)
+                .height(56.dp),
+            onClick = onCancel,
+            shape = RoundedCornerShape(8.dp),
+            border = BorderStroke(
+                width = 2.dp,
+                color = MaterialTheme.colorScheme.primary
+            )
+        ) {
+            Text(
+                text = appText(en = "Cancel", pt = "Cancelar"),
+                color = MaterialTheme.colorScheme.primary,
+                fontWeight = FontWeight.Bold
+            )
+        }
+
+        Button(
+            modifier = Modifier
+                .weight(1f)
+                .height(56.dp),
+            onClick = onSave,
+            shape = RoundedCornerShape(8.dp),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = MaterialTheme.colorScheme.primary,
+                contentColor = MaterialTheme.colorScheme.onPrimary
+            )
+        ) {
+            Text(
+                text = appText(en = "Save changes", pt = "Guardar alterações"),
+                fontWeight = FontWeight.Bold
+            )
+        }
     }
 }
 

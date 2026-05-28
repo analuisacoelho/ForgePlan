@@ -1,5 +1,8 @@
 package com.example.forgeplan.team.ui
 
+import android.content.res.Configuration
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -8,6 +11,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -17,13 +22,14 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.unit.dp
+import com.example.forgeplan.core.language.appText
 import com.example.forgeplan.core.ui.components.ForgeCard
 import com.example.forgeplan.core.ui.components.ForgeMiniChip
 import com.example.forgeplan.core.ui.components.ForgePlanBottomBar
 import com.example.forgeplan.core.ui.components.ForgePlanTopBar
 import com.example.forgeplan.core.ui.components.ForgeSearchBar
-import com.example.forgeplan.core.ui.components.ForgeSectionTitle
 import com.example.forgeplan.core.ui.components.UserAvatarChip
 
 data class TeamMemberUi(
@@ -42,45 +48,16 @@ fun TeamScreen(
     onTimelineClick: () -> Unit = {},
     onProgressClick: () -> Unit = {}
 ) {
+    val configuration = LocalConfiguration.current
+    val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+
     var searchText by remember { mutableStateOf("") }
 
     val members = listOf(
-        TeamMemberUi(
-            initials = "A",
-            name = "Administrador",
-            username = "@admin",
-            email = "admin@forgeplan.pt",
-            role = "Admin",
-            status = "Online",
-            projects = "5 Projects"
-        ),
-        TeamMemberUi(
-            initials = "GP",
-            name = "Gestor Projeto",
-            username = "@gestor",
-            email = "gestor@forgeplan.pt",
-            role = "Manager",
-            status = "Away",
-            projects = "3 Projects"
-        ),
-        TeamMemberUi(
-            initials = "A",
-            name = "Ana",
-            username = "@ana",
-            email = "ana@forgeplan.pt",
-            role = "Worker",
-            status = "Online",
-            projects = "4 Projects"
-        ),
-        TeamMemberUi(
-            initials = "T",
-            name = "Tiago",
-            username = "@tiago",
-            email = "tiago@forgeplan.pt",
-            role = "Worker",
-            status = "Offline",
-            projects = "2 Projects"
-        )
+        TeamMemberUi("A", "Administrador", "@admin", "admin@forgeplan.pt", "Admin", "Online", "5"),
+        TeamMemberUi("GP", "Gestor Projeto", "@gestor", "gestor@forgeplan.pt", "Manager", "Away", "3"),
+        TeamMemberUi("A", "Ana", "@ana", "ana@forgeplan.pt", "Worker", "Online", "4"),
+        TeamMemberUi("T", "Tiago", "@tiago", "tiago@forgeplan.pt", "Worker", "Offline", "2")
     )
 
     val filteredMembers = members.filter { member ->
@@ -92,7 +69,9 @@ fun TeamScreen(
     }
 
     Column(
-        modifier = Modifier.fillMaxSize()
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
     ) {
         ForgePlanTopBar(
             title = "ForgePlan",
@@ -102,32 +81,79 @@ fun TeamScreen(
         Column(
             modifier = Modifier
                 .weight(1f)
-                .padding(horizontal = 18.dp, vertical = 16.dp)
+                .verticalScroll(rememberScrollState())
+                .padding(
+                    horizontal = if (isLandscape) 28.dp else 18.dp,
+                    vertical = if (isLandscape) 12.dp else 16.dp
+                )
         ) {
             ForgeSearchBar(
                 value = searchText,
                 onValueChange = { searchText = it },
-                placeholder = "Search your colleagues"
+                placeholder = appText(
+                    en = "Search your colleagues",
+                    pt = "Pesquisar colegas"
+                )
             )
 
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(if (isLandscape) 14.dp else 24.dp))
 
-            ForgeSectionTitle(text = "Your Team")
+            Text(
+                text = appText(en = "Your Team", pt = "A tua equipa"),
+                style = MaterialTheme.typography.headlineSmall,
+                color = MaterialTheme.colorScheme.onBackground
+            )
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(if (isLandscape) 12.dp else 16.dp))
 
             if (filteredMembers.isEmpty()) {
                 Text(
-                    text = "No team members found.",
-                    style = MaterialTheme.typography.bodyMedium
+                    text = appText(
+                        en = "No team members found.",
+                        pt = "Nenhum membro encontrado."
+                    ),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onBackground
                 )
             } else {
-                filteredMembers.forEach { member ->
-                    TeamMemberCard(member = member)
+                if (isLandscape) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(14.dp)
+                    ) {
+                        filteredMembers.take(3).forEach { member ->
+                            TeamMemberCard(
+                                member = member,
+                                modifier = Modifier.weight(1f),
+                                compact = true
+                            )
+                        }
+                    }
 
-                    Spacer(modifier = Modifier.height(12.dp))
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(14.dp)
+                    ) {
+                        filteredMembers.drop(3).take(3).forEach { member ->
+                            TeamMemberCard(
+                                member = member,
+                                modifier = Modifier.weight(1f),
+                                compact = true
+                            )
+                        }
+                    }
+                } else {
+                    filteredMembers.forEach { member ->
+                        TeamMemberCard(member = member)
+
+                        Spacer(modifier = Modifier.height(12.dp))
+                    }
                 }
             }
+
+            Spacer(modifier = Modifier.height(24.dp))
         }
 
         ForgePlanBottomBar(
@@ -141,67 +167,79 @@ fun TeamScreen(
 
 @Composable
 fun TeamMemberCard(
-    member: TeamMemberUi
+    member: TeamMemberUi,
+    modifier: Modifier = Modifier,
+    compact: Boolean = false
 ) {
     ForgeCard(
-        modifier = Modifier.fillMaxWidth()
+        modifier = modifier.fillMaxWidth()
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(150.dp)
-                .padding(horizontal = 20.dp, vertical = 18.dp),
+                .height(if (compact) 126.dp else 150.dp)
+                .padding(
+                    horizontal = if (compact) 14.dp else 20.dp,
+                    vertical = if (compact) 14.dp else 18.dp
+                ),
             verticalAlignment = Alignment.Top
         ) {
             UserAvatarChip(initials = member.initials)
 
-            Spacer(modifier = Modifier.width(18.dp))
+            Spacer(modifier = Modifier.width(if (compact) 12.dp else 18.dp))
 
             Column(
                 modifier = Modifier.weight(1f)
             ) {
-                ForgeMiniChip(text = "Name")
+                ForgeMiniChip(text = appText(en = "Name", pt = "Nome"))
 
                 Spacer(modifier = Modifier.height(5.dp))
 
                 Text(
                     text = member.name,
-                    style = MaterialTheme.typography.titleMedium
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurface
                 )
 
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(if (compact) 8.dp else 12.dp))
 
-                ForgeMiniChip(text = "Role")
+                ForgeMiniChip(text = appText(en = "Role", pt = "Função"))
 
                 Spacer(modifier = Modifier.height(5.dp))
 
                 Text(
                     text = "• ${member.role}",
-                    style = MaterialTheme.typography.bodyMedium
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurface
                 )
             }
 
             Column(
                 horizontalAlignment = Alignment.End
             ) {
-                ForgeMiniChip(text = "Status")
+                ForgeMiniChip(text = appText(en = "Status", pt = "Estado"))
 
                 Spacer(modifier = Modifier.height(5.dp))
 
                 Text(
                     text = "• ${member.status}",
-                    style = MaterialTheme.typography.bodySmall
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurface
                 )
 
-                Spacer(modifier = Modifier.height(26.dp))
+                Spacer(modifier = Modifier.height(if (compact) 18.dp else 26.dp))
 
-                ForgeMiniChip(text = "Currently in")
+                ForgeMiniChip(text = appText(en = "Currently in", pt = "Atualmente em"))
 
                 Spacer(modifier = Modifier.height(5.dp))
 
                 Text(
-                    text = member.projects,
-                    style = MaterialTheme.typography.bodySmall
+                    text = appText(
+                        en = "${member.projects} Projects",
+                        pt = "${member.projects} Projetos"
+                    ),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurface
                 )
             }
         }
