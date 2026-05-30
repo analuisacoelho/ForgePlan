@@ -122,9 +122,9 @@ fun ForgePlanBottomBar(
             )
 
             ForgeBottomBarItem(
-                label = appText(en = "Progress", pt = "Progresso"),
-                icon = "↗",
-                selected = selectedItem == "Progress",
+                label = appText(en = "Reports", pt = "Relatórios"),
+                icon = "▤",
+                selected = selectedItem == "Reports",
                 onClick = onProgressClick
             )
 
