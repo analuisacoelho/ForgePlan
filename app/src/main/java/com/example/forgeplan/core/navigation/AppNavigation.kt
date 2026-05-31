@@ -8,11 +8,12 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.example.forgeplan.admin.ui.AdminDashboardScreen
 import com.example.forgeplan.auth.ui.LoginScreen
-import com.example.forgeplan.progress.ui.ProgressScreen
 import com.example.forgeplan.projects.ui.CreateProjectScreen
 import com.example.forgeplan.projects.ui.EditProjectScreen
 import com.example.forgeplan.projects.ui.ManagerDashboardScreen
 import com.example.forgeplan.projects.ui.ProjectDetailScreen
+import com.example.forgeplan.projects.ui.ProjectReviewScreen
+import com.example.forgeplan.reports.ui.ReportsScreen
 import com.example.forgeplan.tasks.ui.CreateTaskScreen
 import com.example.forgeplan.tasks.ui.EditTaskScreen
 import com.example.forgeplan.tasks.ui.UserDashboardScreen
@@ -66,7 +67,7 @@ fun AppNavigation() {
                     navController.navigate("timeline")
                 },
                 onProgressClick = {
-                    navController.navigate("progress")
+                    navController.navigate("reports")
                 },
                 onTeamClick = {
                     navController.navigate("team")
@@ -117,6 +118,9 @@ fun AppNavigation() {
                 onTaskClick = { taskId ->
                     navController.navigate("editTask/$taskId")
                 },
+                onReviewProjectClick = {
+                    navController.navigate("projectReview/$projectId")
+                },
                 onProjectsClick = {
                     navController.navigate("manager") {
                         popUpTo("manager") { inclusive = true }
@@ -126,10 +130,29 @@ fun AppNavigation() {
                     navController.navigate("timeline")
                 },
                 onProgressClick = {
-                    navController.navigate("progress")
+                    navController.navigate("reports")
                 },
                 onTeamClick = {
                     navController.navigate("team")
+                }
+            )
+        }
+
+        composable(
+            route = "projectReview/{projectId}",
+            arguments = listOf(
+                navArgument("projectId") { type = NavType.LongType }
+            )
+        ) { backStackEntry ->
+            val projectId = backStackEntry.arguments?.getLong("projectId") ?: 0L
+
+            ProjectReviewScreen(
+                projectId = projectId,
+                onBackClick = {
+                    navController.popBackStack()
+                },
+                onSaveClick = {
+                    navController.popBackStack()
                 }
             )
         }
@@ -140,7 +163,7 @@ fun AppNavigation() {
                     navController.navigate("manager")
                 },
                 onProgressClick = {
-                    navController.navigate("progress")
+                    navController.navigate("reports")
                 },
                 onTeamClick = {
                     navController.navigate("team")
@@ -148,8 +171,8 @@ fun AppNavigation() {
             )
         }
 
-        composable("progress") {
-            ProgressScreen(
+        composable("reports") {
+            ReportsScreen(
                 onProjectsClick = {
                     navController.navigate("manager")
                 },
@@ -171,7 +194,7 @@ fun AppNavigation() {
                     navController.navigate("timeline")
                 },
                 onProgressClick = {
-                    navController.navigate("progress")
+                    navController.navigate("reports")
                 }
             )
         }

@@ -109,7 +109,12 @@ fun ManagerDashboardScreen(
                 (project.description ?: "").contains(searchText, ignoreCase = true)
     }
 
-    val activeProjects = projects.count { it.status?.uppercase() != "DONE" }
+    val activeProjects = projects.count { project ->
+        val tasks = projectTasks[project.id] ?: emptyList()
+        val progress = calculateProjectProgress(tasks)
+        progress < 100
+    }
+
     val totalTeamMembers = projectUsers.values.flatten().map { it.user_id }.distinct().size
 
     Box(
@@ -161,21 +166,29 @@ fun ManagerDashboardScreen(
                 Spacer(modifier = Modifier.height(if (isLandscape) 14.dp else 18.dp))
 
                 when {
-                    isLoading -> CircularProgressIndicator()
+                    isLoading -> {
+                        CircularProgressIndicator(
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
 
-                    error != null -> Text(
-                        text = error ?: appText(en = "Unknown error", pt = "Erro desconhecido"),
-                        color = MaterialTheme.colorScheme.error
-                    )
+                    error != null -> {
+                        Text(
+                            text = error ?: appText(en = "Unknown error", pt = "Erro desconhecido"),
+                            color = MaterialTheme.colorScheme.error
+                        )
+                    }
 
-                    visibleProjects.isEmpty() -> Text(
-                        text = appText(
-                            en = "No projects found.",
-                            pt = "Nenhum projeto encontrado."
-                        ),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onBackground
-                    )
+                    visibleProjects.isEmpty() -> {
+                        Text(
+                            text = appText(
+                                en = "No projects found.",
+                                pt = "Nenhum projeto encontrado."
+                            ),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onBackground
+                        )
+                    }
 
                     isLandscape -> {
                         LazyColumn(
@@ -348,17 +361,14 @@ fun ProjectOverviewCard(
 ) {
     val completedTasks = tasks.count { it.status?.uppercase() == "DONE" }
     val pendingTasks = tasks.count { it.status?.uppercase() != "DONE" }
+    val progress = calculateProjectProgress(tasks)
 
-    val progress =
-        if (tasks.isEmpty()) 0
-        else ((completedTasks.toFloat() / tasks.size.toFloat()) * 100).toInt()
-
-    val isDone = project.status?.uppercase() == "DONE"
-    val isUrgent = project.priority?.uppercase() == "HIGH"
+    val isCompleted = progress >= 100
+    val isUrgent = project.priority?.uppercase() == "HIGH" && !isCompleted
 
     Card(
         modifier = modifier
-            .height(184.dp)
+            .height(190.dp)
             .clickable { onClick() },
         shape = RoundedCornerShape(22.dp),
         colors = CardDefaults.cardColors(
@@ -397,16 +407,22 @@ fun ProjectOverviewCard(
                     )
                 }
 
-                if (isDone) {
-                    ForgeMiniChip(
-                        text = appText(en = "Done", pt = "Concluído")
-                    )
-                } else if (isUrgent) {
-                    Text(
-                        text = "⚑",
-                        style = MaterialTheme.typography.titleLarge,
-                        color = MaterialTheme.colorScheme.error
-                    )
+                when {
+                    isCompleted -> {
+                        ForgeMiniChip(
+                            text = appText(en = "Completed", pt = "Concluído"),
+                            containerColor = MaterialTheme.colorScheme.secondary,
+                            contentColor = MaterialTheme.colorScheme.onSecondary
+                        )
+                    }
+
+                    isUrgent -> {
+                        ForgeMiniChip(
+                            text = appText(en = "Urgent", pt = "Urgente"),
+                            containerColor = MaterialTheme.colorScheme.error,
+                            contentColor = MaterialTheme.colorScheme.onError
+                        )
+                    }
                 }
             }
 
@@ -414,12 +430,19 @@ fun ProjectOverviewCard(
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 ForgeMiniChip(
                     text = appText(
                         en = "$pendingTasks pending",
                         pt = "$pendingTasks pendentes"
+                    )
+                )
+
+                ForgeMiniChip(
+                    text = appText(
+                        en = "$completedTasks done",
+                        pt = "$completedTasks feitas"
                     )
                 )
 
@@ -460,9 +483,25 @@ fun ProjectOverviewCard(
                     .fillMaxWidth()
                     .height(8.dp)
                     .clip(RoundedCornerShape(50)),
-                color = MaterialTheme.colorScheme.tertiary,
+                color = if (isCompleted) {
+                    MaterialTheme.colorScheme.secondary
+                } else {
+                    MaterialTheme.colorScheme.tertiary
+                },
                 trackColor = MaterialTheme.colorScheme.secondaryContainer
             )
         }
     }
+}
+
+private fun calculateProjectProgress(tasks: List<Task>): Int {
+    if (tasks.isEmpty()) return 0
+
+    val averageCompletion =
+        tasks.map { it.completion_rate ?: 0 }.average().toInt()
+
+    val doneProgress =
+        ((tasks.count { it.status?.uppercase() == "DONE" }.toFloat() / tasks.size.toFloat()) * 100).toInt()
+
+    return maxOf(averageCompletion, doneProgress).coerceIn(0, 100)
 }
