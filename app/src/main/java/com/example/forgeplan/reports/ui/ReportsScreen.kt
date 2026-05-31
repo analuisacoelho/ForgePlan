@@ -42,6 +42,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalConfiguration
@@ -468,9 +469,9 @@ fun ProjectStatisticsSection(
                     .height(8.dp)
                     .clip(RoundedCornerShape(50)),
                 color = if (currentProgress >= 100) {
-                    MaterialTheme.colorScheme.secondary
+                    Color(0xFF16A34A)
                 } else {
-                    MaterialTheme.colorScheme.tertiary
+                    MaterialTheme.colorScheme.primary
                 },
                 trackColor = MaterialTheme.colorScheme.secondaryContainer
             )
@@ -644,87 +645,121 @@ fun ReportsDonutChart(
 ) {
     val total = todo + active + done
 
-    val todoColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.30f)
-    val activeColor = MaterialTheme.colorScheme.primary
-    val doneColor = MaterialTheme.colorScheme.secondary
+    val todoColor = Color(0xFF94A3B8)
+    val activeColor = Color(0xFF1E40AF)
+    val doneColor = Color(0xFF16A34A)
+    val emptyColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.18f)
 
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Canvas(
+    val todoPercent = if (total == 0) 0 else ((todo.toFloat() / total) * 100).toInt()
+    val activePercent = if (total == 0) 0 else ((active.toFloat() / total) * 100).toInt()
+    val donePercent = if (total == 0) 0 else ((done.toFloat() / total) * 100).toInt()
+
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Box(
             modifier = Modifier
-                .width(190.dp)
-                .height(190.dp)
+                .width(230.dp)
+                .height(230.dp),
+            contentAlignment = Alignment.Center
         ) {
-            val chartTotal = total.coerceAtLeast(1)
-            val todoSweep = todo / chartTotal.toFloat() * 360f
-            val activeSweep = active / chartTotal.toFloat() * 360f
-            val doneSweep = done / chartTotal.toFloat() * 360f
+            Canvas(
+                modifier = Modifier.fillMaxSize()
+            ) {
+                val chartTotal = total.coerceAtLeast(1)
+                val todoSweep = todo / chartTotal.toFloat() * 360f
+                val activeSweep = active / chartTotal.toFloat() * 360f
+                val doneSweep = done / chartTotal.toFloat() * 360f
 
-            val stroke = Stroke(width = 42f, cap = StrokeCap.Butt)
-            val chartSize = Size(size.minDimension, size.minDimension)
-            val topLeft = Offset(
-                x = (size.width - chartSize.width) / 2,
-                y = (size.height - chartSize.height) / 2
-            )
-
-            if (total == 0) {
-                drawArc(
-                    color = todoColor,
-                    startAngle = -90f,
-                    sweepAngle = 360f,
-                    useCenter = false,
-                    topLeft = topLeft,
-                    size = chartSize,
-                    style = stroke
+                val stroke = Stroke(width = 46f, cap = StrokeCap.Butt)
+                val chartSize = Size(size.minDimension - 46f, size.minDimension - 46f)
+                val topLeft = Offset(
+                    x = (size.width - chartSize.width) / 2,
+                    y = (size.height - chartSize.height) / 2
                 )
-            } else {
-                var start = -90f
 
-                if (todo > 0) {
+                if (total == 0) {
                     drawArc(
-                        color = todoColor,
-                        startAngle = start,
-                        sweepAngle = todoSweep,
+                        color = emptyColor,
+                        startAngle = -90f,
+                        sweepAngle = 360f,
                         useCenter = false,
                         topLeft = topLeft,
                         size = chartSize,
                         style = stroke
                     )
-                    start += todoSweep
-                }
+                } else {
+                    var start = -90f
 
-                if (active > 0) {
-                    drawArc(
-                        color = activeColor,
-                        startAngle = start,
-                        sweepAngle = activeSweep,
-                        useCenter = false,
-                        topLeft = topLeft,
-                        size = chartSize,
-                        style = stroke
-                    )
-                    start += activeSweep
-                }
+                    if (todo > 0) {
+                        drawArc(
+                            color = todoColor,
+                            startAngle = start,
+                            sweepAngle = todoSweep,
+                            useCenter = false,
+                            topLeft = topLeft,
+                            size = chartSize,
+                            style = stroke
+                        )
+                        start += todoSweep
+                    }
 
-                if (done > 0) {
-                    drawArc(
-                        color = doneColor,
-                        startAngle = start,
-                        sweepAngle = doneSweep,
-                        useCenter = false,
-                        topLeft = topLeft,
-                        size = chartSize,
-                        style = stroke
-                    )
+                    if (active > 0) {
+                        drawArc(
+                            color = activeColor,
+                            startAngle = start,
+                            sweepAngle = activeSweep,
+                            useCenter = false,
+                            topLeft = topLeft,
+                            size = chartSize,
+                            style = stroke
+                        )
+                        start += activeSweep
+                    }
+
+                    if (done > 0) {
+                        drawArc(
+                            color = doneColor,
+                            startAngle = start,
+                            sweepAngle = doneSweep,
+                            useCenter = false,
+                            topLeft = topLeft,
+                            size = chartSize,
+                            style = stroke
+                        )
+                    }
                 }
+            }
+
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text(
+                    text = total.toString(),
+                    style = MaterialTheme.typography.headlineMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+
+                Text(
+                    text = appText(en = "Total", pt = "Total"),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.65f)
+                )
             }
         }
 
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(12.dp))
 
         ReportsChartLegend(
             todo = todo,
             active = active,
-            done = done
+            done = done,
+            todoPercent = todoPercent,
+            activePercent = activePercent,
+            donePercent = donePercent,
+            todoColor = todoColor,
+            activeColor = activeColor,
+            doneColor = doneColor
         )
     }
 }
@@ -733,51 +768,82 @@ fun ReportsDonutChart(
 fun ReportsChartLegend(
     todo: Int,
     active: Int,
-    done: Int
+    done: Int,
+    todoPercent: Int,
+    activePercent: Int,
+    donePercent: Int,
+    todoColor: Color,
+    activeColor: Color,
+    doneColor: Color
 ) {
-    val todoColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.30f)
-    val activeColor = MaterialTheme.colorScheme.primary
-    val doneColor = MaterialTheme.colorScheme.secondary
-
     Column(
-        verticalArrangement = Arrangement.spacedBy(6.dp)
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         ReportsLegendItem(
             color = todoColor,
-            text = appText(en = "To Do: $todo", pt = "Por fazer: $todo")
+            text = appText(
+                en = "To do",
+                pt = "Por fazer"
+            ),
+            value = "$todo · $todoPercent%"
         )
 
         ReportsLegendItem(
             color = activeColor,
-            text = appText(en = "Active: $active", pt = "Ativas: $active")
+            text = appText(
+                en = "Active",
+                pt = "Ativas"
+            ),
+            value = "$active · $activePercent%"
         )
 
         ReportsLegendItem(
             color = doneColor,
-            text = appText(en = "Done: $done", pt = "Feitas: $done")
+            text = appText(
+                en = "Done",
+                pt = "Feitas"
+            ),
+            value = "$done · $donePercent%"
         )
     }
 }
 
 @Composable
 fun ReportsLegendItem(
-    color: androidx.compose.ui.graphics.Color,
-    text: String
+    color: Color,
+    text: String,
+    value: String
 ) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(10.dp))
+            .background(MaterialTheme.colorScheme.background.copy(alpha = 0.75f))
+            .padding(horizontal = 10.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
         Box(
             modifier = Modifier
                 .width(14.dp)
                 .height(14.dp)
-                .clip(RoundedCornerShape(3.dp))
+                .clip(RoundedCornerShape(4.dp))
                 .background(color)
         )
 
-        Spacer(modifier = Modifier.width(8.dp))
+        Spacer(modifier = Modifier.width(10.dp))
 
         Text(
             text = text,
-            style = MaterialTheme.typography.bodySmall,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurface,
+            modifier = Modifier.weight(1f)
+        )
+
+        Text(
+            text = value,
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = FontWeight.Bold,
             color = MaterialTheme.colorScheme.onSurface
         )
     }
@@ -785,9 +851,9 @@ fun ReportsLegendItem(
 
 @Composable
 fun ReportsTrendChart() {
-    val primary = MaterialTheme.colorScheme.primary
-    val secondary = MaterialTheme.colorScheme.secondary
-    val gridColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.14f)
+    val primary = Color(0xFF1E40AF)
+    val secondary = Color(0xFF16A34A)
+    val gridColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.16f)
 
     Canvas(
         modifier = Modifier
@@ -823,29 +889,38 @@ fun ReportsTrendChart() {
                 color = primary,
                 start = point(i, taskPoints[i]),
                 end = point(i + 1, taskPoints[i + 1]),
-                strokeWidth = 4f
+                strokeWidth = 5f
             )
 
             drawLine(
                 color = secondary,
                 start = point(i, hourPoints[i]),
                 end = point(i + 1, hourPoints[i + 1]),
-                strokeWidth = 4f
+                strokeWidth = 5f
             )
         }
 
         taskPoints.forEachIndexed { index, value ->
-            drawCircle(color = primary, radius = 6f, center = point(index, value))
+            drawCircle(color = primary, radius = 7f, center = point(index, value))
         }
 
         hourPoints.forEachIndexed { index, value ->
-            drawCircle(color = secondary, radius = 6f, center = point(index, value))
+            drawCircle(color = secondary, radius = 7f, center = point(index, value))
         }
     }
 
     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-        ForgeMiniChip(text = appText(en = "Tasks Completed", pt = "Tarefas concluídas"))
-        ForgeMiniChip(text = appText(en = "Hours Worked", pt = "Horas trabalhadas"))
+        ForgeMiniChip(
+            text = appText(en = "Tasks Completed", pt = "Tarefas concluídas"),
+            containerColor = Color(0xFF1E40AF),
+            contentColor = Color.White
+        )
+
+        ForgeMiniChip(
+            text = appText(en = "Hours Worked", pt = "Horas trabalhadas"),
+            containerColor = Color(0xFF16A34A),
+            contentColor = Color.White
+        )
     }
 }
 
@@ -956,11 +1031,11 @@ fun ReportExportCard(
                 modifier = Modifier.weight(1f),
                 onClick = { onExport("CSV") },
                 shape = RoundedCornerShape(10.dp),
-                border = BorderStroke(1.dp, MaterialTheme.colorScheme.secondary)
+                border = BorderStroke(1.dp, Color(0xFF16A34A))
             ) {
                 Text(
                     text = appText(en = "Export to CSV", pt = "Exportar CSV"),
-                    color = MaterialTheme.colorScheme.secondary
+                    color = Color(0xFF16A34A)
                 )
             }
         }

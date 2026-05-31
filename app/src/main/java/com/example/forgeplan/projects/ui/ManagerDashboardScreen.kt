@@ -34,6 +34,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -411,8 +412,8 @@ fun ProjectOverviewCard(
                     isCompleted -> {
                         ForgeMiniChip(
                             text = appText(en = "Completed", pt = "Concluído"),
-                            containerColor = MaterialTheme.colorScheme.secondary,
-                            contentColor = MaterialTheme.colorScheme.onSecondary
+                            containerColor = Color(0xFFB7EBC0),
+                            contentColor = Color(0xFF14532D)
                         )
                     }
 
@@ -484,7 +485,7 @@ fun ProjectOverviewCard(
                     .height(8.dp)
                     .clip(RoundedCornerShape(50)),
                 color = if (isCompleted) {
-                    MaterialTheme.colorScheme.secondary
+                    MaterialTheme.colorScheme.primary
                 } else {
                     MaterialTheme.colorScheme.tertiary
                 },

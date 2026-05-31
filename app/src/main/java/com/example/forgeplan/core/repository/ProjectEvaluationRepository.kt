@@ -25,7 +25,7 @@ class ProjectEvaluationRepository {
                     if (response.isSuccessful) {
                         onSuccess(response.body() ?: emptyList())
                     } else {
-                        onError("Erro ao carregar avaliações")
+                        onError("Erro ao carregar avaliações.")
                     }
                 }
 
@@ -33,14 +33,14 @@ class ProjectEvaluationRepository {
                     call: Call<List<ProjectEvaluation>>,
                     t: Throwable
                 ) {
-                    onError(t.message ?: "Erro desconhecido")
+                    onError(t.message ?: "Erro desconhecido ao carregar avaliações.")
                 }
             })
     }
 
     fun createEvaluation(
         evaluation: ProjectEvaluationPayload,
-        onSuccess: () -> Unit,
+        onSuccess: (ProjectEvaluation?) -> Unit,
         onError: (String) -> Unit
     ) {
         SupabaseApi.service
@@ -52,9 +52,9 @@ class ProjectEvaluationRepository {
                     response: Response<List<ProjectEvaluation>>
                 ) {
                     if (response.isSuccessful) {
-                        onSuccess()
+                        onSuccess(response.body()?.firstOrNull())
                     } else {
-                        onError("Erro ao guardar avaliação")
+                        onError("Erro ao guardar avaliação.")
                     }
                 }
 
@@ -62,7 +62,7 @@ class ProjectEvaluationRepository {
                     call: Call<List<ProjectEvaluation>>,
                     t: Throwable
                 ) {
-                    onError(t.message ?: "Erro desconhecido")
+                    onError(t.message ?: "Erro desconhecido ao guardar avaliação.")
                 }
             })
     }

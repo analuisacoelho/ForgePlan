@@ -41,6 +41,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.forgeplan.core.language.appText
+import com.example.forgeplan.core.model.ProjectEvaluation
 import com.example.forgeplan.core.model.ProjectEvaluationPayload
 import com.example.forgeplan.core.model.User
 import com.example.forgeplan.core.ui.components.ForgeAvatar
@@ -73,6 +74,9 @@ fun ProjectReviewScreen(
     val tasks by taskViewModel.tasks.collectAsState()
     val users by userViewModel.users.collectAsState()
     val projectUsers by projectUserViewModel.projectUsers.collectAsState()
+
+    val evaluations by evaluationViewModel.evaluations.collectAsState()
+    val evaluationIsLoading by evaluationViewModel.isLoading.collectAsState()
     val evaluationError by evaluationViewModel.error.collectAsState()
 
     val ratings = remember { mutableStateMapOf<Long, Int>() }
@@ -88,6 +92,8 @@ fun ProjectReviewScreen(
         evaluationViewModel.loadEvaluations(projectId)
     }
 
+    val existingEvaluation = evaluations.firstOrNull()
+
     val assignedUserIds = projectUsers.map { it.user_id }
     val assignedUsers = users.filter { assignedUserIds.contains(it.id) }
 
@@ -96,6 +102,7 @@ fun ProjectReviewScreen(
         else users.take(4)
 
     val completedTasks = tasks.count { it.status?.uppercase() == "DONE" }
+
     val completionRate =
         if (tasks.isEmpty()) 0
         else ((completedTasks.toFloat() / tasks.size.toFloat()) * 100).toInt()
@@ -146,7 +153,6 @@ fun ProjectReviewScreen(
                     en = "Evaluation saved successfully.",
                     pt = "Avaliação guardada com sucesso."
                 )
-                evaluationViewModel.loadEvaluations(projectId)
                 onSaveClick()
             }
         )
@@ -172,7 +178,9 @@ fun ProjectReviewScreen(
                 )
         ) {
             when {
-                isLoading -> CircularProgressIndicator()
+                isLoading || evaluationIsLoading -> {
+                    CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
+                }
 
                 error != null -> {
                     Text(
@@ -185,6 +193,14 @@ fun ProjectReviewScreen(
                     Text(
                         text = appText(en = "Project not found.", pt = "Projeto não encontrado."),
                         color = MaterialTheme.colorScheme.onBackground
+                    )
+                }
+
+                existingEvaluation != null -> {
+                    ProjectEvaluationReadOnlyScreen(
+                        projectName = project!!.name,
+                        evaluation = existingEvaluation,
+                        onBackClick = onBackClick
                     )
                 }
 
@@ -359,6 +375,130 @@ fun ProjectReviewScreen(
 }
 
 @Composable
+fun ProjectEvaluationReadOnlyScreen(
+    projectName: String,
+    evaluation: ProjectEvaluation,
+    onBackClick: () -> Unit
+) {
+    Text(
+        text = appText(
+            en = "Saved Evaluation",
+            pt = "Avaliação Guardada"
+        ),
+        style = MaterialTheme.typography.headlineSmall,
+        fontWeight = FontWeight.Bold,
+        color = MaterialTheme.colorScheme.onBackground
+    )
+
+    Spacer(modifier = Modifier.height(4.dp))
+
+    Text(
+        text = projectName,
+        style = MaterialTheme.typography.bodyMedium,
+        color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.65f)
+    )
+
+    Spacer(modifier = Modifier.height(18.dp))
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surface
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+        border = BorderStroke(
+            width = 1.dp,
+            color = MaterialTheme.colorScheme.tertiary.copy(alpha = 0.4f)
+        )
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Text(
+                text = appText(en = "Final rating", pt = "Classificação final"),
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                repeat(5) { index ->
+                    val starValue = index + 1
+
+                    Text(
+                        text = if (starValue <= evaluation.rating) "★" else "☆",
+                        style = MaterialTheme.typography.headlineMedium,
+                        color = if (starValue <= evaluation.rating) {
+                            MaterialTheme.colorScheme.secondary
+                        } else {
+                            MaterialTheme.colorScheme.onSurface.copy(alpha = 0.45f)
+                        }
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(14.dp))
+
+            ForgeMiniChip(
+                text = "${evaluation.rating}/5",
+                containerColor = MaterialTheme.colorScheme.secondary,
+                contentColor = MaterialTheme.colorScheme.onSecondary
+            )
+
+            Spacer(modifier = Modifier.height(18.dp))
+
+            Text(
+                text = appText(en = "Manager feedback", pt = "Feedback do gestor"),
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Text(
+                text = evaluation.comment ?: appText(
+                    en = "No comments were added.",
+                    pt = "Não foram adicionados comentários."
+                ),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+
+            evaluation.created_at?.let {
+                Spacer(modifier = Modifier.height(18.dp))
+
+                Text(
+                    text = appText(
+                        en = "Created at: $it",
+                        pt = "Criada em: $it"
+                    ),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                )
+            }
+        }
+    }
+
+    Spacer(modifier = Modifier.height(22.dp))
+
+    Button(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(52.dp),
+        onClick = onBackClick,
+        shape = RoundedCornerShape(10.dp),
+        colors = ButtonDefaults.buttonColors(
+            containerColor = MaterialTheme.colorScheme.primary,
+            contentColor = MaterialTheme.colorScheme.onPrimary
+        )
+    ) {
+        Text(appText(en = "Back", pt = "Voltar"))
+    }
+}
+
+@Composable
 fun ForgeEvaluationWarning() {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -403,9 +543,7 @@ fun UserEvaluationCard(
             color = MaterialTheme.colorScheme.tertiary.copy(alpha = 0.4f)
         )
     ) {
-        Column(
-            modifier = Modifier.padding(16.dp)
-        ) {
+        Column(modifier = Modifier.padding(16.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.Top

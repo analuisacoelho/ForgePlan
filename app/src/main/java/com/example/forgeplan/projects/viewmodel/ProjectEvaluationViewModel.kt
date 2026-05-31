@@ -11,26 +11,33 @@ class ProjectEvaluationViewModel : ViewModel() {
 
     private val repository = ProjectEvaluationRepository()
 
-    private val _evaluations =
-        MutableStateFlow<List<ProjectEvaluation>>(emptyList())
+    private val _evaluations = MutableStateFlow<List<ProjectEvaluation>>(emptyList())
+    val evaluations: StateFlow<List<ProjectEvaluation>> = _evaluations
 
-    val evaluations: StateFlow<List<ProjectEvaluation>>
-        get() = _evaluations
+    private val _isLoading = MutableStateFlow(false)
+    val isLoading: StateFlow<Boolean> = _isLoading
 
-    private val _error =
-        MutableStateFlow<String?>(null)
+    private val _error = MutableStateFlow<String?>(null)
+    val error: StateFlow<String?> = _error
 
-    val error: StateFlow<String?>
-        get() = _error
+    fun loadEvaluations(
+        projectId: Long,
+        onFinished: (() -> Unit)? = null
+    ) {
+        _isLoading.value = true
+        _error.value = null
 
-    fun loadEvaluations(projectId: Long) {
         repository.getEvaluations(
             projectId = projectId,
-            onSuccess = {
-                _evaluations.value = it
+            onSuccess = { evaluations ->
+                _evaluations.value = evaluations
+                _isLoading.value = false
+                onFinished?.invoke()
             },
-            onError = {
-                _error.value = it
+            onError = { errorMessage ->
+                _error.value = errorMessage
+                _isLoading.value = false
+                onFinished?.invoke()
             }
         )
     }
@@ -39,15 +46,39 @@ class ProjectEvaluationViewModel : ViewModel() {
         evaluation: ProjectEvaluationPayload,
         onSuccess: () -> Unit
     ) {
+        _isLoading.value = true
+        _error.value = null
+
         repository.createEvaluation(
             evaluation = evaluation,
-            onSuccess = {
-                loadEvaluations(evaluation.project_id)
-                onSuccess()
+            onSuccess = { createdEvaluation ->
+                val currentList = _evaluations.value.toMutableList()
+
+                createdEvaluation?.let {
+                    currentList.add(0, it)
+                    _evaluations.value = currentList
+                }
+
+                loadEvaluations(
+                    projectId = evaluation.project_id,
+                    onFinished = {
+                        _isLoading.value = false
+                        onSuccess()
+                    }
+                )
             },
-            onError = {
-                _error.value = it
+            onError = { errorMessage ->
+                _error.value = errorMessage
+                _isLoading.value = false
             }
         )
+    }
+
+    fun hasEvaluation(): Boolean {
+        return _evaluations.value.isNotEmpty()
+    }
+
+    fun latestEvaluation(): ProjectEvaluation? {
+        return _evaluations.value.firstOrNull()
     }
 }
