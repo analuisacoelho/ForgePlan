@@ -88,6 +88,7 @@ fun CreateTaskScreen(
     var selectedProject by remember { mutableStateOf<Project?>(null) }
     var title by remember { mutableStateOf("") }
     var description by remember { mutableStateOf("") }
+    var taskGroup by remember { mutableStateOf("") }
     var priority by remember { mutableStateOf("MEDIUM") }
     var startDate by remember { mutableStateOf("") }
     var endDate by remember { mutableStateOf("") }
@@ -102,6 +103,14 @@ fun CreateTaskScreen(
     var dateError by remember { mutableStateOf<String?>(null) }
     var message by remember { mutableStateOf<String?>(null) }
     var isSaving by remember { mutableStateOf(false) }
+
+    val projectGroups =
+        remember(tasks) {
+            tasks
+                .mapNotNull { it.task_group }
+                .filter { it.isNotBlank() }
+                .distinct()
+        }
 
     val saveTask: () -> Unit = {
         var hasError = false
@@ -152,7 +161,8 @@ fun CreateTaskScreen(
                 priority = priority,
                 completion_rate = 0,
                 start_date = startDate.trim().ifBlank { null },
-                end_date = endDate.trim().ifBlank { null }
+                end_date = endDate.trim().ifBlank { null },
+                task_group = taskGroup.trim().ifBlank { "General" }
             )
 
             taskViewModel.createTaskReturning(
@@ -279,6 +289,8 @@ fun CreateTaskScreen(
                             title = title,
                             titleError = titleError,
                             description = description,
+                            taskGroup = taskGroup,
+                            projectGroups = projectGroups,
                             startDate = startDate,
                             endDate = endDate,
                             dateError = dateError,
@@ -296,6 +308,10 @@ fun CreateTaskScreen(
                                 message = null
                             },
                             onDescriptionChange = { description = it },
+                            onTaskGroupChange = {
+                                taskGroup = it
+                                message = null
+                            },
                             onStartDateChange = {
                                 startDate = it
                                 dateError = null
@@ -349,6 +365,8 @@ fun CreateTaskScreen(
                     title = title,
                     titleError = titleError,
                     description = description,
+                    taskGroup = taskGroup,
+                    projectGroups = projectGroups,
                     startDate = startDate,
                     endDate = endDate,
                     dateError = dateError,
@@ -366,6 +384,10 @@ fun CreateTaskScreen(
                         message = null
                     },
                     onDescriptionChange = { description = it },
+                    onTaskGroupChange = {
+                        taskGroup = it
+                        message = null
+                    },
                     onStartDateChange = {
                         startDate = it
                         dateError = null
@@ -422,6 +444,8 @@ fun CreateTaskMainFields(
     title: String,
     titleError: String?,
     description: String,
+    taskGroup: String,
+    projectGroups: List<String>,
     startDate: String,
     endDate: String,
     dateError: String?,
@@ -431,6 +455,7 @@ fun CreateTaskMainFields(
     onProjectSelected: (Project) -> Unit,
     onTitleChange: (String) -> Unit,
     onDescriptionChange: (String) -> Unit,
+    onTaskGroupChange: (String) -> Unit,
     onStartDateChange: (String) -> Unit,
     onEndDateChange: (String) -> Unit,
     onDependencySelected: (Task?) -> Unit,
@@ -458,6 +483,22 @@ fun CreateTaskMainFields(
             style = MaterialTheme.typography.bodySmall
         )
     }
+
+    Spacer(modifier = Modifier.height(18.dp))
+
+    Text(
+        text = appText(en = "Task group", pt = "Grupo da tarefa"),
+        style = MaterialTheme.typography.titleMedium,
+        color = MaterialTheme.colorScheme.onBackground
+    )
+
+    Spacer(modifier = Modifier.height(8.dp))
+
+    TaskGroupField(
+        value = taskGroup,
+        groups = projectGroups,
+        onValueChange = onTaskGroupChange
+    )
 
     Spacer(modifier = Modifier.height(18.dp))
 
@@ -610,6 +651,100 @@ fun CreateTaskMainFields(
     }
 
     Spacer(modifier = Modifier.height(22.dp))
+}
+
+@Composable
+fun TaskGroupField(
+    value: String,
+    groups: List<String>,
+    onValueChange: (String) -> Unit
+) {
+    var expanded by remember { mutableStateOf(false) }
+
+    Column {
+        Box {
+            Surface(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(48.dp)
+                    .clickable { expanded = true },
+                shape = RoundedCornerShape(8.dp),
+                color = MaterialTheme.colorScheme.surface,
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.tertiary)
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "▦",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+
+                    Spacer(modifier = Modifier.width(10.dp))
+
+                    Text(
+                        text = value.ifBlank {
+                            appText(
+                                en = "General / type a new group",
+                                pt = "Geral / escreve novo grupo"
+                            )
+                        },
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = if (value.isBlank()) {
+                            MaterialTheme.colorScheme.onSurface.copy(alpha = 0.55f)
+                        } else {
+                            MaterialTheme.colorScheme.onSurface
+                        },
+                        modifier = Modifier.weight(1f)
+                    )
+
+                    Text(
+                        text = "⌄",
+                        style = MaterialTheme.typography.titleSmall,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                }
+            }
+
+            DropdownMenu(
+                expanded = expanded,
+                onDismissRequest = { expanded = false }
+            ) {
+                DropdownMenuItem(
+                    text = {
+                        Text(appText(en = "General", pt = "Geral"))
+                    },
+                    onClick = {
+                        onValueChange("General")
+                        expanded = false
+                    }
+                )
+
+                groups.forEach { group ->
+                    DropdownMenuItem(
+                        text = { Text(group) },
+                        onClick = {
+                            onValueChange(group)
+                            expanded = false
+                        }
+                    )
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        TaskTextField(
+            value = value,
+            onValueChange = onValueChange,
+            placeholder = appText(
+                en = "Example: Planning & Preparation",
+                pt = "Exemplo: Planeamento e Preparação"
+            )
+        )
+    }
 }
 
 @Composable

@@ -56,6 +56,10 @@ class TaskViewModel : ViewModel() {
         )
     }
 
+    fun clearSelectedTask() {
+        _selectedTask.value = null
+    }
+
     fun createTask(
         task: Task,
         onSuccess: () -> Unit
@@ -126,20 +130,22 @@ class TaskViewModel : ViewModel() {
         repository.getTasksByProjectId(
             projectId = projectId,
             onSuccess = { taskList -> onResult(taskList) },
-            onError   = { onResult(emptyList()) }
+            onError = { onResult(emptyList()) }
         )
     }
 
-    /**
-     * Marca uma tarefa como "Done" e chama onSuccess quando termina.
-     * RF24 – Como utilizador, quero marcar tarefas como concluídas.
-     */
     fun markTaskAsDone(
         task: Task,
         onSuccess: () -> Unit
     ) {
-        val updatedTask = task.copy(status = "Done", completion_rate = 100)
-        updateTask(task = updatedTask, onSuccess = onSuccess)
-    }
+        val updatedTask = task.copy(
+            status = "DONE",
+            completion_rate = 100
+        )
 
+        updateTask(
+            task = updatedTask,
+            onSuccess = onSuccess
+        )
+    }
 }

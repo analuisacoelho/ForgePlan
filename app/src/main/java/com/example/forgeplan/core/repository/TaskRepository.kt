@@ -133,7 +133,8 @@ class TaskRepository {
             priority = priority,
             completion_rate = completion_rate,
             start_date = start_date,
-            end_date = end_date
+            end_date = end_date,
+            task_group = task_group
         )
     }
 }

@@ -10,7 +10,10 @@ data class Task(
     val priority: String?,
     val completion_rate: Int?,
     val start_date: String?,
-    val end_date: String?
+    val end_date: String?,
+
+    // NOVO
+    val task_group: String?
 )
 
 data class TaskPayload(
@@ -22,5 +25,6 @@ data class TaskPayload(
     val priority: String?,
     val completion_rate: Int?,
     val start_date: String?,
-    val end_date: String?
+    val end_date: String?,
+    val task_group: String?
 )

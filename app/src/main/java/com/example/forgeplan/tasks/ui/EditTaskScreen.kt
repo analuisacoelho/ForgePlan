@@ -259,7 +259,8 @@ fun EditTaskScreen(
                 priority = priority,
                 completion_rate = completionRate,
                 start_date = startDate.trim().ifBlank { null },
-                end_date = endDate.trim().ifBlank { null }
+                end_date = endDate.trim().ifBlank { null },
+                task_group = task.task_group
             )
 
             taskViewModel.updateTask(

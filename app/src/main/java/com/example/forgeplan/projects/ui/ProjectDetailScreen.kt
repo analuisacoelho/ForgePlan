@@ -4,7 +4,6 @@ import android.content.res.Configuration
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -16,28 +15,31 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.forgeplan.core.language.appText
 import com.example.forgeplan.core.model.Project
-import com.example.forgeplan.core.model.ProjectUserPayload
 import com.example.forgeplan.core.model.Task
 import com.example.forgeplan.core.model.User
 import com.example.forgeplan.core.ui.components.ForgeCard
@@ -60,9 +62,13 @@ fun AddUserDialog(
     onDismiss: () -> Unit,
     onAddUser: (User) -> Unit
 ) {
-    androidx.compose.material3.AlertDialog(
+    AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Add users") },
+        title = {
+            Text(
+                text = appText(en = "Add users", pt = "Adicionar utilizadores")
+            )
+        },
         text = {
             Column {
                 users.forEach { user ->
@@ -79,19 +85,25 @@ fun AddUserDialog(
                 }
 
                 if (users.isEmpty()) {
-                    Text("No users available")
+                    Text(
+                        text = appText(
+                            en = "No users available",
+                            pt = "Não existem utilizadores disponíveis"
+                        )
+                    )
                 }
             }
         },
         confirmButton = {},
         dismissButton = {
             Text(
-                "Close",
+                text = appText(en = "Close", pt = "Fechar"),
                 modifier = Modifier.clickable { onDismiss() }
             )
         }
     )
 }
+
 @Composable
 fun ProjectDetailScreen(
     projectId: Long,
@@ -124,9 +136,11 @@ fun ProjectDetailScreen(
 
     var searchText by remember { mutableStateOf("") }
     var selectedFilter by remember { mutableStateOf("ALL") }
-    var selectedView by remember { mutableStateOf("LIST") }
-
     var showAddUserDialog by remember { mutableStateOf(false) }
+    var showCreateGroup by remember { mutableStateOf(false) }
+    var newGroupName by remember { mutableStateOf("") }
+
+    val customGroups = remember { mutableStateListOf<String>() }
 
     LaunchedEffect(projectId) {
         viewModel.loadProject(projectId)
@@ -138,10 +152,7 @@ fun ProjectDetailScreen(
 
     val assignedUserIds = projectUsers.map { it.user_id }
     val assignedUsers = users.filter { assignedUserIds.contains(it.id) }
-
-    val availableUsers = users.filter { user ->
-        !assignedUserIds.contains(user.id)
-    }
+    val availableUsers = users.filter { user -> !assignedUserIds.contains(user.id) }
 
     val completedTasks = tasks.count { it.status?.uppercase() == "DONE" }
     val progress = calculateProjectDetailProgress(tasks)
@@ -206,59 +217,47 @@ fun ProjectDetailScreen(
                     ProjectDetailHeader(
                         project = currentProject,
                         totalTasks = tasks.size,
-                        teamMembers = assignedUsers.size
+                        teamMembers = assignedUsers.size,
+                        progress = progress,
+                        isCompleted = isCompleted,
+                        hasReview = hasReview,
+                        onReviewProjectClick = onReviewProjectClick
                     )
 
-                    Spacer(modifier = Modifier.height(14.dp))
+                    Spacer(modifier = Modifier.height(18.dp))
 
-                    ProjectDetailViewSelector(
-                        selectedView = selectedView,
-                        onSelectedView = { selectedView = it }
+                    ProjectDetailActions(
+                        onCreateTaskClick = onCreateTaskClick,
+                        onEditProjectClick = onEditProjectClick
                     )
 
-                    Spacer(modifier = Modifier.height(16.dp))
+                    Spacer(modifier = Modifier.height(22.dp))
 
                     if (isLandscape) {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(18.dp)
                         ) {
-                            Column(modifier = Modifier.weight(0.9f)) {
-                                ProjectDetailSummaryCard(
-                                    project = currentProject,
-                                    totalTasks = tasks.size,
-                                    completedTasks = completedTasks,
-                                    progress = progress
-                                )
-
-                                Spacer(modifier = Modifier.height(14.dp))
-
-                                ProjectDetailActions(
-                                    isCompleted = isCompleted,
-                                    hasReview = hasReview,
-                                    onCreateTaskClick = onCreateTaskClick,
-                                    onEditProjectClick = onEditProjectClick,
-                                    onReviewProjectClick = onReviewProjectClick
-                                )
-
-                                Spacer(modifier = Modifier.height(18.dp))
-
-                                ProjectDetailTeamSection(
-                                    users = assignedUsers,
-                                    error = projectUserError,
-                                    onAddUserClick = { showAddUserDialog = true }
-                                )
-                            }
-
                             Column(modifier = Modifier.weight(1.2f)) {
                                 ProjectDetailTasksArea(
-                                    selectedView = selectedView,
                                     searchText = searchText,
                                     onSearchChange = { searchText = it },
                                     selectedFilter = selectedFilter,
                                     onFilterChange = { selectedFilter = it },
                                     tasks = filteredTasks,
                                     allTasks = tasks,
+                                    customGroups = customGroups,
+                                    showCreateGroup = showCreateGroup,
+                                    newGroupName = newGroupName,
+                                    onNewGroupNameChange = { newGroupName = it },
+                                    onShowCreateGroupChange = { showCreateGroup = it },
+                                    onCreateGroup = {
+                                        if (newGroupName.isNotBlank()) {
+                                            customGroups.add(newGroupName.trim())
+                                            newGroupName = ""
+                                            showCreateGroup = false
+                                        }
+                                    },
                                     onTaskClick = onTaskClick,
                                     onCompleteTask = { task ->
                                         val updatedTask = task.copy(
@@ -273,35 +272,35 @@ fun ProjectDetailScreen(
                                     }
                                 )
                             }
+
+                            Column(modifier = Modifier.weight(0.8f)) {
+                                ProjectDetailTeamSection(
+                                    users = assignedUsers,
+                                    error = projectUserError,
+                                    onAddUserClick = { showAddUserDialog = true }
+                                )
+                            }
                         }
                     } else {
-                        ProjectDetailSummaryCard(
-                            project = currentProject,
-                            totalTasks = tasks.size,
-                            completedTasks = completedTasks,
-                            progress = progress
-                        )
-
-                        Spacer(modifier = Modifier.height(14.dp))
-
-                        ProjectDetailActions(
-                            isCompleted = isCompleted,
-                            hasReview = hasReview,
-                            onCreateTaskClick = onCreateTaskClick,
-                            onEditProjectClick = onEditProjectClick,
-                            onReviewProjectClick = onReviewProjectClick
-                        )
-
-                        Spacer(modifier = Modifier.height(22.dp))
-
                         ProjectDetailTasksArea(
-                            selectedView = selectedView,
                             searchText = searchText,
                             onSearchChange = { searchText = it },
                             selectedFilter = selectedFilter,
                             onFilterChange = { selectedFilter = it },
                             tasks = filteredTasks,
                             allTasks = tasks,
+                            customGroups = customGroups,
+                            showCreateGroup = showCreateGroup,
+                            newGroupName = newGroupName,
+                            onNewGroupNameChange = { newGroupName = it },
+                            onShowCreateGroupChange = { showCreateGroup = it },
+                            onCreateGroup = {
+                                if (newGroupName.isNotBlank()) {
+                                    customGroups.add(newGroupName.trim())
+                                    newGroupName = ""
+                                    showCreateGroup = false
+                                }
+                            },
                             onTaskClick = onTaskClick,
                             onCompleteTask = { task ->
                                 val updatedTask = task.copy(
@@ -350,7 +349,6 @@ fun ProjectDetailScreen(
                     }
                 )
 
-                projectUserViewModel.loadProjectUsers(projectId)
                 showAddUserDialog = false
             }
         )
@@ -361,144 +359,33 @@ fun ProjectDetailScreen(
 fun ProjectDetailHeader(
     project: Project,
     totalTasks: Int,
-    teamMembers: Int
-) {
-    Text(
-        text = project.name,
-        style = MaterialTheme.typography.headlineSmall,
-        fontWeight = FontWeight.Bold,
-        color = MaterialTheme.colorScheme.onBackground
-    )
-
-    Spacer(modifier = Modifier.height(3.dp))
-
-    Text(
-        text = appText(
-            en = "$totalTasks tasks • $teamMembers team members",
-            pt = "$totalTasks tarefas • $teamMembers membros da equipa"
-        ),
-        style = MaterialTheme.typography.bodySmall,
-        color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.65f)
-    )
-}
-
-@Composable
-fun ProjectDetailViewSelector(
-    selectedView: String,
-    onSelectedView: (String) -> Unit
+    teamMembers: Int,
+    progress: Int,
+    isCompleted: Boolean,
+    hasReview: Boolean,
+    onReviewProjectClick: () -> Unit
 ) {
     Row(
         modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
+        verticalAlignment = Alignment.Top
     ) {
-        ProjectDetailModeChip(
-            text = appText(en = "List View", pt = "Lista"),
-            selected = selectedView == "LIST",
-            onClick = { onSelectedView("LIST") },
-            modifier = Modifier.weight(1f)
-        )
-
-        ProjectDetailModeChip(
-            text = appText(en = "Gantt View", pt = "Gantt"),
-            selected = selectedView == "GANTT",
-            onClick = { onSelectedView("GANTT") },
-            modifier = Modifier.weight(1f)
-        )
-    }
-}
-
-@Composable
-fun ProjectDetailModeChip(
-    text: String,
-    selected: Boolean,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    Box(
-        modifier = modifier
-            .height(40.dp)
-            .clip(RoundedCornerShape(10.dp))
-            .background(
-                if (selected) MaterialTheme.colorScheme.primary
-                else MaterialTheme.colorScheme.surface
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = project.name,
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onBackground
             )
-            .clickable { onClick() },
-        contentAlignment = Alignment.Center
-    ) {
-        Text(
-            text = text,
-            style = MaterialTheme.typography.labelLarge,
-            fontWeight = FontWeight.Bold,
-            color =
-                if (selected) MaterialTheme.colorScheme.onPrimary
-                else MaterialTheme.colorScheme.onSurface
-        )
-    }
-}
 
-@Composable
-fun ProjectDetailSummaryCard(
-    project: Project,
-    totalTasks: Int,
-    completedTasks: Int,
-    progress: Int
-) {
-    val isCompleted = project.status?.uppercase() == "DONE" || progress >= 100
-
-    ForgeCard(modifier = Modifier.fillMaxWidth()) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Row(verticalAlignment = Alignment.Top) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = project.name,
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-
-                    Spacer(modifier = Modifier.height(4.dp))
-
-                    Text(
-                        text = project.description ?: appText(en = "No description", pt = "Sem descrição"),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.68f)
-                    )
-                }
-
-                if (isCompleted) {
-                    ForgeMiniChip(
-                        text = appText(en = "Completed", pt = "Concluído"),
-                        containerColor = MaterialTheme.colorScheme.secondary,
-                        contentColor = MaterialTheme.colorScheme.onSecondary
-                    )
-                } else if (project.priority?.uppercase() == "HIGH") {
-                    ForgeMiniChip(
-                        text = appText(en = "Urgent", pt = "Urgente"),
-                        containerColor = MaterialTheme.colorScheme.error,
-                        contentColor = MaterialTheme.colorScheme.onError
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(14.dp))
-
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                ForgeMiniChip(text = readableProjectDetailStatus(project.status, progress))
-
-                project.priority?.let {
-                    ForgeMiniChip(text = readableProjectDetailPriority(it))
-                }
-            }
-
-            Spacer(modifier = Modifier.height(14.dp))
+            Spacer(modifier = Modifier.height(3.dp))
 
             Text(
                 text = appText(
-                    en = "$completedTasks/$totalTasks tasks completed",
-                    pt = "$completedTasks/$totalTasks tarefas concluídas"
+                    en = "$totalTasks tasks • $teamMembers team members",
+                    pt = "$totalTasks tarefas • $teamMembers membros da equipa"
                 ),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurface
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.65f)
             )
 
             Spacer(modifier = Modifier.height(8.dp))
@@ -507,23 +394,31 @@ fun ProjectDetailSummaryCard(
                 progress = { progress.coerceIn(0, 100) / 100f },
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(9.dp)
+                    .height(8.dp)
                     .clip(RoundedCornerShape(50)),
-                color = if (isCompleted) {
-                    MaterialTheme.colorScheme.secondary
-                } else {
-                    MaterialTheme.colorScheme.tertiary
-                },
+                color = if (isCompleted) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.tertiary,
                 trackColor = MaterialTheme.colorScheme.secondaryContainer
             )
+        }
 
-            Spacer(modifier = Modifier.height(5.dp))
+        Spacer(modifier = Modifier.width(10.dp))
 
-            Text(
-                text = "$progress%",
-                style = MaterialTheme.typography.bodySmall,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onSurface
+        if (isCompleted) {
+            ForgeMiniChip(
+                text = if (hasReview) {
+                    appText(en = "Review", pt = "Review")
+                } else {
+                    "⋯"
+                },
+                modifier = Modifier.clickable { onReviewProjectClick() },
+                containerColor = Color(0xFFB7EBC0),
+                contentColor = Color(0xFF14532D)
+            )
+        } else if (project.priority?.uppercase() == "HIGH") {
+            ForgeMiniChip(
+                text = appText(en = "Urgent", pt = "Urgente"),
+                containerColor = MaterialTheme.colorScheme.error,
+                contentColor = MaterialTheme.colorScheme.onError
             )
         }
     }
@@ -531,64 +426,105 @@ fun ProjectDetailSummaryCard(
 
 @Composable
 fun ProjectDetailActions(
-    isCompleted: Boolean,
-    hasReview: Boolean,
     onCreateTaskClick: () -> Unit,
-    onEditProjectClick: () -> Unit,
-    onReviewProjectClick: () -> Unit
+    onEditProjectClick: () -> Unit
 ) {
-    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            ForgePrimaryButton(
-                text = appText(en = "New task", pt = "Nova tarefa"),
-                modifier = Modifier.weight(1f),
-                onClick = onCreateTaskClick
-            )
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        ForgePrimaryButton(
+            text = appText(en = "New task", pt = "Nova tarefa"),
+            modifier = Modifier.weight(1f),
+            onClick = onCreateTaskClick
+        )
 
-            ForgeSecondaryButton(
-                text = appText(en = "Edit project", pt = "Editar projeto"),
-                modifier = Modifier.weight(1f),
-                onClick = onEditProjectClick
-            )
-        }
-
-        if (isCompleted) {
-            ForgePrimaryButton(
-                text = if (hasReview) {
-                    appText(en = "View evaluation", pt = "Ver avaliação")
-                } else {
-                    appText(en = "Finish & Evaluate", pt = "Concluir e avaliar")
-                },
-                modifier = Modifier.fillMaxWidth(),
-                onClick = onReviewProjectClick
-            )
-        }
+        ForgeSecondaryButton(
+            text = appText(en = "Edit project", pt = "Editar projeto"),
+            modifier = Modifier.weight(1f),
+            onClick = onEditProjectClick
+        )
     }
 }
 
 @Composable
 fun ProjectDetailTasksArea(
-    selectedView: String,
     searchText: String,
     onSearchChange: (String) -> Unit,
     selectedFilter: String,
     onFilterChange: (String) -> Unit,
     tasks: List<Task>,
     allTasks: List<Task>,
+    customGroups: List<String>,
+    showCreateGroup: Boolean,
+    newGroupName: String,
+    onNewGroupNameChange: (String) -> Unit,
+    onShowCreateGroupChange: (Boolean) -> Unit,
+    onCreateGroup: () -> Unit,
     onTaskClick: (Long) -> Unit,
     onCompleteTask: (Task) -> Unit
 ) {
-    Text(
-        text = appText(en = "Tasks", pt = "Tarefas"),
-        style = MaterialTheme.typography.titleMedium,
-        fontWeight = FontWeight.Bold,
-        color = MaterialTheme.colorScheme.onBackground
-    )
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = appText(en = "Tasks", pt = "Tarefas"),
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onBackground,
+            modifier = Modifier.weight(1f)
+        )
+
+        ForgeMiniChip(
+            text = "+",
+            modifier = Modifier.clickable {
+                onShowCreateGroupChange(!showCreateGroup)
+            },
+            containerColor = MaterialTheme.colorScheme.primary,
+            contentColor = MaterialTheme.colorScheme.onPrimary
+        )
+    }
 
     Spacer(modifier = Modifier.height(10.dp))
+
+    if (showCreateGroup) {
+        ForgeCard(modifier = Modifier.fillMaxWidth()) {
+            Column(modifier = Modifier.padding(14.dp)) {
+                OutlinedTextField(
+                    modifier = Modifier.fillMaxWidth(),
+                    value = newGroupName,
+                    onValueChange = onNewGroupNameChange,
+                    label = {
+                        Text(appText(en = "Group name", pt = "Nome do grupo"))
+                    },
+                    placeholder = {
+                        Text(appText(en = "Example: Planning", pt = "Exemplo: Planeamento"))
+                    },
+                    singleLine = true,
+                    shape = RoundedCornerShape(12.dp)
+                )
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    ForgeSecondaryButton(
+                        text = appText(en = "Cancel", pt = "Cancelar"),
+                        modifier = Modifier.weight(1f),
+                        onClick = { onShowCreateGroupChange(false) }
+                    )
+
+                    ForgePrimaryButton(
+                        text = appText(en = "Create group", pt = "Criar grupo"),
+                        modifier = Modifier.weight(1f),
+                        onClick = onCreateGroup
+                    )
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(14.dp))
+    }
 
     ForgeSearchBar(
         value = searchText,
@@ -605,17 +541,14 @@ fun ProjectDetailTasksArea(
 
     Spacer(modifier = Modifier.height(14.dp))
 
-    if (selectedView == "GANTT") {
-        ProjectDetailGanttPlaceholder(tasks = tasks)
-    } else {
-        ProjectDetailTaskList(
-            tasks = tasks,
-            allTasks = allTasks,
-            selectedFilter = selectedFilter,
-            onTaskClick = onTaskClick,
-            onCompleteTask = onCompleteTask
-        )
-    }
+    ProjectDetailTaskList(
+        tasks = tasks,
+        allTasks = allTasks,
+        selectedFilter = selectedFilter,
+        customGroups = customGroups,
+        onTaskClick = onTaskClick,
+        onCompleteTask = onCompleteTask
+    )
 }
 
 @Composable
@@ -623,10 +556,11 @@ fun ProjectDetailTaskList(
     tasks: List<Task>,
     allTasks: List<Task>,
     selectedFilter: String,
+    customGroups: List<String>,
     onTaskClick: (Long) -> Unit,
     onCompleteTask: (Task) -> Unit
 ) {
-    if (tasks.isEmpty()) {
+    if (tasks.isEmpty() && customGroups.isEmpty()) {
         ForgeCard(modifier = Modifier.fillMaxWidth()) {
             Text(
                 text = appText(
@@ -637,37 +571,45 @@ fun ProjectDetailTaskList(
                 color = MaterialTheme.colorScheme.onSurface
             )
         }
-    } else if (selectedFilter == "ALL") {
-        ProjectDetailTaskGroup(
-            title = appText(en = "To Do", pt = "Por Fazer"),
-            tasks = tasks.filter {
-                val status = it.status?.uppercase()
-                status != "DONE" && status != "IN_PROGRESS"
-            },
-            onTaskClick = onTaskClick,
-            onCompleteTask = onCompleteTask
-        )
-
-        ProjectDetailTaskGroup(
-            title = appText(en = "In Progress", pt = "Em Progresso"),
-            tasks = tasks.filter { it.status?.uppercase() == "IN_PROGRESS" },
-            onTaskClick = onTaskClick,
-            onCompleteTask = onCompleteTask
-        )
-
-        ProjectDetailTaskGroup(
-            title = appText(en = "Completed", pt = "Concluídas"),
-            tasks = tasks.filter { it.status?.uppercase() == "DONE" },
-            onTaskClick = onTaskClick,
-            onCompleteTask = onCompleteTask
-        )
     } else {
-        ProjectDetailTaskGroup(
-            title = projectDetailFilterTitle(selectedFilter),
-            tasks = tasks,
-            onTaskClick = onTaskClick,
-            onCompleteTask = onCompleteTask
-        )
+        customGroups.forEach { groupName ->
+            ProjectDetailCustomGroup(
+                title = groupName
+            )
+        }
+
+        if (selectedFilter == "ALL") {
+            ProjectDetailTaskGroup(
+                title = appText(en = "To Do", pt = "Por Fazer"),
+                tasks = tasks.filter {
+                    val status = it.status?.uppercase()
+                    status != "DONE" && status != "IN_PROGRESS"
+                },
+                onTaskClick = onTaskClick,
+                onCompleteTask = onCompleteTask
+            )
+
+            ProjectDetailTaskGroup(
+                title = appText(en = "In Progress", pt = "Em Progresso"),
+                tasks = tasks.filter { it.status?.uppercase() == "IN_PROGRESS" },
+                onTaskClick = onTaskClick,
+                onCompleteTask = onCompleteTask
+            )
+
+            ProjectDetailTaskGroup(
+                title = appText(en = "Completed", pt = "Concluídas"),
+                tasks = tasks.filter { it.status?.uppercase() == "DONE" },
+                onTaskClick = onTaskClick,
+                onCompleteTask = onCompleteTask
+            )
+        } else {
+            ProjectDetailTaskGroup(
+                title = projectDetailFilterTitle(selectedFilter),
+                tasks = tasks,
+                onTaskClick = onTaskClick,
+                onCompleteTask = onCompleteTask
+            )
+        }
     }
 
     Spacer(modifier = Modifier.height(6.dp))
@@ -680,6 +622,33 @@ fun ProjectDetailTaskList(
         style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
     )
+}
+
+@Composable
+fun ProjectDetailCustomGroup(
+    title: String
+) {
+    Text(
+        text = "$title (0)",
+        style = MaterialTheme.typography.titleSmall,
+        fontWeight = FontWeight.Bold,
+        color = MaterialTheme.colorScheme.onBackground
+    )
+
+    Spacer(modifier = Modifier.height(8.dp))
+
+    ForgeCard(modifier = Modifier.fillMaxWidth()) {
+        Text(
+            text = appText(
+                en = "No tasks in this group yet.",
+                pt = "Ainda não existem tarefas neste grupo."
+            ),
+            modifier = Modifier.padding(14.dp),
+            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.65f)
+        )
+    }
+
+    Spacer(modifier = Modifier.height(14.dp))
 }
 
 @Composable
@@ -810,12 +779,12 @@ fun ProjectDetailTaskCard(
                 ForgeMiniChip(
                     text = readableProjectDetailTaskStatus(task.status),
                     containerColor = if (isDone) {
-                        MaterialTheme.colorScheme.secondary
+                        Color(0xFFB7EBC0)
                     } else {
                         MaterialTheme.colorScheme.secondaryContainer
                     },
                     contentColor = if (isDone) {
-                        MaterialTheme.colorScheme.onSecondary
+                        Color(0xFF14532D)
                     } else {
                         MaterialTheme.colorScheme.onSecondaryContainer
                     }
@@ -830,7 +799,7 @@ fun ProjectDetailTaskCard(
                     .fillMaxWidth()
                     .height(7.dp)
                     .clip(RoundedCornerShape(50)),
-                color = MaterialTheme.colorScheme.tertiary,
+                color = MaterialTheme.colorScheme.primary,
                 trackColor = MaterialTheme.colorScheme.secondaryContainer
             )
 
@@ -864,55 +833,14 @@ fun ProjectDetailTaskCard(
 }
 
 @Composable
-fun ProjectDetailGanttPlaceholder(
-    tasks: List<Task>
-) {
-    ForgeCard(modifier = Modifier.fillMaxWidth()) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Text(
-                text = appText(en = "Gantt View", pt = "Vista Gantt"),
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onSurface
-            )
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            tasks.take(6).forEachIndexed { index, task ->
-                Text(
-                    text = task.title,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-
-                Spacer(modifier = Modifier.height(5.dp))
-
-                LinearProgressIndicator(
-                    progress = { ((task.completion_rate ?: 0).coerceIn(0, 100)) / 100f },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(8.dp)
-                        .clip(RoundedCornerShape(50))
-                        .padding(start = (index * 8).dp),
-                    color = MaterialTheme.colorScheme.tertiary,
-                    trackColor = MaterialTheme.colorScheme.secondaryContainer
-                )
-
-                Spacer(modifier = Modifier.height(12.dp))
-            }
-        }
-    }
-}
-
-@Composable
 fun ProjectDetailTeamSection(
     users: List<User>,
     error: String?,
     onAddUserClick: () -> Unit
 ) {
     Row(
-            modifier = Modifier.fillMaxWidth(),
-    horizontalArrangement = Arrangement.SpaceBetween
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween
     ) {
         Text(
             text = appText(en = "Project Team", pt = "Equipa do Projeto"),
@@ -990,28 +918,11 @@ private fun calculateProjectDetailProgress(tasks: List<Task>): Int {
     if (tasks.isEmpty()) return 0
 
     val averageCompletion = tasks.map { it.completion_rate ?: 0 }.average().toInt()
+
     val doneProgress =
         ((tasks.count { it.status?.uppercase() == "DONE" }.toFloat() / tasks.size.toFloat()) * 100).toInt()
 
     return maxOf(averageCompletion, doneProgress).coerceIn(0, 100)
-}
-
-private fun readableProjectDetailStatus(status: String?, progress: Int): String {
-    return when {
-        status?.uppercase() == "DONE" || progress >= 100 -> appText(en = "Completed", pt = "Concluído")
-        status?.uppercase() == "IN_PROGRESS" -> appText(en = "In progress", pt = "Em progresso")
-        status?.uppercase() == "PENDING" -> appText(en = "Pending", pt = "Pendente")
-        else -> appText(en = "No status", pt = "Sem estado")
-    }
-}
-
-private fun readableProjectDetailPriority(priority: String): String {
-    return when (priority.uppercase()) {
-        "HIGH" -> appText(en = "High priority", pt = "Prioridade alta")
-        "MEDIUM" -> appText(en = "Medium priority", pt = "Prioridade média")
-        "LOW" -> appText(en = "Low priority", pt = "Prioridade baixa")
-        else -> priority
-    }
 }
 
 private fun readableProjectDetailTaskStatus(status: String?): String {
