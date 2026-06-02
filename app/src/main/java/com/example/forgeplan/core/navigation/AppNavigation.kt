@@ -241,7 +241,48 @@ fun AppNavigation() {
         }
 
         composable("user") {
-            UserDashboardScreen()
+            UserDashboardScreen(
+                onTimelineClick = {
+                    navController.navigate("userTimeline")
+                },
+                onProgressClick = {
+                    navController.navigate("userProgress")
+                },
+                onTeamClick = {
+                    navController.navigate("userTeam")
+                },
+                onProfileClick = {
+                    navController.navigate("profile")
+                }
+            )
         }
+
+        // Timeline do utilizador (reutiliza o mesmo ecrã do gestor)
+        composable("userTimeline") {
+            com.example.forgeplan.timeline.ui.TimelineScreen(
+                onProjectsClick = { navController.navigate("user") },
+                onProgressClick = { navController.navigate("userProgress") },
+                onTeamClick     = { navController.navigate("userTeam") }
+            )
+        }
+
+        // Progresso / relatórios do utilizador
+        composable("userProgress") {
+            com.example.forgeplan.progress.ui.ProgressScreen(
+                onProjectsClick  = { navController.navigate("user") },
+                onTimelineClick  = { navController.navigate("userTimeline") },
+                onTeamClick      = { navController.navigate("userTeam") }
+            )
+        }
+
+        // Ecrã de equipa do utilizador
+        composable("userTeam") {
+            com.example.forgeplan.team.ui.TeamScreen(
+                onProjectsClick  = { navController.navigate("user") },
+                onTimelineClick  = { navController.navigate("userTimeline") },
+                onProgressClick  = { navController.navigate("userProgress") }
+            )
+        }
+
     }
 }

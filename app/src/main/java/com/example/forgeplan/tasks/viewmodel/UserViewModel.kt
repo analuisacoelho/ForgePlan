@@ -34,4 +34,22 @@ class UserViewModel : ViewModel() {
             }
         )
     }
+
+    // Utilizador com sessão activa (definido após o login pelo LoginViewModel)
+    var currentUser: com.example.forgeplan.auth.model.User? = null
+
+    /**
+     * Iniciais do utilizador para mostrar no TopBar.
+     * Devolve "UN" (Unknown) se ainda não há sessão.
+     */
+    val currentUserInitials: String
+        get() {
+            val name = currentUser?.name ?: return "UN"
+            val parts = name.trim().split(" ")
+            return if (parts.size >= 2) {
+                "${parts.first().first()}${parts.last().first()}".uppercase()
+            } else {
+                name.take(2).uppercase()
+            }
+        }
 }

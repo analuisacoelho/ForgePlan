@@ -216,9 +216,13 @@ fun ForgeAvatar(
 
 @Composable
 fun UserAvatarChip(
-    initials: String
+    initials: String,
+    modifier: Modifier = Modifier
 ) {
-    ForgeAvatar(initials = initials)
+    ForgeAvatar(
+        initials = initials,
+        modifier = modifier
+    )
 }
 
 @Composable
