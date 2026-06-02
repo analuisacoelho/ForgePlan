@@ -16,6 +16,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -24,13 +25,19 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.ViewModel
 import com.example.forgeplan.core.language.appText
+import com.example.forgeplan.core.model.User
+import com.example.forgeplan.core.network.SupabaseApi
 import com.example.forgeplan.core.ui.components.ForgeCard
 import com.example.forgeplan.core.ui.components.ForgeMiniChip
 import com.example.forgeplan.core.ui.components.ForgePlanBottomBar
 import com.example.forgeplan.core.ui.components.ForgePlanTopBar
 import com.example.forgeplan.core.ui.components.ForgeSearchBar
 import com.example.forgeplan.core.ui.components.UserAvatarChip
+import retrofit2.Call
+import retrofit2.Callback
+import retrofit2.Response
 
 data class TeamMemberUi(
     val initials: String,
@@ -53,12 +60,25 @@ fun TeamScreen(
 
     var searchText by remember { mutableStateOf("") }
 
-    val members = listOf(
-        TeamMemberUi("A", "Administrador", "@admin", "admin@forgeplan.pt", "Admin", "Online", "5"),
-        TeamMemberUi("GP", "Gestor Projeto", "@gestor", "gestor@forgeplan.pt", "Manager", "Away", "3"),
-        TeamMemberUi("A", "Ana", "@ana", "ana@forgeplan.pt", "Worker", "Online", "4"),
-        TeamMemberUi("T", "Tiago", "@tiago", "tiago@forgeplan.pt", "Worker", "Offline", "2")
-    )
+    val viewModel: TeamViewModel = androidx.lifecycle.viewmodel.compose.viewModel()
+    val users = viewModel.users.value
+    val loading = viewModel.loading.value
+
+    if (loading) {
+        Text("Loading team...")
+        return
+    }
+    val members = users.map { user ->
+        TeamMemberUi(
+            initials = user.name.take(1).uppercase(),
+            name = user.name,
+            username = user.username ?: "",
+            email = user.email,
+            role = user.role ?: "Worker",
+            status = "Online",
+            projects = "0"
+        )
+    }
 
     val filteredMembers = members.filter { member ->
         member.name.contains(searchText, ignoreCase = true) ||
@@ -243,5 +263,37 @@ fun TeamMemberCard(
                 )
             }
         }
+    }
+}
+
+class TeamViewModel : ViewModel() {
+
+    private val _users = mutableStateOf<List<User>>(emptyList())
+    val users: State<List<User>> = _users
+
+    private val _loading = mutableStateOf(true)
+    val loading: State<Boolean> = _loading
+
+    init {
+        loadUsers()
+    }
+
+    private fun loadUsers() {
+        SupabaseApi.service.getUsers()
+            .enqueue(object : Callback<List<User>> {
+
+                override fun onResponse(
+                    call: Call<List<User>>,
+                    response: Response<List<User>>
+                ) {
+                    _users.value = response.body() ?: emptyList()
+                    _loading.value = false
+                }
+
+                override fun onFailure(call: Call<List<User>>, t: Throwable) {
+                    _users.value = emptyList()
+                    _loading.value = false
+                }
+            })
     }
 }

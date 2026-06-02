@@ -37,6 +37,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.forgeplan.core.language.appText
 import com.example.forgeplan.core.model.Project
+import com.example.forgeplan.core.model.ProjectUserPayload
 import com.example.forgeplan.core.model.Task
 import com.example.forgeplan.core.model.User
 import com.example.forgeplan.core.ui.components.ForgeCard
@@ -53,6 +54,44 @@ import com.example.forgeplan.projects.viewmodel.ProjectUserViewModel
 import com.example.forgeplan.tasks.viewmodel.TaskViewModel
 import com.example.forgeplan.tasks.viewmodel.UserViewModel
 
+@Composable
+fun AddUserDialog(
+    users: List<User>,
+    onDismiss: () -> Unit,
+    onAddUser: (User) -> Unit
+) {
+    androidx.compose.material3.AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Add users") },
+        text = {
+            Column {
+                users.forEach { user ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { onAddUser(user) }
+                            .padding(12.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(user.name)
+                        Text("+")
+                    }
+                }
+
+                if (users.isEmpty()) {
+                    Text("No users available")
+                }
+            }
+        },
+        confirmButton = {},
+        dismissButton = {
+            Text(
+                "Close",
+                modifier = Modifier.clickable { onDismiss() }
+            )
+        }
+    )
+}
 @Composable
 fun ProjectDetailScreen(
     projectId: Long,
@@ -87,6 +126,8 @@ fun ProjectDetailScreen(
     var selectedFilter by remember { mutableStateOf("ALL") }
     var selectedView by remember { mutableStateOf("LIST") }
 
+    var showAddUserDialog by remember { mutableStateOf(false) }
+
     LaunchedEffect(projectId) {
         viewModel.loadProject(projectId)
         taskViewModel.loadTasks(projectId)
@@ -97,6 +138,10 @@ fun ProjectDetailScreen(
 
     val assignedUserIds = projectUsers.map { it.user_id }
     val assignedUsers = users.filter { assignedUserIds.contains(it.id) }
+
+    val availableUsers = users.filter { user ->
+        !assignedUserIds.contains(user.id)
+    }
 
     val completedTasks = tasks.count { it.status?.uppercase() == "DONE" }
     val progress = calculateProjectDetailProgress(tasks)
@@ -200,7 +245,8 @@ fun ProjectDetailScreen(
 
                                 ProjectDetailTeamSection(
                                     users = assignedUsers,
-                                    error = projectUserError
+                                    error = projectUserError,
+                                    onAddUserClick = { showAddUserDialog = true }
                                 )
                             }
 
@@ -274,7 +320,8 @@ fun ProjectDetailScreen(
 
                         ProjectDetailTeamSection(
                             users = assignedUsers,
-                            error = projectUserError
+                            error = projectUserError,
+                            onAddUserClick = { showAddUserDialog = true }
                         )
                     }
                 }
@@ -287,6 +334,25 @@ fun ProjectDetailScreen(
             onTimelineClick = onTimelineClick,
             onProgressClick = onProgressClick,
             onTeamClick = onTeamClick
+        )
+    }
+
+    if (showAddUserDialog) {
+        AddUserDialog(
+            users = availableUsers,
+            onDismiss = { showAddUserDialog = false },
+            onAddUser = { user ->
+                projectUserViewModel.assignUserToProject(
+                    userId = user.id,
+                    projectId = projectId,
+                    onSuccess = {
+                        projectUserViewModel.loadProjectUsers(projectId)
+                    }
+                )
+
+                projectUserViewModel.loadProjectUsers(projectId)
+                showAddUserDialog = false
+            }
         )
     }
 }
@@ -841,14 +907,25 @@ fun ProjectDetailGanttPlaceholder(
 @Composable
 fun ProjectDetailTeamSection(
     users: List<User>,
-    error: String?
+    error: String?,
+    onAddUserClick: () -> Unit
 ) {
-    Text(
-        text = appText(en = "Project Team", pt = "Equipa do Projeto"),
-        style = MaterialTheme.typography.titleMedium,
-        fontWeight = FontWeight.Bold,
-        color = MaterialTheme.colorScheme.onBackground
-    )
+    Row(
+            modifier = Modifier.fillMaxWidth(),
+    horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Text(
+            text = appText(en = "Project Team", pt = "Equipa do Projeto"),
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onBackground
+        )
+
+        ForgePrimaryButton(
+            text = appText(en = "Add", pt = "Adicionar"),
+            onClick = onAddUserClick
+        )
+    }
 
     Spacer(modifier = Modifier.height(10.dp))
 
