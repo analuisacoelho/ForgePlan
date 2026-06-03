@@ -21,6 +21,7 @@ import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -35,7 +36,11 @@ import androidx.compose.ui.unit.dp
 import com.example.forgeplan.R
 import com.example.forgeplan.core.language.AppLanguage
 import com.example.forgeplan.core.ui.LanguageButton
-
+import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.forgeplan.auth.viewmodel.LoginUiState
+import com.example.forgeplan.auth.viewmodel.LoginViewModel
+import com.example.forgeplan.core.session.SessionManager
 private val BrandDarkBlue = Color(0xFF171A4A)
 
 @Composable
@@ -52,7 +57,16 @@ fun LoginScreen(
     val invalidEmail = if (selectedLanguage == "PT") "Introduz um email válido." else "Enter a valid email."
     val passwordRequired = if (selectedLanguage == "PT") "A password é obrigatória." else "Password is required."
     val passwordShort = if (selectedLanguage == "PT") "A password deve ter pelo menos 6 caracteres." else "Password must have at least 6 characters."
+    val loginViewModel: LoginViewModel = viewModel()
+    val uiState by loginViewModel.uiState.collectAsState()
 
+    LaunchedEffect(uiState) {
+        if (uiState is LoginUiState.Success) {
+            val user = (uiState as LoginUiState.Success).user
+            // SessionManager já foi preenchido no AuthRepository
+            onLoginSuccess(user.role.uppercase())
+        }
+    }
     Surface(
         modifier = Modifier.fillMaxSize(),
         color = MaterialTheme.colorScheme.background
@@ -184,7 +198,7 @@ fun LoginScreen(
                 // Botão Login
                 Button(
                     onClick = {
-                        emailError = null
+                        emailError    = null
                         passwordError = null
 
                         when {
@@ -197,10 +211,10 @@ fun LoginScreen(
                         }
 
                         if (emailError == null && passwordError == null) {
-                            // TODO: substituir por role real do Supabase
-                            onLoginSuccess("MANAGER")
+                            loginViewModel.login(email, password)
                         }
                     },
+                    enabled = uiState !is LoginUiState.Loading,
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(58.dp),
@@ -213,6 +227,14 @@ fun LoginScreen(
                     Text(
                         text = if (selectedLanguage == "PT") "Entrar" else "Login",
                         style = MaterialTheme.typography.titleMedium
+                    )
+                }
+                if (uiState is LoginUiState.Error) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text  = (uiState as LoginUiState.Error).message,
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodySmall
                     )
                 }
             }

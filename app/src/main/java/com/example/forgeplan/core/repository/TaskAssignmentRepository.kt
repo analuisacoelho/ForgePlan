@@ -15,22 +15,36 @@ class TaskAssignmentRepository {
     ) {
         SupabaseApi.service.getTaskAssignmentsByTaskId("eq.$taskId")
             .enqueue(object : Callback<List<TaskAssignment>> {
+                override fun onResponse(call: Call<List<TaskAssignment>>, response: Response<List<TaskAssignment>>) {
+                    if (response.isSuccessful) onSuccess(response.body() ?: emptyList())
+                    else onError("Erro ao carregar associações: ${response.code()}")
+                }
+                override fun onFailure(call: Call<List<TaskAssignment>>, t: Throwable) {
+                    onError(t.message ?: "Erro desconhecido")
+                }
+            })
+    }
 
-                override fun onResponse(
-                    call: Call<List<TaskAssignment>>,
-                    response: Response<List<TaskAssignment>>
-                ) {
+    /**
+     * NOVO – devolve os IDs das tarefas atribuídas a um utilizador.
+     * Consultado pelo UserDashboardViewModel para filtrar tarefas.
+     */
+    fun getTaskIdsByUserId(
+        userId: Long,
+        onSuccess: (List<Long>) -> Unit,
+        onError: (String) -> Unit
+    ) {
+        SupabaseApi.service.getTaskAssignmentsByUserId("eq.$userId")
+            .enqueue(object : Callback<List<TaskAssignment>> {
+                override fun onResponse(call: Call<List<TaskAssignment>>, response: Response<List<TaskAssignment>>) {
                     if (response.isSuccessful) {
-                        onSuccess(response.body() ?: emptyList())
+                        val ids = response.body()?.map { it.task_id } ?: emptyList()
+                        onSuccess(ids)
                     } else {
-                        onError("Erro ao carregar associações: ${response.code()}")
+                        onError("Erro ao carregar tarefas do utilizador: ${response.code()}")
                     }
                 }
-
-                override fun onFailure(
-                    call: Call<List<TaskAssignment>>,
-                    t: Throwable
-                ) {
+                override fun onFailure(call: Call<List<TaskAssignment>>, t: Throwable) {
                     onError(t.message ?: "Erro desconhecido")
                 }
             })
@@ -43,26 +57,14 @@ class TaskAssignmentRepository {
     ) {
         SupabaseApi.service.assignUserToTask(assignment)
             .enqueue(object : Callback<List<TaskAssignment>> {
-
-                override fun onResponse(
-                    call: Call<List<TaskAssignment>>,
-                    response: Response<List<TaskAssignment>>
-                ) {
-                    if (response.isSuccessful) {
-                        onSuccess(response.body()?.firstOrNull())
-                    } else {
-                        if (response.code() == 409) {
-                            onError("Este utilizador já está associado à tarefa.")
-                        } else {
-                            onError("Erro ao associar utilizador à tarefa: ${response.code()}")
-                        }
+                override fun onResponse(call: Call<List<TaskAssignment>>, response: Response<List<TaskAssignment>>) {
+                    if (response.isSuccessful) onSuccess(response.body()?.firstOrNull())
+                    else {
+                        if (response.code() == 409) onError("Este utilizador já está associado à tarefa.")
+                        else onError("Erro ao associar utilizador à tarefa: ${response.code()}")
                     }
                 }
-
-                override fun onFailure(
-                    call: Call<List<TaskAssignment>>,
-                    t: Throwable
-                ) {
+                override fun onFailure(call: Call<List<TaskAssignment>>, t: Throwable) {
                     onError(t.message ?: "Erro desconhecido")
                 }
             })

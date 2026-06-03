@@ -2,7 +2,7 @@ package com.example.forgeplan.auth.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.example.forgeplan.auth.model.User
+import com.example.forgeplan.core.model.User
 import com.example.forgeplan.auth.repository.AuthRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow

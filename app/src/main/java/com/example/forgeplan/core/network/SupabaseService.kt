@@ -23,12 +23,18 @@ import retrofit2.http.Query
 
 interface SupabaseService {
 
-    // USERS
+    // ── USERS ────────────────────────────────────────────────────────────────
 
     @GET("users")
     fun getUsers(): Call<List<User>>
 
-    // PROJECTS
+    @GET("users")
+    fun getUserByEmail(
+        @Query("email") email: String,
+        @Query("select") select: String = "*"
+    ): Call<List<User>>
+
+    // ── PROJECTS ─────────────────────────────────────────────────────────────
 
     @GET("projects")
     fun getProjects(
@@ -54,7 +60,7 @@ interface SupabaseService {
         @Body project: ProjectPayload
     ): Call<List<Project>>
 
-    // TASKS
+    // ── TASKS ────────────────────────────────────────────────────────────────
 
     @GET("tasks")
     fun getTasksByProjectId(
@@ -81,11 +87,17 @@ interface SupabaseService {
         @Body task: TaskPayload
     ): Call<List<Task>>
 
-    // TASK ASSIGNMENTS
+    // ── TASK ASSIGNMENTS ─────────────────────────────────────────────────────
 
     @GET("task_assignments")
     fun getTaskAssignmentsByTaskId(
         @Query("task_id") taskId: String,
+        @Query("select") select: String = "*"
+    ): Call<List<TaskAssignment>>
+
+    @GET("task_assignments")
+    fun getTaskAssignmentsByUserId(
+        @Query("user_id") userId: String,
         @Query("select") select: String = "*"
     ): Call<List<TaskAssignment>>
 
@@ -95,7 +107,7 @@ interface SupabaseService {
         @Body assignment: TaskAssignment
     ): Call<List<TaskAssignment>>
 
-    // TASK ATTACHMENTS
+    // ── TASK ATTACHMENTS ─────────────────────────────────────────────────────
 
     @GET("task_attachments")
     fun getTaskAttachmentsByTaskId(
@@ -109,11 +121,17 @@ interface SupabaseService {
         @Body attachment: TaskAttachmentPayload
     ): Call<List<TaskAttachment>>
 
-    // PROJECT USERS
+    // ── PROJECT USERS ─────────────────────────────────────────────────────────
 
     @GET("project_users")
     fun getProjectUsersByProjectId(
         @Query("project_id") projectId: String,
+        @Query("select") select: String = "*"
+    ): Call<List<ProjectUser>>
+
+    @GET("project_users")
+    fun getProjectUsersByUserId(
+        @Query("user_id") userId: String,
         @Query("select") select: String = "*"
     ): Call<List<ProjectUser>>
 
@@ -123,7 +141,7 @@ interface SupabaseService {
         @Body projectUser: ProjectUserPayload
     ): Call<List<ProjectUser>>
 
-    // PROJECT EVALUATIONS
+    // ── PROJECT EVALUATIONS ───────────────────────────────────────────────────
 
     @GET("project_evaluations")
     fun getProjectEvaluations(
@@ -137,7 +155,7 @@ interface SupabaseService {
         @Body evaluation: ProjectEvaluationPayload
     ): Call<List<ProjectEvaluation>>
 
-    // TASK DEPENDENCIES
+    // ── TASK DEPENDENCIES ─────────────────────────────────────────────────────
 
     @GET("task_dependencies")
     fun getDependenciesByTaskId(
