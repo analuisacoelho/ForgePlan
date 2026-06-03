@@ -341,6 +341,7 @@ fun ReportsScreen(
                 "USER" -> UserReportContent(
                     selectedUser = selectedUser,
                     userTasks = selectedUserTasks,
+                    projects = projects,
                     projectCount = selectedUserTasks.map { it.project_id }.distinct().size,
                     stats = displayedStats,
                     isLandscape = isLandscape,
@@ -637,6 +638,7 @@ fun ProjectReportContent(
 fun UserReportContent(
     selectedUser: User?,
     userTasks: List<Task>,
+    projects: List<Project>,
     projectCount: Int,
     stats: ReportTaskStats,
     isLandscape: Boolean,
@@ -659,13 +661,11 @@ fun UserReportContent(
     Spacer(modifier = Modifier.height(16.dp))
 
     ReportSectionCard(
-        title = appText(en = "Task Status Distribution", pt = "Distribuição do Estado das Tarefas")
+        title = appText(en = "Tasks & Hours by Project", pt = "Tarefas e Horas por Projeto")
     ) {
-        TaskStatusDonutChart(
-            stats = stats,
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(if (isLandscape) 280.dp else 330.dp)
+        UserProjectsDesktopTable(
+            tasks = userTasks,
+            projects = projects
         )
     }
 
@@ -684,30 +684,195 @@ fun UserReportContent(
 
     Spacer(modifier = Modifier.height(16.dp))
 
-    ReportSectionCard(
-        title = appText(en = "Assigned Tasks", pt = "Tarefas Atribuídas")
-    ) {
-        if (userTasks.isEmpty()) {
-            Text(
-                text = appText(
-                    en = "No tasks assigned to this user.",
-                    pt = "Não existem tarefas atribuídas a este utilizador."
-                ),
-                color = MaterialTheme.colorScheme.onSurface
-            )
-        } else {
-            userTasks.forEach { task ->
-                TaskReportRow(task = task)
-                Spacer(modifier = Modifier.height(10.dp))
-            }
-        }
-    }
-
-    Spacer(modifier = Modifier.height(16.dp))
-
     ExportReportCard(
         title = appText(en = "Export User Report", pt = "Exportar Relatório do Utilizador"),
         onExportPdf = onExportPdf
+    )
+}
+
+@Composable
+fun UserProjectsTable(
+    tasks: List<Task>,
+    projects: List<Project>
+) {
+    val grouped = tasks.groupBy { it.project_id }
+
+    if (grouped.isEmpty()) {
+        Text(
+            text = appText(
+                en = "No tasks assigned to this user.",
+                pt = "Não existem tarefas atribuídas a este utilizador."
+            ),
+            color = MaterialTheme.colorScheme.onSurface
+        )
+        return
+    }
+
+    Row(modifier = Modifier.fillMaxWidth()) {
+        Text(
+            text = appText(en = "Project", pt = "Projeto"),
+            modifier = Modifier.weight(1.7f),
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+        )
+        Text(
+            text = appText(en = "Tasks", pt = "Tarefas"),
+            modifier = Modifier.weight(0.8f),
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+        )
+        Text(
+            text = appText(en = "Hours", pt = "Horas"),
+            modifier = Modifier.weight(0.8f),
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+        )
+        Text(
+            text = appText(en = "Avg.", pt = "Média"),
+            modifier = Modifier.weight(0.8f),
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+        )
+    }
+
+    Spacer(modifier = Modifier.height(10.dp))
+
+    grouped.forEach { entry ->
+        val projectName = projectNameById(projects, entry.key)
+        val taskCount = entry.value.size
+        val hours = estimateHours(entry.value)
+        val average = if (taskCount == 0) 0f else hours.toFloat() / taskCount.toFloat()
+
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 8.dp)
+        ) {
+            Text(
+                text = projectName,
+                modifier = Modifier.weight(1.7f),
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            Text(
+                text = taskCount.toString(),
+                modifier = Modifier.weight(0.8f),
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            Text(
+                text = "${hours}h",
+                modifier = Modifier.weight(0.8f),
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            Text(
+                text = String.format(Locale.US, "%.1fh", average),
+                modifier = Modifier.weight(0.8f),
+                color = MaterialTheme.colorScheme.onSurface
+            )
+        }
+    }
+}
+
+
+@Composable
+fun UserProjectsDesktopTable(
+    tasks: List<Task>,
+    projects: List<Project>
+) {
+    val grouped = tasks.groupBy { it.project_id }
+
+    if (grouped.isEmpty()) {
+        Text(
+            text = appText(
+                en = "No tasks assigned to this user.",
+                pt = "Não existem tarefas atribuídas a este utilizador."
+            ),
+            color = MaterialTheme.colorScheme.onSurface
+        )
+        return
+    }
+
+    Column {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 10.dp)
+        ) {
+            TableHeader(
+                text = appText(en = "Project", pt = "Projeto"),
+                modifier = Modifier.weight(2f)
+            )
+            TableHeader(
+                text = appText(en = "Tasks", pt = "Tarefas"),
+                modifier = Modifier.weight(1f)
+            )
+            TableHeader(
+                text = appText(en = "Hours", pt = "Horas"),
+                modifier = Modifier.weight(1f)
+            )
+            TableHeader(
+                text = appText(en = "Avg.", pt = "Média"),
+                modifier = Modifier.weight(1f)
+            )
+        }
+
+        grouped.forEach { entry ->
+            val projectName = projectNameById(projects, entry.key)
+            val taskCount = entry.value.size
+            val hours = estimateHours(entry.value)
+            val average =
+                if (taskCount == 0) 0f
+                else hours.toFloat() / taskCount.toFloat()
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 10.dp)
+            ) {
+                TableCell(
+                    text = projectName,
+                    modifier = Modifier.weight(2f)
+                )
+                TableCell(
+                    text = taskCount.toString(),
+                    modifier = Modifier.weight(1f)
+                )
+                TableCell(
+                    text = "${hours}h",
+                    modifier = Modifier.weight(1f)
+                )
+                TableCell(
+                    text = String.format(Locale.US, "%.1fh", average),
+                    modifier = Modifier.weight(1f)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun TableHeader(
+    text: String,
+    modifier: Modifier = Modifier
+) {
+    Text(
+        text = text,
+        modifier = modifier,
+        fontWeight = FontWeight.Bold,
+        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.65f),
+        maxLines = 1
+    )
+}
+
+@Composable
+fun TableCell(
+    text: String,
+    modifier: Modifier = Modifier
+) {
+    Text(
+        text = text,
+        modifier = modifier,
+        color = MaterialTheme.colorScheme.onSurface,
+        maxLines = 1
     )
 }
 
@@ -744,19 +909,6 @@ fun TaskReportContent(
             appText(en = "Group", pt = "Grupo") to (task.task_group ?: "General")
         )
     )
-
-    Spacer(modifier = Modifier.height(16.dp))
-
-    ReportSectionCard(
-        title = appText(en = "Task Status Distribution", pt = "Distribuição da Tarefa")
-    ) {
-        TaskStatusDonutChart(
-            stats = stats,
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(if (isLandscape) 280.dp else 330.dp)
-        )
-    }
 
     Spacer(modifier = Modifier.height(16.dp))
 
@@ -827,7 +979,8 @@ fun ReportMetricsCard(
                 text = title,
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onSurface
+                color = MaterialTheme.colorScheme.onSurface,
+                maxLines = 1
             )
 
             subtitle?.let {
@@ -835,7 +988,8 @@ fun ReportMetricsCard(
                 Text(
                     text = it,
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.65f)
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.65f),
+                    maxLines = 1
                 )
             }
 
@@ -843,29 +997,42 @@ fun ReportMetricsCard(
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
                 metrics.forEach { metric ->
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
+                    MetricColumn(
+                        metric = metric,
                         modifier = Modifier.weight(1f)
-                    ) {
-                        Text(
-                            text = metric.second,
-                            style = MaterialTheme.typography.headlineSmall,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-
-                        Text(
-                            text = metric.first,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.65f)
-                        )
-                    }
+                    )
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun MetricColumn(
+    metric: Pair<String, String>,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = modifier
+    ) {
+        Text(
+            text = metric.second,
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onSurface,
+            maxLines = 1
+        )
+
+        Text(
+            text = metric.first,
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.65f),
+            maxLines = 1
+        )
     }
 }
 
