@@ -20,10 +20,15 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -33,6 +38,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -40,7 +46,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
@@ -52,26 +57,33 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.forgeplan.core.language.appText
 import com.example.forgeplan.core.model.Project
+import com.example.forgeplan.core.model.ProjectUser
 import com.example.forgeplan.core.model.Task
+import com.example.forgeplan.core.model.User
+import com.example.forgeplan.core.repository.ProjectUserRepository
+import com.example.forgeplan.core.repository.TaskAssignmentRepository
 import com.example.forgeplan.core.repository.TaskRepository
 import com.example.forgeplan.core.ui.components.ForgeMiniChip
 import com.example.forgeplan.core.ui.components.ForgePlanBottomBar
 import com.example.forgeplan.core.ui.components.ForgePlanTopBar
-import com.example.forgeplan.core.ui.components.ForgeSearchBar
 import com.example.forgeplan.projects.viewmodel.ProjectViewModel
+import com.example.forgeplan.tasks.viewmodel.UserViewModel
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+import kotlin.math.roundToInt
+import android.graphics.Color as AndroidColor
 
-data class PendingExport(
-    val fileName: String,
-    val content: String
+data class ReportTaskStats(
+    val total: Int,
+    val todo: Int,
+    val active: Int,
+    val done: Int
 )
 
-data class FakeUserReport(
-    val name: String,
-    val role: String,
-    val totalTasks: Int,
-    val completed: Int,
-    val hours: Float,
-    val projects: Int
+data class PendingPdfExport(
+    val type: String,
+    val fileName: String
 )
 
 @Composable
@@ -79,120 +91,138 @@ fun ReportsScreen(
     onProjectsClick: () -> Unit = {},
     onTimelineClick: () -> Unit = {},
     onTeamClick: () -> Unit = {},
-    viewModel: ProjectViewModel = viewModel()
+    projectViewModel: ProjectViewModel = viewModel(),
+    userViewModel: UserViewModel = viewModel()
 ) {
+    val context = LocalContext.current
     val configuration = LocalConfiguration.current
     val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
-    val context = LocalContext.current
 
-    val projects by viewModel.projects.collectAsState()
-    val error by viewModel.error.collectAsState()
+    val projects by projectViewModel.projects.collectAsState()
+    val users by userViewModel.users.collectAsState()
+    val projectError by projectViewModel.error.collectAsState()
+    val userError by userViewModel.error.collectAsState()
 
     val taskRepository = remember { TaskRepository() }
+    val projectUserRepository = remember { ProjectUserRepository() }
+    val taskAssignmentRepository = remember { TaskAssignmentRepository() }
+
     val projectTasks = remember { mutableStateMapOf<Long, List<Task>>() }
+    val projectUsers = remember { mutableStateMapOf<Long, List<ProjectUser>>() }
+    val selectedUserTaskIds = remember { mutableStateListOf<Long>() }
 
     var selectedType by remember { mutableStateOf("PROJECT") }
-    var searchText by remember { mutableStateOf("") }
+    var selectedProject by remember { mutableStateOf<Project?>(null) }
+    var selectedUser by remember { mutableStateOf<User?>(null) }
+    var selectedTask by remember { mutableStateOf<Task?>(null) }
+
     var exportMessage by remember { mutableStateOf<String?>(null) }
-    var pendingExport by remember { mutableStateOf<PendingExport?>(null) }
+    var pendingExport by remember { mutableStateOf<PendingPdfExport?>(null) }
 
-    val createCsvLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.CreateDocument("text/csv")
-    ) { uri ->
-        uri?.let {
-            pendingExport?.let { export ->
-                writeReportTextFile(context, it, export.content)
-                exportMessage = appText(
-                    en = "CSV exported successfully.",
-                    pt = "CSV exportado com sucesso."
-                )
-            }
-        }
-        pendingExport = null
-    }
-
-    val createPdfLauncher = rememberLauncherForActivityResult(
+    val pdfLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.CreateDocument("application/pdf")
     ) { uri ->
-        uri?.let {
-            pendingExport?.let { export ->
-                writeReportPdfFile(context, it, export.content)
-                exportMessage = appText(
-                    en = "PDF exported successfully.",
-                    pt = "PDF exportado com sucesso."
-                )
-            }
+        val export = pendingExport
+        if (uri != null && export != null) {
+            val success = writeReportPdf(
+                context = context,
+                uri = uri,
+                exportType = export.type,
+                selectedProject = selectedProject,
+                selectedUser = selectedUser,
+                selectedTask = selectedTask,
+                projects = projects,
+                users = users,
+                projectTasks = projectTasks,
+                projectUsers = projectUsers,
+                selectedUserTaskIds = selectedUserTaskIds
+            )
+
+            exportMessage =
+                if (success) {
+                    appText(en = "PDF exported successfully.", pt = "PDF exportado com sucesso.")
+                } else {
+                    appText(en = "Could not export PDF.", pt = "Não foi possível exportar o PDF.")
+                }
         }
+
         pendingExport = null
-    }
-
-    fun exportReport(format: String, content: String) {
-        val extension = format.lowercase()
-        val fileName = "forgeplan_${selectedType.lowercase()}_report.$extension"
-
-        pendingExport = PendingExport(
-            fileName = fileName,
-            content = content
-        )
-
-        if (format == "PDF") {
-            createPdfLauncher.launch(fileName)
-        } else {
-            createCsvLauncher.launch(fileName)
-        }
     }
 
     LaunchedEffect(Unit) {
-        viewModel.loadProjects()
+        projectViewModel.loadProjects()
+        userViewModel.loadUsers()
     }
 
     LaunchedEffect(projects) {
+        if (projects.isNotEmpty() && selectedProject == null) {
+            selectedProject = projects.first()
+        }
+
         projects.forEach { project ->
             taskRepository.getTasksByProjectId(
                 projectId = project.id,
-                onSuccess = { tasks ->
-                    projectTasks[project.id] = tasks
+                onSuccess = { tasks -> projectTasks[project.id] = tasks },
+                onError = { projectTasks[project.id] = emptyList() }
+            )
+
+            projectUserRepository.getProjectUsersByProjectId(
+                projectId = project.id,
+                onSuccess = { members -> projectUsers[project.id] = members },
+                onError = { projectUsers[project.id] = emptyList() }
+            )
+        }
+    }
+
+    LaunchedEffect(users) {
+        if (users.isNotEmpty() && selectedUser == null) {
+            selectedUser = users.first()
+        }
+    }
+
+    val allTasks = projectTasks.values.flatten()
+
+    LaunchedEffect(allTasks.size) {
+        if (allTasks.isNotEmpty() && selectedTask == null) {
+            selectedTask = allTasks.first()
+        }
+    }
+
+    LaunchedEffect(selectedUser?.id) {
+        selectedUserTaskIds.clear()
+
+        selectedUser?.let { user ->
+            taskAssignmentRepository.getTaskIdsByUserId(
+                userId = user.id,
+                onSuccess = { ids ->
+                    selectedUserTaskIds.clear()
+                    selectedUserTaskIds.addAll(ids)
                 },
                 onError = {
-                    projectTasks[project.id] = emptyList()
+                    selectedUserTaskIds.clear()
                 }
             )
         }
     }
 
-    val allTasks = projectTasks.values.flatten()
-    val doneTasks = allTasks.count { it.status?.uppercase() == "DONE" }
-    val activeTasks = allTasks.count { it.status?.uppercase() == "IN_PROGRESS" }
-    val pendingTasks = allTasks.size - doneTasks - activeTasks
+    val selectedProjectTasks =
+        selectedProject?.let { projectTasks[it.id] ?: emptyList() } ?: emptyList()
 
-    val fakeUsers = remember {
-        listOf(
-            FakeUserReport("Ana Coelho", "Manager", 12, 9, 42.5f, 3),
-            FakeUserReport("Tiago Araújo", "Worker", 8, 5, 26f, 2),
-            FakeUserReport("Diana Matos", "Worker", 7, 4, 21.5f, 2),
-            FakeUserReport("Gestor Projeto", "Manager", 10, 7, 35f, 4)
-        )
-    }
+    val selectedUserTasks =
+        allTasks.filter { task -> selectedUserTaskIds.contains(task.id) }
 
-    val filteredProjects = projects.filter {
-        searchText.isBlank() ||
-                it.name.contains(searchText, ignoreCase = true) ||
-                (it.description ?: "").contains(searchText, ignoreCase = true)
-    }
+    val selectedTaskList =
+        selectedTask?.let { listOf(it) } ?: emptyList()
 
-    val selectedProject = filteredProjects.firstOrNull()
+    val displayedStats =
+        when (selectedType) {
+            "USER" -> calculateReportTaskStats(selectedUserTasks)
+            "TASK" -> calculateReportTaskStats(selectedTaskList)
+            else -> calculateReportTaskStats(selectedProjectTasks)
+        }
 
-    val filteredTasks = allTasks.filter {
-        searchText.isBlank() ||
-                it.title.contains(searchText, ignoreCase = true) ||
-                (it.description ?: "").contains(searchText, ignoreCase = true)
-    }
-
-    val filteredUsers = fakeUsers.filter {
-        searchText.isBlank() ||
-                it.name.contains(searchText, ignoreCase = true) ||
-                it.role.contains(searchText, ignoreCase = true)
-    }
+    val selectedProjectTeamCount =
+        selectedProject?.let { projectUsers[it.id]?.size ?: 0 } ?: 0
 
     Column(
         modifier = Modifier
@@ -209,8 +239,8 @@ fun ReportsScreen(
                 .weight(1f)
                 .verticalScroll(rememberScrollState())
                 .padding(
-                    horizontal = if (isLandscape) 34.dp else 18.dp,
-                    vertical = if (isLandscape) 14.dp else 18.dp
+                    horizontal = if (isLandscape) 42.dp else 18.dp,
+                    vertical = if (isLandscape) 20.dp else 18.dp
                 )
                 .padding(bottom = 96.dp)
         ) {
@@ -220,6 +250,8 @@ fun ReportsScreen(
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onBackground
             )
+
+            Spacer(modifier = Modifier.height(4.dp))
 
             Text(
                 text = appText(
@@ -232,85 +264,135 @@ fun ReportsScreen(
 
             Spacer(modifier = Modifier.height(18.dp))
 
-            ReportsSegmentedSelector(
+            ReportsTypeSelector(
                 selectedType = selectedType,
                 onTypeSelected = {
                     selectedType = it
-                    searchText = ""
                     exportMessage = null
                 }
             )
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            ForgeSearchBar(
-                value = searchText,
-                onValueChange = {
-                    searchText = it
-                    exportMessage = null
-                },
-                placeholder = when (selectedType) {
-                    "USER" -> appText(en = "Search user", pt = "Pesquisar utilizador")
-                    "TASK" -> appText(en = "Search task", pt = "Pesquisar tarefa")
-                    else -> appText(en = "Search project", pt = "Pesquisar projeto")
-                }
-            )
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            error?.let {
-                Text(
-                    text = it,
-                    color = MaterialTheme.colorScheme.error
+            when (selectedType) {
+                "USER" -> ReportsDropdownCard(
+                    title = appText(en = "Select user", pt = "Selecionar utilizador"),
+                    selectedText = selectedUser?.let { "${it.name} - ${formatRole(it.role)}" }
+                        ?: appText(en = "No user selected", pt = "Nenhum utilizador selecionado"),
+                    items = users,
+                    itemText = { "${it.name} - ${formatRole(it.role)}" },
+                    onItemSelected = {
+                        selectedUser = it
+                        exportMessage = null
+                    }
                 )
 
-                Spacer(modifier = Modifier.height(12.dp))
+                "TASK" -> ReportsDropdownCard(
+                    title = appText(en = "Select task", pt = "Selecionar tarefa"),
+                    selectedText = selectedTask?.let { task ->
+                        "${task.title} (${projectNameById(projects, task.project_id)})"
+                    } ?: appText(en = "No task selected", pt = "Nenhuma tarefa selecionada"),
+                    items = allTasks,
+                    itemText = { task ->
+                        "${task.title} (${projectNameById(projects, task.project_id)})"
+                    },
+                    onItemSelected = {
+                        selectedTask = it
+                        exportMessage = null
+                    }
+                )
+
+                else -> ReportsDropdownCard(
+                    title = appText(en = "Select project", pt = "Selecionar projeto"),
+                    selectedText = selectedProject?.name
+                        ?: appText(en = "No project selected", pt = "Nenhum projeto selecionado"),
+                    items = projects,
+                    itemText = { it.name },
+                    onItemSelected = {
+                        selectedProject = it
+                        exportMessage = null
+                    }
+                )
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            projectError?.let {
+                Text(
+                    text = it,
+                    color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.bodyMedium
+                )
+
+                Spacer(modifier = Modifier.height(10.dp))
+            }
+
+            userError?.let {
+                Text(
+                    text = it,
+                    color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.bodyMedium
+                )
+
+                Spacer(modifier = Modifier.height(10.dp))
             }
 
             when (selectedType) {
-                "PROJECT" -> ProjectStatisticsSection(
-                    project = selectedProject,
-                    projects = filteredProjects,
-                    projectTasks = projectTasks,
-                    totalTasks = allTasks.size,
-                    done = doneTasks,
-                    active = activeTasks,
-                    pending = pendingTasks,
-                    exportMessage = exportMessage,
-                    onExport = { format ->
-                        exportReport(
-                            format = format,
-                            content = buildProjectReport(filteredProjects, projectTasks, format)
+                "USER" -> UserReportContent(
+                    selectedUser = selectedUser,
+                    userTasks = selectedUserTasks,
+                    projectCount = selectedUserTasks.map { it.project_id }.distinct().size,
+                    stats = displayedStats,
+                    isLandscape = isLandscape,
+                    onExportPdf = {
+                        val name = selectedUser?.name?.safeFileName() ?: "user"
+                        pendingExport = PendingPdfExport(
+                            type = "USER",
+                            fileName = "forgeplan_user_report_$name.pdf"
                         )
+                        pdfLauncher.launch(pendingExport!!.fileName)
                     }
                 )
 
-                "USER" -> UserStatisticsSection(
-                    users = filteredUsers,
-                    exportMessage = exportMessage,
-                    onExport = { format ->
-                        exportReport(
-                            format = format,
-                            content = buildUserReport(filteredUsers, format)
+                "TASK" -> TaskReportContent(
+                    selectedTask = selectedTask,
+                    projectName = selectedTask?.let { projectNameById(projects, it.project_id) }.orEmpty(),
+                    stats = displayedStats,
+                    isLandscape = isLandscape,
+                    onExportPdf = {
+                        val name = selectedTask?.title?.safeFileName() ?: "task"
+                        pendingExport = PendingPdfExport(
+                            type = "TASK",
+                            fileName = "forgeplan_task_report_$name.pdf"
                         )
+                        pdfLauncher.launch(pendingExport!!.fileName)
                     }
                 )
 
-                "TASK" -> TaskStatisticsSection(
-                    tasks = filteredTasks,
-                    done = filteredTasks.count { it.status?.uppercase() == "DONE" },
-                    active = filteredTasks.count { it.status?.uppercase() == "IN_PROGRESS" },
-                    pending = filteredTasks.count {
-                        it.status?.uppercase() != "DONE" &&
-                                it.status?.uppercase() != "IN_PROGRESS"
-                    },
-                    exportMessage = exportMessage,
-                    onExport = { format ->
-                        exportReport(
-                            format = format,
-                            content = buildTaskReport(filteredTasks, format)
+                else -> ProjectReportContent(
+                    selectedProject = selectedProject,
+                    tasks = selectedProjectTasks,
+                    teamCount = selectedProjectTeamCount,
+                    stats = displayedStats,
+                    isLandscape = isLandscape,
+                    onExportPdf = {
+                        val name = selectedProject?.name?.safeFileName() ?: "project"
+                        pendingExport = PendingPdfExport(
+                            type = "PROJECT",
+                            fileName = "forgeplan_project_report_$name.pdf"
                         )
+                        pdfLauncher.launch(pendingExport!!.fileName)
                     }
+                )
+            }
+
+            exportMessage?.let {
+                Spacer(modifier = Modifier.height(12.dp))
+
+                Text(
+                    text = it,
+                    color = MaterialTheme.colorScheme.primary,
+                    style = MaterialTheme.typography.bodySmall
                 )
             }
         }
@@ -326,216 +408,265 @@ fun ReportsScreen(
 }
 
 @Composable
-fun ReportsSegmentedSelector(
+fun ReportsTypeSelector(
     selectedType: String,
     onTypeSelected: (String) -> Unit
 ) {
-    ReportSectionCard(
-        title = appText(en = "Select report type", pt = "Selecionar tipo de relatório")
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        color = MaterialTheme.colorScheme.surface,
+        shape = RoundedCornerShape(18.dp)
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        Column(
+            modifier = Modifier.padding(14.dp)
         ) {
-            ReportsSegmentButton(
-                text = appText(en = "By Project", pt = "Por Projeto"),
-                selected = selectedType == "PROJECT",
-                onClick = { onTypeSelected("PROJECT") },
-                modifier = Modifier.weight(1f)
+            Text(
+                text = appText(en = "Select report type", pt = "Selecionar tipo de relatório"),
+                style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.onSurface
             )
 
-            ReportsSegmentButton(
-                text = appText(en = "By User", pt = "Por Utilizador"),
-                selected = selectedType == "USER",
-                onClick = { onTypeSelected("USER") },
-                modifier = Modifier.weight(1f)
-            )
+            Spacer(modifier = Modifier.height(12.dp))
 
-            ReportsSegmentButton(
-                text = appText(en = "By Task", pt = "Por Tarefa"),
-                selected = selectedType == "TASK",
-                onClick = { onTypeSelected("TASK") },
-                modifier = Modifier.weight(1f)
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                ReportTypeButton(
+                    text = appText(en = "By Project", pt = "Por Projeto"),
+                    selected = selectedType == "PROJECT",
+                    onClick = { onTypeSelected("PROJECT") },
+                    modifier = Modifier.weight(1f)
+                )
+
+                ReportTypeButton(
+                    text = appText(en = "By User", pt = "Por Utilizador"),
+                    selected = selectedType == "USER",
+                    onClick = { onTypeSelected("USER") },
+                    modifier = Modifier.weight(1f)
+                )
+
+                ReportTypeButton(
+                    text = appText(en = "By Task", pt = "Por Tarefa"),
+                    selected = selectedType == "TASK",
+                    onClick = { onTypeSelected("TASK") },
+                    modifier = Modifier.weight(1f)
+                )
+            }
         }
     }
 }
 
 @Composable
-fun ReportsSegmentButton(
+fun ReportTypeButton(
     text: String,
     selected: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Box(
-        modifier = modifier
-            .height(42.dp)
-            .clip(RoundedCornerShape(8.dp))
-            .background(
-                if (selected) MaterialTheme.colorScheme.primary
-                else MaterialTheme.colorScheme.background
-            )
-            .clickable { onClick() },
-        contentAlignment = Alignment.Center
+    Button(
+        modifier = modifier.height(44.dp),
+        onClick = onClick,
+        shape = RoundedCornerShape(10.dp),
+        colors = ButtonDefaults.buttonColors(
+            containerColor = if (selected) {
+                MaterialTheme.colorScheme.primary
+            } else {
+                MaterialTheme.colorScheme.background
+            },
+            contentColor = if (selected) {
+                MaterialTheme.colorScheme.onPrimary
+            } else {
+                MaterialTheme.colorScheme.onBackground
+            }
+        )
     ) {
         Text(
             text = text,
             style = MaterialTheme.typography.labelMedium,
-            fontWeight = FontWeight.Bold,
-            color =
-                if (selected) MaterialTheme.colorScheme.onPrimary
-                else MaterialTheme.colorScheme.onBackground
+            fontWeight = FontWeight.Bold
         )
     }
 }
 
 @Composable
-fun ProjectStatisticsSection(
-    project: Project?,
-    projects: List<Project>,
-    projectTasks: Map<Long, List<Task>>,
-    totalTasks: Int,
-    done: Int,
-    active: Int,
-    pending: Int,
-    exportMessage: String?,
-    onExport: (String) -> Unit
+fun <T> ReportsDropdownCard(
+    title: String,
+    selectedText: String,
+    items: List<T>,
+    itemText: (T) -> String,
+    onItemSelected: (T) -> Unit
 ) {
-    ReportSectionCard(
-        title = project?.let {
-            appText(en = "Project: ${it.name}", pt = "Projeto: ${it.name}")
-        } ?: appText(en = "Project overview", pt = "Visão geral dos projetos")
+    var expanded by remember { mutableStateOf(false) }
+
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        color = MaterialTheme.colorScheme.surface,
+        shape = RoundedCornerShape(16.dp)
     ) {
-        ReportsMetricRow(
-            firstValue = totalTasks.toString(),
-            firstLabel = appText(en = "Total Tasks", pt = "Total de Tarefas"),
-            secondValue = done.toString(),
-            secondLabel = appText(en = "Completed", pt = "Concluídas"),
-            thirdValue = "${totalTasks * 3}h",
-            thirdLabel = appText(en = "Total Hours", pt = "Horas Totais"),
-            fourthValue = projects.size.toString(),
-            fourthLabel = appText(en = "Projects", pt = "Projetos")
-        )
+        Column(
+            modifier = Modifier.padding(16.dp)
+        ) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            Box {
+                Surface(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(48.dp)
+                        .clickable { expanded = true },
+                    color = MaterialTheme.colorScheme.background,
+                    shape = RoundedCornerShape(10.dp),
+                    border = BorderStroke(
+                        width = 1.dp,
+                        color = MaterialTheme.colorScheme.tertiary.copy(alpha = 0.55f)
+                    )
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 14.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = selectedText,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onBackground,
+                            modifier = Modifier.weight(1f),
+                            maxLines = 1
+                        )
+
+                        Text(
+                            text = "⌄",
+                            style = MaterialTheme.typography.titleMedium,
+                            color = MaterialTheme.colorScheme.onBackground
+                        )
+                    }
+                }
+
+                DropdownMenu(
+                    expanded = expanded,
+                    onDismissRequest = { expanded = false }
+                ) {
+                    items.forEach { item ->
+                        DropdownMenuItem(
+                            text = {
+                                Text(
+                                    text = itemText(item),
+                                    style = MaterialTheme.typography.bodyMedium
+                                )
+                            },
+                            onClick = {
+                                onItemSelected(item)
+                                expanded = false
+                            }
+                        )
+                    }
+                }
+            }
+        }
     }
+}
+
+@Composable
+fun ProjectReportContent(
+    selectedProject: Project?,
+    tasks: List<Task>,
+    teamCount: Int,
+    stats: ReportTaskStats,
+    isLandscape: Boolean,
+    onExportPdf: () -> Unit
+) {
+    val totalHours = estimateHours(tasks)
+
+    ReportMetricsCard(
+        title = selectedProject?.let { "Projeto: ${it.name}" }
+            ?: appText(en = "Project", pt = "Projeto"),
+        metrics = listOf(
+            appText(en = "Total Tasks", pt = "Total de Tarefas") to stats.total.toString(),
+            appText(en = "Completed", pt = "Concluídas") to stats.done.toString(),
+            appText(en = "Total Hours", pt = "Horas Totais") to "${totalHours}h",
+            appText(en = "Team Members", pt = "Membros") to teamCount.toString()
+        )
+    )
 
     Spacer(modifier = Modifier.height(16.dp))
 
     ReportSectionCard(
         title = appText(en = "Task Status Distribution", pt = "Distribuição do Estado das Tarefas")
     ) {
-        ReportsDonutChart(
-            todo = pending,
-            active = active,
-            done = done
+        TaskStatusDonutChart(
+            stats = stats,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(if (isLandscape) 280.dp else 330.dp)
         )
     }
 
     Spacer(modifier = Modifier.height(16.dp))
 
     ReportSectionCard(
-        title = appText(en = "Project performance", pt = "Desempenho por projeto")
+        title = appText(en = "Project Tasks", pt = "Tarefas do Projeto")
     ) {
-        projects.forEach { currentProject ->
-            val tasks = projectTasks[currentProject.id] ?: emptyList()
-            val currentDone = tasks.count { it.status?.uppercase() == "DONE" }
-            val currentProgress =
-                if (tasks.isEmpty()) 0
-                else ((currentDone.toFloat() / tasks.size.toFloat()) * 100).toInt()
-
+        if (tasks.isEmpty()) {
             Text(
-                text = currentProject.name,
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.Bold,
+                text = appText(en = "No tasks found.", pt = "Não existem tarefas."),
                 color = MaterialTheme.colorScheme.onSurface
             )
-
-            Spacer(modifier = Modifier.height(5.dp))
-
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                ForgeMiniChip(
-                    text = appText(en = "${tasks.size} tasks", pt = "${tasks.size} tarefas")
-                )
-
-                ForgeMiniChip(text = "$currentProgress%")
+        } else {
+            tasks.forEach { task ->
+                TaskReportRow(task = task)
+                Spacer(modifier = Modifier.height(10.dp))
             }
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            LinearProgressIndicator(
-                progress = { currentProgress / 100f },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(8.dp)
-                    .clip(RoundedCornerShape(50)),
-                color = if (currentProgress >= 100) {
-                    Color(0xFF16A34A)
-                } else {
-                    MaterialTheme.colorScheme.primary
-                },
-                trackColor = MaterialTheme.colorScheme.secondaryContainer
-            )
-
-            Spacer(modifier = Modifier.height(16.dp))
         }
     }
 
     Spacer(modifier = Modifier.height(16.dp))
 
-    ReportExportCard(
-        title = appText(en = "Export Project Report", pt = "Exportar Relatório de Projeto"),
-        exportMessage = exportMessage,
-        onExport = onExport
+    ExportReportCard(
+        title = appText(en = "Export Project Report", pt = "Exportar Relatório do Projeto"),
+        onExportPdf = onExportPdf
     )
 }
 
 @Composable
-fun UserStatisticsSection(
-    users: List<FakeUserReport>,
-    exportMessage: String?,
-    onExport: (String) -> Unit
+fun UserReportContent(
+    selectedUser: User?,
+    userTasks: List<Task>,
+    projectCount: Int,
+    stats: ReportTaskStats,
+    isLandscape: Boolean,
+    onExportPdf: () -> Unit
 ) {
-    val totalTasks = users.sumOf { it.totalTasks }
-    val completed = users.sumOf { it.completed }
-    val hours = users.sumOf { it.hours.toDouble() }.toFloat()
+    val totalHours = estimateHours(userTasks)
 
-    ReportSectionCard(
-        title = users.firstOrNull()?.let {
-            appText(en = "User: ${it.name}", pt = "Utilizador: ${it.name}")
-        } ?: appText(en = "User report", pt = "Relatório por utilizador")
-    ) {
-        ReportsMetricRow(
-            firstValue = totalTasks.toString(),
-            firstLabel = appText(en = "Total Tasks", pt = "Total de Tarefas"),
-            secondValue = completed.toString(),
-            secondLabel = appText(en = "Completed", pt = "Concluídas"),
-            thirdValue = "${hours}h",
-            thirdLabel = appText(en = "Total Hours", pt = "Horas Totais"),
-            fourthValue = users.sumOf { it.projects }.toString(),
-            fourthLabel = appText(en = "Projects", pt = "Projetos")
+    ReportMetricsCard(
+        title = selectedUser?.let { "Utilizador: ${it.name}" }
+            ?: appText(en = "User", pt = "Utilizador"),
+        subtitle = selectedUser?.let { "Role: ${formatRole(it.role)}" },
+        metrics = listOf(
+            appText(en = "Total Tasks", pt = "Total de Tarefas") to stats.total.toString(),
+            appText(en = "Completed", pt = "Concluídas") to stats.done.toString(),
+            appText(en = "Total Hours", pt = "Horas Totais") to "${totalHours}h",
+            appText(en = "Projects", pt = "Projetos") to projectCount.toString()
         )
-    }
+    )
 
     Spacer(modifier = Modifier.height(16.dp))
 
     ReportSectionCard(
-        title = appText(en = "Tasks & Hours by Project", pt = "Tarefas e Horas por Projeto")
+        title = appText(en = "Task Status Distribution", pt = "Distribuição do Estado das Tarefas")
     ) {
-        ReportsTableHeader(
-            c1 = appText(en = "User", pt = "Utilizador"),
-            c2 = appText(en = "Tasks", pt = "Tarefas"),
-            c3 = appText(en = "Hours", pt = "Horas"),
-            c4 = appText(en = "Avg.", pt = "Média")
+        TaskStatusDonutChart(
+            stats = stats,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(if (isLandscape) 280.dp else 330.dp)
         )
-
-        users.forEach { user ->
-            ReportsTableRow(
-                c1 = user.name,
-                c2 = user.completed.toString(),
-                c3 = "${user.hours}h",
-                c4 = "${if (user.completed == 0) 0f else user.hours / user.completed}h"
-            )
-        }
     }
 
     Spacer(modifier = Modifier.height(16.dp))
@@ -543,140 +674,251 @@ fun UserStatisticsSection(
     ReportSectionCard(
         title = appText(en = "Performance Trend", pt = "Tendência de Performance")
     ) {
-        ReportsTrendChart()
-    }
-
-    Spacer(modifier = Modifier.height(16.dp))
-
-    ReportExportCard(
-        title = appText(en = "Export User Report", pt = "Exportar Relatório de Utilizador"),
-        exportMessage = exportMessage,
-        onExport = onExport
-    )
-}
-
-@Composable
-fun TaskStatisticsSection(
-    tasks: List<Task>,
-    done: Int,
-    active: Int,
-    pending: Int,
-    exportMessage: String?,
-    onExport: (String) -> Unit
-) {
-    ReportSectionCard(
-        title = appText(en = "Task Status Distribution", pt = "Distribuição de tarefas")
-    ) {
-        ReportsDonutChart(
-            todo = pending,
-            active = active,
-            done = done
+        PerformanceLineChart(
+            tasks = userTasks,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(if (isLandscape) 250.dp else 280.dp)
         )
     }
 
     Spacer(modifier = Modifier.height(16.dp))
 
     ReportSectionCard(
-        title = appText(en = "Task details", pt = "Detalhes das tarefas")
+        title = appText(en = "Assigned Tasks", pt = "Tarefas Atribuídas")
     ) {
-        if (tasks.isEmpty()) {
+        if (userTasks.isEmpty()) {
             Text(
-                text = appText(en = "No tasks found.", pt = "Nenhuma tarefa encontrada."),
+                text = appText(
+                    en = "No tasks assigned to this user.",
+                    pt = "Não existem tarefas atribuídas a este utilizador."
+                ),
                 color = MaterialTheme.colorScheme.onSurface
             )
         } else {
-            tasks.take(8).forEach { task ->
-                Text(
-                    text = task.title,
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-
-                Spacer(modifier = Modifier.height(3.dp))
-
-                Text(
-                    text = "${readableReportTaskStatus(task.status)} • ${task.completion_rate ?: 0}%",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.65f)
-                )
-
-                Spacer(modifier = Modifier.height(12.dp))
+            userTasks.forEach { task ->
+                TaskReportRow(task = task)
+                Spacer(modifier = Modifier.height(10.dp))
             }
         }
     }
 
     Spacer(modifier = Modifier.height(16.dp))
 
-    ReportExportCard(
-        title = appText(en = "Export Task Report", pt = "Exportar Relatório de Tarefas"),
-        exportMessage = exportMessage,
-        onExport = onExport
+    ExportReportCard(
+        title = appText(en = "Export User Report", pt = "Exportar Relatório do Utilizador"),
+        onExportPdf = onExportPdf
     )
 }
 
 @Composable
-fun ReportsMetricRow(
-    firstValue: String,
-    firstLabel: String,
-    secondValue: String,
-    secondLabel: String,
-    thirdValue: String,
-    thirdLabel: String,
-    fourthValue: String,
-    fourthLabel: String
+fun TaskReportContent(
+    selectedTask: Task?,
+    projectName: String,
+    stats: ReportTaskStats,
+    isLandscape: Boolean,
+    onExportPdf: () -> Unit
 ) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween
+    val task = selectedTask
+
+    if (task == null) {
+        ReportSectionCard(
+            title = appText(en = "Task details", pt = "Detalhes da tarefa")
+        ) {
+            Text(
+                text = appText(en = "No task selected.", pt = "Nenhuma tarefa selecionada."),
+                color = MaterialTheme.colorScheme.onSurface
+            )
+        }
+
+        return
+    }
+
+    ReportMetricsCard(
+        title = task.title,
+        subtitle = appText(en = "Project: $projectName", pt = "Projeto: $projectName"),
+        metrics = listOf(
+            appText(en = "Status", pt = "Estado") to formatStatus(task.status),
+            appText(en = "Progress", pt = "Progresso") to "${task.completion_rate ?: 0}%",
+            appText(en = "Priority", pt = "Prioridade") to formatPriority(task.priority),
+            appText(en = "Group", pt = "Grupo") to (task.task_group ?: "General")
+        )
+    )
+
+    Spacer(modifier = Modifier.height(16.dp))
+
+    ReportSectionCard(
+        title = appText(en = "Task Status Distribution", pt = "Distribuição da Tarefa")
     ) {
-        ReportMetric(firstValue, firstLabel)
-        ReportMetric(secondValue, secondLabel)
-        ReportMetric(thirdValue, thirdLabel)
-        ReportMetric(fourthValue, fourthLabel)
+        TaskStatusDonutChart(
+            stats = stats,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(if (isLandscape) 280.dp else 330.dp)
+        )
+    }
+
+    Spacer(modifier = Modifier.height(16.dp))
+
+    ReportSectionCard(
+        title = appText(en = "Task details", pt = "Detalhes da tarefa")
+    ) {
+        Text(
+            text = appText(en = "Description", pt = "Descrição"),
+            style = MaterialTheme.typography.titleSmall,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onSurface
+        )
+
+        Spacer(modifier = Modifier.height(6.dp))
+
+        Text(
+            text = task.description ?: appText(en = "No description.", pt = "Sem descrição."),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.75f)
+        )
+
+        Spacer(modifier = Modifier.height(14.dp))
+
+        LinearProgressIndicator(
+            progress = { ((task.completion_rate ?: 0).coerceIn(0, 100)) / 100f },
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(8.dp)
+                .clip(RoundedCornerShape(50)),
+            color = strongDoneColor(),
+            trackColor = MaterialTheme.colorScheme.secondaryContainer
+        )
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            ForgeMiniChip(text = appText(en = "Start: ${task.start_date ?: "-"}", pt = "Início: ${task.start_date ?: "-"}"))
+            ForgeMiniChip(text = appText(en = "End: ${task.end_date ?: "-"}", pt = "Fim: ${task.end_date ?: "-"}"))
+        }
+    }
+
+    Spacer(modifier = Modifier.height(16.dp))
+
+    ExportReportCard(
+        title = appText(en = "Export Task Report", pt = "Exportar Relatório da Tarefa"),
+        onExportPdf = onExportPdf
+    )
+}
+
+@Composable
+fun ReportMetricsCard(
+    title: String,
+    subtitle: String? = null,
+    metrics: List<Pair<String, String>>
+) {
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        color = MaterialTheme.colorScheme.surface,
+        shape = RoundedCornerShape(16.dp)
+    ) {
+        Column(
+            modifier = Modifier.padding(18.dp)
+        ) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+
+            subtitle?.let {
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = it,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.65f)
+                )
+            }
+
+            Spacer(modifier = Modifier.height(20.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                metrics.forEach { metric ->
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text(
+                            text = metric.second,
+                            style = MaterialTheme.typography.headlineSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+
+                        Text(
+                            text = metric.first,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.65f)
+                        )
+                    }
+                }
+            }
+        }
     }
 }
 
 @Composable
-fun ReportsDonutChart(
-    todo: Int,
-    active: Int,
-    done: Int
+fun ReportSectionCard(
+    title: String,
+    content: @Composable () -> Unit
 ) {
-    val total = todo + active + done
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        color = MaterialTheme.colorScheme.surface,
+        shape = RoundedCornerShape(16.dp)
+    ) {
+        Column(
+            modifier = Modifier.padding(18.dp)
+        ) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface
+            )
 
-    val todoColor = Color(0xFF94A3B8)
-    val activeColor = Color(0xFF1E40AF)
-    val doneColor = Color(0xFF16A34A)
-    val emptyColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.18f)
+            Spacer(modifier = Modifier.height(14.dp))
 
-    val todoPercent = if (total == 0) 0 else ((todo.toFloat() / total) * 100).toInt()
-    val activePercent = if (total == 0) 0 else ((active.toFloat() / total) * 100).toInt()
-    val donePercent = if (total == 0) 0 else ((done.toFloat() / total) * 100).toInt()
+            content()
+        }
+    }
+}
+
+@Composable
+fun TaskStatusDonutChart(
+    stats: ReportTaskStats,
+    modifier: Modifier = Modifier
+) {
+    val total = stats.total.coerceAtLeast(0)
+    val todoColor = strongTodoColor()
+    val activeColor = strongActiveColor()
+    val doneColor = strongDoneColor()
+    val emptyColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.14f)
 
     Column(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = modifier,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Box(
-            modifier = Modifier
-                .width(230.dp)
-                .height(230.dp),
+            modifier = Modifier.size(220.dp),
             contentAlignment = Alignment.Center
         ) {
-            Canvas(
-                modifier = Modifier.fillMaxSize()
-            ) {
-                val chartTotal = total.coerceAtLeast(1)
-                val todoSweep = todo / chartTotal.toFloat() * 360f
-                val activeSweep = active / chartTotal.toFloat() * 360f
-                val doneSweep = done / chartTotal.toFloat() * 360f
-
-                val stroke = Stroke(width = 46f, cap = StrokeCap.Butt)
-                val chartSize = Size(size.minDimension - 46f, size.minDimension - 46f)
-                val topLeft = Offset(
-                    x = (size.width - chartSize.width) / 2,
-                    y = (size.height - chartSize.height) / 2
+            Canvas(modifier = Modifier.size(210.dp)) {
+                val stroke = Stroke(
+                    width = 26.dp.toPx(),
+                    cap = StrokeCap.Butt
                 )
 
                 if (total == 0) {
@@ -685,48 +927,48 @@ fun ReportsDonutChart(
                         startAngle = -90f,
                         sweepAngle = 360f,
                         useCenter = false,
-                        topLeft = topLeft,
-                        size = chartSize,
-                        style = stroke
+                        style = stroke,
+                        size = Size(size.width, size.height)
                     )
                 } else {
-                    var start = -90f
+                    var startAngle = -90f
 
-                    if (todo > 0) {
+                    val todoSweep = 360f * stats.todo / total
+                    val activeSweep = 360f * stats.active / total
+                    val doneSweep = 360f * stats.done / total
+
+                    if (stats.todo > 0) {
                         drawArc(
                             color = todoColor,
-                            startAngle = start,
+                            startAngle = startAngle,
                             sweepAngle = todoSweep,
                             useCenter = false,
-                            topLeft = topLeft,
-                            size = chartSize,
-                            style = stroke
+                            style = stroke,
+                            size = Size(size.width, size.height)
                         )
-                        start += todoSweep
+                        startAngle += todoSweep
                     }
 
-                    if (active > 0) {
+                    if (stats.active > 0) {
                         drawArc(
                             color = activeColor,
-                            startAngle = start,
+                            startAngle = startAngle,
                             sweepAngle = activeSweep,
                             useCenter = false,
-                            topLeft = topLeft,
-                            size = chartSize,
-                            style = stroke
+                            style = stroke,
+                            size = Size(size.width, size.height)
                         )
-                        start += activeSweep
+                        startAngle += activeSweep
                     }
 
-                    if (done > 0) {
+                    if (stats.done > 0) {
                         drawArc(
                             color = doneColor,
-                            startAngle = start,
+                            startAngle = startAngle,
                             sweepAngle = doneSweep,
                             useCenter = false,
-                            topLeft = topLeft,
-                            size = chartSize,
-                            style = stroke
+                            style = stroke,
+                            size = Size(size.width, size.height)
                         )
                     }
                 }
@@ -750,225 +992,227 @@ fun ReportsDonutChart(
 
         Spacer(modifier = Modifier.height(12.dp))
 
-        ReportsChartLegend(
-            todo = todo,
-            active = active,
-            done = done,
-            todoPercent = todoPercent,
-            activePercent = activePercent,
-            donePercent = donePercent,
-            todoColor = todoColor,
-            activeColor = activeColor,
-            doneColor = doneColor
-        )
-    }
-}
-
-@Composable
-fun ReportsChartLegend(
-    todo: Int,
-    active: Int,
-    done: Int,
-    todoPercent: Int,
-    activePercent: Int,
-    donePercent: Int,
-    todoColor: Color,
-    activeColor: Color,
-    doneColor: Color
-) {
-    Column(
-        modifier = Modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        ReportsLegendItem(
+        ChartLegendRow(
             color = todoColor,
-            text = appText(
-                en = "To do",
-                pt = "Por fazer"
-            ),
-            value = "$todo · $todoPercent%"
+            label = appText(en = "To do", pt = "Por fazer"),
+            value = "${stats.todo} • ${percent(stats.todo, total)}%"
         )
 
-        ReportsLegendItem(
+        ChartLegendRow(
             color = activeColor,
-            text = appText(
-                en = "Active",
-                pt = "Ativas"
-            ),
-            value = "$active · $activePercent%"
+            label = appText(en = "Active", pt = "Ativas"),
+            value = "${stats.active} • ${percent(stats.active, total)}%"
         )
 
-        ReportsLegendItem(
+        ChartLegendRow(
             color = doneColor,
-            text = appText(
-                en = "Done",
-                pt = "Feitas"
-            ),
-            value = "$done · $donePercent%"
+            label = appText(en = "Done", pt = "Feitas"),
+            value = "${stats.done} • ${percent(stats.done, total)}%"
         )
     }
 }
 
 @Composable
-fun ReportsLegendItem(
+fun ChartLegendRow(
     color: Color,
-    text: String,
+    label: String,
     value: String
 ) {
-    Row(
+    Surface(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(10.dp))
-            .background(MaterialTheme.colorScheme.background.copy(alpha = 0.75f))
-            .padding(horizontal = 10.dp, vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically
+            .padding(vertical = 3.dp),
+        color = MaterialTheme.colorScheme.background,
+        shape = RoundedCornerShape(8.dp)
     ) {
-        Box(
+        Row(
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(16.dp)
+                    .clip(RoundedCornerShape(4.dp))
+                    .background(color)
+            )
+
+            Spacer(modifier = Modifier.width(10.dp))
+
+            Text(
+                text = label,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onBackground,
+                modifier = Modifier.weight(1f)
+            )
+
+            Text(
+                text = value,
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onBackground
+            )
+        }
+    }
+}
+
+@Composable
+fun PerformanceLineChart(
+    tasks: List<Task>,
+    modifier: Modifier = Modifier
+) {
+    val done = tasks.count { it.status?.uppercase() == "DONE" }
+    val active = tasks.count { it.status?.uppercase() == "IN_PROGRESS" }
+    val total = tasks.size.coerceAtLeast(1)
+
+    val activeColor = strongActiveColor()
+    val doneColor = strongDoneColor()
+
+    val pointsDone = listOf(
+        0.20f,
+        0.28f,
+        0.24f,
+        ((done.toFloat() / total.toFloat()).coerceIn(0f, 1f))
+    )
+
+    val pointsActive = listOf(
+        0.45f,
+        0.52f,
+        0.48f,
+        ((active.toFloat() / total.toFloat()).coerceIn(0f, 1f))
+    )
+
+    Column(modifier = modifier) {
+        Canvas(
             modifier = Modifier
-                .width(14.dp)
-                .height(14.dp)
-                .clip(RoundedCornerShape(4.dp))
-                .background(color)
-        )
+                .fillMaxWidth()
+                .height(220.dp)
+        ) {
+            val paddingLeft = 36.dp.toPx()
+            val paddingRight = 16.dp.toPx()
+            val paddingTop = 18.dp.toPx()
+            val paddingBottom = 30.dp.toPx()
 
-        Spacer(modifier = Modifier.width(10.dp))
+            val chartWidth = size.width - paddingLeft - paddingRight
+            val chartHeight = size.height - paddingTop - paddingBottom
 
-        Text(
-            text = text,
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurface,
-            modifier = Modifier.weight(1f)
-        )
+            val gridColor = Color.LightGray.copy(alpha = 0.45f)
 
-        Text(
-            text = value,
-            style = MaterialTheme.typography.bodyMedium,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.onSurface
-        )
+            repeat(4) { index ->
+                val y = paddingTop + chartHeight * index / 3f
+                drawLine(
+                    color = gridColor,
+                    start = androidx.compose.ui.geometry.Offset(paddingLeft, y),
+                    end = androidx.compose.ui.geometry.Offset(size.width - paddingRight, y),
+                    strokeWidth = 1.dp.toPx()
+                )
+            }
+
+            fun drawSeries(values: List<Float>, color: Color) {
+                val step = chartWidth / (values.size - 1)
+
+                values.zipWithNext().forEachIndexed { index, pair ->
+                    val x1 = paddingLeft + step * index
+                    val y1 = paddingTop + chartHeight * (1f - pair.first)
+                    val x2 = paddingLeft + step * (index + 1)
+                    val y2 = paddingTop + chartHeight * (1f - pair.second)
+
+                    drawLine(
+                        color = color,
+                        start = androidx.compose.ui.geometry.Offset(x1, y1),
+                        end = androidx.compose.ui.geometry.Offset(x2, y2),
+                        strokeWidth = 3.dp.toPx(),
+                        cap = StrokeCap.Round
+                    )
+                }
+            }
+
+            drawSeries(pointsActive, activeColor)
+            drawSeries(pointsDone, doneColor)
+        }
+
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            ForgeMiniChip(
+                text = appText(en = "Active tasks", pt = "Tarefas ativas"),
+                containerColor = activeColor,
+                contentColor = Color.White
+            )
+
+            ForgeMiniChip(
+                text = appText(en = "Completed tasks", pt = "Tarefas concluídas"),
+                containerColor = doneColor,
+                contentColor = Color.White
+            )
+        }
     }
 }
 
 @Composable
-fun ReportsTrendChart() {
-    val primary = Color(0xFF1E40AF)
-    val secondary = Color(0xFF16A34A)
-    val gridColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.16f)
-
-    Canvas(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(210.dp)
+fun TaskReportRow(
+    task: Task
+) {
+    Column(
+        modifier = Modifier.fillMaxWidth()
     ) {
-        val left = 32f
-        val bottom = size.height - 28f
-        val top = 18f
-        val right = size.width - 18f
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.Top
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = task.title,
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
 
-        repeat(4) { index ->
-            val y = top + index * ((bottom - top) / 3f)
-            drawLine(
-                color = gridColor,
-                start = Offset(left, y),
-                end = Offset(right, y),
-                strokeWidth = 2f
+                Text(
+                    text = task.description ?: appText(en = "No description", pt = "Sem descrição"),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.65f),
+                    maxLines = 1
+                )
+            }
+
+            ForgeMiniChip(
+                text = formatStatus(task.status),
+                containerColor = statusChipColor(task.status),
+                contentColor = Color.White
             )
         }
 
-        val taskPoints = listOf(8f, 12f, 10f, 16f)
-        val hourPoints = listOf(35f, 52f, 45f, 77f)
+        Spacer(modifier = Modifier.height(6.dp))
 
-        fun point(index: Int, value: Float): Offset {
-            val x = left + index * ((right - left) / 3f)
-            val y = bottom - (value / 80f) * (bottom - top)
-            return Offset(x, y)
-        }
-
-        for (i in 0..2) {
-            drawLine(
-                color = primary,
-                start = point(i, taskPoints[i]),
-                end = point(i + 1, taskPoints[i + 1]),
-                strokeWidth = 5f
-            )
-
-            drawLine(
-                color = secondary,
-                start = point(i, hourPoints[i]),
-                end = point(i + 1, hourPoints[i + 1]),
-                strokeWidth = 5f
-            )
-        }
-
-        taskPoints.forEachIndexed { index, value ->
-            drawCircle(color = primary, radius = 7f, center = point(index, value))
-        }
-
-        hourPoints.forEachIndexed { index, value ->
-            drawCircle(color = secondary, radius = 7f, center = point(index, value))
-        }
-    }
-
-    Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-        ForgeMiniChip(
-            text = appText(en = "Tasks Completed", pt = "Tarefas concluídas"),
-            containerColor = Color(0xFF1E40AF),
-            contentColor = Color.White
-        )
-
-        ForgeMiniChip(
-            text = appText(en = "Hours Worked", pt = "Horas trabalhadas"),
-            containerColor = Color(0xFF16A34A),
-            contentColor = Color.White
+        LinearProgressIndicator(
+            progress = { ((task.completion_rate ?: 0).coerceIn(0, 100)) / 100f },
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(7.dp)
+                .clip(RoundedCornerShape(50)),
+            color = if ((task.completion_rate ?: 0) >= 100 || task.status?.uppercase() == "DONE") {
+                strongDoneColor()
+            } else {
+                strongActiveColor()
+            },
+            trackColor = MaterialTheme.colorScheme.secondaryContainer
         )
     }
 }
 
 @Composable
-fun ReportsTableHeader(
-    c1: String,
-    c2: String,
-    c3: String,
-    c4: String
-) {
-    Row(modifier = Modifier.fillMaxWidth()) {
-        Text(c1, modifier = Modifier.weight(1.5f), fontWeight = FontWeight.Bold)
-        Text(c2, modifier = Modifier.weight(1f), fontWeight = FontWeight.Bold)
-        Text(c3, modifier = Modifier.weight(1f), fontWeight = FontWeight.Bold)
-        Text(c4, modifier = Modifier.weight(1f), fontWeight = FontWeight.Bold)
-    }
-
-    Spacer(modifier = Modifier.height(10.dp))
-}
-
-@Composable
-fun ReportsTableRow(
-    c1: String,
-    c2: String,
-    c3: String,
-    c4: String
-) {
-    Row(modifier = Modifier.fillMaxWidth()) {
-        Text(c1, modifier = Modifier.weight(1.5f))
-        Text(c2, modifier = Modifier.weight(1f))
-        Text(c3, modifier = Modifier.weight(1f))
-        Text(c4, modifier = Modifier.weight(1f))
-    }
-
-    Spacer(modifier = Modifier.height(10.dp))
-}
-
-@Composable
-fun ReportSectionCard(
+fun ExportReportCard(
     title: String,
-    content: @Composable () -> Unit
+    onExportPdf: () -> Unit
 ) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
         color = MaterialTheme.colorScheme.surface,
         shape = RoundedCornerShape(16.dp)
     ) {
-        Column(modifier = Modifier.padding(16.dp)) {
+        Column(
+            modifier = Modifier.padding(18.dp)
+        ) {
             Text(
                 text = title,
                 style = MaterialTheme.typography.titleMedium,
@@ -976,264 +1220,430 @@ fun ReportSectionCard(
                 color = MaterialTheme.colorScheme.onSurface
             )
 
-            Spacer(modifier = Modifier.height(14.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
-            content()
-        }
-    }
-}
-
-@Composable
-fun ReportMetric(
-    value: String,
-    label: String
-) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(
-            text = value,
-            style = MaterialTheme.typography.headlineSmall,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.onSurface
-        )
-
-        Text(
-            text = label,
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.65f)
-        )
-    }
-}
-
-@Composable
-fun ReportExportCard(
-    title: String,
-    exportMessage: String?,
-    onExport: (String) -> Unit
-) {
-    ReportSectionCard(title = title) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            OutlinedButton(
-                modifier = Modifier.weight(1f),
-                onClick = { onExport("PDF") },
-                shape = RoundedCornerShape(10.dp),
-                border = BorderStroke(1.dp, MaterialTheme.colorScheme.error)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                Text(
-                    text = appText(en = "Export to PDF", pt = "Exportar PDF"),
-                    color = MaterialTheme.colorScheme.error
-                )
-            }
+                OutlinedButton(
+                    modifier = Modifier.weight(1f),
+                    onClick = onExportPdf,
+                    shape = RoundedCornerShape(10.dp),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.error)
+                ) {
+                    Text(
+                        text = appText(en = "Export PDF", pt = "Exportar PDF"),
+                        color = MaterialTheme.colorScheme.error
+                    )
+                }
 
-            OutlinedButton(
-                modifier = Modifier.weight(1f),
-                onClick = { onExport("CSV") },
-                shape = RoundedCornerShape(10.dp),
-                border = BorderStroke(1.dp, Color(0xFF16A34A))
-            ) {
-                Text(
-                    text = appText(en = "Export to CSV", pt = "Exportar CSV"),
-                    color = Color(0xFF16A34A)
-                )
-            }
-        }
-
-        exportMessage?.let {
-            Spacer(modifier = Modifier.height(10.dp))
-
-            Text(
-                text = it,
-                color = MaterialTheme.colorScheme.primary,
-                style = MaterialTheme.typography.bodySmall
-            )
-        }
-    }
-}
-
-private fun buildProjectReport(
-    projects: List<Project>,
-    projectTasks: Map<Long, List<Task>>,
-    format: String
-): String {
-    return if (format == "CSV") {
-        buildString {
-            appendLine("Project,Status,Priority,Total Tasks,Completed Tasks,Progress")
-            projects.forEach { project ->
-                val tasks = projectTasks[project.id] ?: emptyList()
-                val done = tasks.count { it.status?.uppercase() == "DONE" }
-                val progress = if (tasks.isEmpty()) 0 else ((done.toFloat() / tasks.size) * 100).toInt()
-
-                appendLine(
-                    listOf(
-                        project.name,
-                        project.status ?: "",
-                        project.priority ?: "",
-                        tasks.size.toString(),
-                        done.toString(),
-                        "$progress%"
-                    ).joinToString(",") { "\"${it.replace("\"", "\"\"")}\"" }
-                )
-            }
-        }
-    } else {
-        buildString {
-            appendLine("ForgePlan - Project Report")
-            appendLine()
-            projects.forEach { project ->
-                val tasks = projectTasks[project.id] ?: emptyList()
-                val done = tasks.count { it.status?.uppercase() == "DONE" }
-                val progress = if (tasks.isEmpty()) 0 else ((done.toFloat() / tasks.size) * 100).toInt()
-
-                appendLine("Project: ${project.name}")
-                appendLine("Status: ${project.status ?: "-"}")
-                appendLine("Priority: ${project.priority ?: "-"}")
-                appendLine("Tasks: ${tasks.size}")
-                appendLine("Completed: $done")
-                appendLine("Progress: $progress%")
-                appendLine()
+                OutlinedButton(
+                    modifier = Modifier.weight(1f),
+                    onClick = {},
+                    shape = RoundedCornerShape(10.dp),
+                    border = BorderStroke(1.dp, strongDoneColor())
+                ) {
+                    Text(
+                        text = appText(en = "Export CSV", pt = "Exportar CSV"),
+                        color = strongDoneColor()
+                    )
+                }
             }
         }
     }
 }
 
-private fun buildTaskReport(
-    tasks: List<Task>,
-    format: String
-): String {
-    return if (format == "CSV") {
-        buildString {
-            appendLine("Task,Status,Priority,Completion,Start,End")
-            tasks.forEach { task ->
-                appendLine(
-                    listOf(
-                        task.title,
-                        task.status ?: "",
-                        task.priority ?: "",
-                        "${task.completion_rate ?: 0}%",
-                        task.start_date ?: "",
-                        task.end_date ?: ""
-                    ).joinToString(",") { "\"${it.replace("\"", "\"\"")}\"" }
-                )
-            }
-        }
-    } else {
-        buildString {
-            appendLine("ForgePlan - Task Report")
-            appendLine()
-            tasks.forEach { task ->
-                appendLine("Task: ${task.title}")
-                appendLine("Status: ${task.status ?: "-"}")
-                appendLine("Priority: ${task.priority ?: "-"}")
-                appendLine("Completion: ${task.completion_rate ?: 0}%")
-                appendLine("Start: ${task.start_date ?: "-"}")
-                appendLine("End: ${task.end_date ?: "-"}")
-                appendLine()
-            }
-        }
-    }
-}
+private fun calculateReportTaskStats(tasks: List<Task>): ReportTaskStats {
+    val done = tasks.count { it.status?.uppercase() == "DONE" }
+    val active = tasks.count { it.status?.uppercase() == "IN_PROGRESS" || it.status?.uppercase() == "ACTIVE" }
+    val todo = tasks.size - done - active
 
-private fun buildUserReport(
-    users: List<FakeUserReport>,
-    format: String
-): String {
-    return if (format == "CSV") {
-        buildString {
-            appendLine("User,Role,Total Tasks,Completed,Hours,Projects")
-            users.forEach { user ->
-                appendLine(
-                    listOf(
-                        user.name,
-                        user.role,
-                        user.totalTasks.toString(),
-                        user.completed.toString(),
-                        "${user.hours}h",
-                        user.projects.toString()
-                    ).joinToString(",") { "\"${it.replace("\"", "\"\"")}\"" }
-                )
-            }
-        }
-    } else {
-        buildString {
-            appendLine("ForgePlan - User Report")
-            appendLine()
-            users.forEach { user ->
-                appendLine("User: ${user.name}")
-                appendLine("Role: ${user.role}")
-                appendLine("Total tasks: ${user.totalTasks}")
-                appendLine("Completed: ${user.completed}")
-                appendLine("Hours: ${user.hours}h")
-                appendLine("Projects: ${user.projects}")
-                appendLine()
-            }
-        }
-    }
-}
-
-private fun readableReportTaskStatus(status: String?): String {
-    return when (status?.uppercase()) {
-        "DONE" -> appText(en = "Done", pt = "Feita")
-        "IN_PROGRESS" -> appText(en = "In Progress", pt = "Em progresso")
-        "PENDING" -> appText(en = "To Do", pt = "Por fazer")
-        else -> appText(en = "To Do", pt = "Por fazer")
-    }
-}
-
-private fun writeReportTextFile(
-    context: Context,
-    uri: Uri,
-    content: String
-) {
-    context.contentResolver.openOutputStream(uri)?.use { output ->
-        output.write(content.toByteArray())
-    }
-}
-
-private fun writeReportPdfFile(
-    context: Context,
-    uri: Uri,
-    content: String
-) {
-    val document = PdfDocument()
-    val paint = Paint().apply {
-        textSize = 12f
-        color = android.graphics.Color.BLACK
-    }
-
-    val pageWidth = 595
-    val pageHeight = 842
-    val margin = 40
-    val lineHeight = 18
-
-    var pageNumber = 1
-    var page = document.startPage(
-        PdfDocument.PageInfo.Builder(pageWidth, pageHeight, pageNumber).create()
+    return ReportTaskStats(
+        total = tasks.size,
+        todo = todo.coerceAtLeast(0),
+        active = active,
+        done = done
     )
-    var canvas = page.canvas
-    var y = margin
+}
 
-    content.lines().forEach { line ->
-        if (y > pageHeight - margin) {
-            document.finishPage(page)
-            pageNumber++
-            page = document.startPage(
-                PdfDocument.PageInfo.Builder(pageWidth, pageHeight, pageNumber).create()
-            )
-            canvas = page.canvas
-            y = margin
+private fun percent(
+    value: Int,
+    total: Int
+): Int {
+    if (total <= 0) return 0
+    return ((value.toFloat() / total.toFloat()) * 100f).roundToInt()
+}
+
+private fun estimateHours(tasks: List<Task>): Int {
+    return tasks.size * 3
+}
+
+private fun projectNameById(
+    projects: List<Project>,
+    projectId: Long
+): String {
+    return projects.firstOrNull { it.id == projectId }?.name ?: "Project"
+}
+
+private fun formatStatus(status: String?): String {
+    return when (status?.uppercase()) {
+        "DONE" -> "Done"
+        "IN_PROGRESS" -> "Active"
+        "ACTIVE" -> "Active"
+        "PENDING" -> "To do"
+        "TODO" -> "To do"
+        else -> status ?: "To do"
+    }
+}
+
+private fun formatPriority(priority: String?): String {
+    return when (priority?.uppercase()) {
+        "HIGH" -> "High"
+        "MEDIUM" -> "Medium"
+        "LOW" -> "Low"
+        else -> priority ?: "-"
+    }
+}
+
+private fun formatRole(role: String?): String {
+    return when (role?.uppercase()) {
+        "ADMIN" -> "Admin"
+        "PROJECT_MANAGER" -> "Manager"
+        "MANAGER" -> "Manager"
+        "USER" -> "Worker"
+        else -> role ?: "User"
+    }
+}
+
+@Composable
+private fun statusChipColor(status: String?): Color {
+    return when (status?.uppercase()) {
+        "DONE" -> strongDoneColor()
+        "IN_PROGRESS", "ACTIVE" -> strongActiveColor()
+        else -> strongTodoColor()
+    }
+}
+
+@Composable
+private fun strongTodoColor(): Color {
+    return Color(0xFF94A3B8)
+}
+
+@Composable
+private fun strongActiveColor(): Color {
+    return Color(0xFF1D4ED8)
+}
+
+@Composable
+private fun strongDoneColor(): Color {
+    return Color(0xFF16A34A)
+}
+
+private fun String.safeFileName(): String {
+    return lowercase()
+        .replace(" ", "_")
+        .replace(Regex("[^a-z0-9_\\-]"), "")
+        .ifBlank { "report" }
+}
+
+private fun writeReportPdf(
+    context: Context,
+    uri: Uri,
+    exportType: String,
+    selectedProject: Project?,
+    selectedUser: User?,
+    selectedTask: Task?,
+    projects: List<Project>,
+    users: List<User>,
+    projectTasks: Map<Long, List<Task>>,
+    projectUsers: Map<Long, List<ProjectUser>>,
+    selectedUserTaskIds: List<Long>
+): Boolean {
+    return try {
+        val allTasks = projectTasks.values.flatten()
+
+        val title: String
+        val subtitle: String
+        val tasks: List<Task>
+        val extraLine: String
+
+        when (exportType) {
+            "USER" -> {
+                val user = selectedUser
+                tasks = allTasks.filter { selectedUserTaskIds.contains(it.id) }
+                title = "ForgePlan - User Report"
+                subtitle = user?.let { "${it.name} • ${formatRole(it.role)}" } ?: "User"
+                extraLine = "Projects: ${tasks.map { it.project_id }.distinct().size}"
+            }
+
+            "TASK" -> {
+                val task = selectedTask
+                tasks = task?.let { listOf(it) } ?: emptyList()
+                title = "ForgePlan - Task Report"
+                subtitle = task?.title ?: "Task"
+                extraLine = "Project: ${task?.let { projectNameById(projects, it.project_id) } ?: "-"}"
+            }
+
+            else -> {
+                val project = selectedProject
+                tasks = project?.let { projectTasks[it.id] ?: emptyList() } ?: emptyList()
+                title = "ForgePlan - Project Report"
+                subtitle = project?.name ?: "Project"
+                extraLine = "Team members: ${project?.let { projectUsers[it.id]?.size ?: 0 } ?: 0}"
+            }
         }
 
-        canvas.drawText(line.take(90), margin.toFloat(), y.toFloat(), paint)
-        y += lineHeight
+        val stats = calculateReportTaskStats(tasks)
+        val pdf = PdfDocument()
+        val pageInfo = PdfDocument.PageInfo.Builder(595, 842, 1).create()
+        val page = pdf.startPage(pageInfo)
+        val canvas = page.canvas
+
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG)
+        val navy = AndroidColor.rgb(28, 30, 89)
+        val peach = AndroidColor.rgb(242, 198, 148)
+        val green = AndroidColor.rgb(22, 163, 74)
+        val blue = AndroidColor.rgb(29, 78, 216)
+        val grey = AndroidColor.rgb(148, 163, 184)
+        val light = AndroidColor.rgb(245, 247, 252)
+        val border = AndroidColor.rgb(220, 226, 238)
+
+        paint.style = Paint.Style.FILL
+        paint.color = navy
+        canvas.drawRect(0f, 0f, 595f, 78f, paint)
+
+        paint.color = AndroidColor.WHITE
+        paint.textSize = 22f
+        paint.isFakeBoldText = true
+        canvas.drawText(title, 42f, 38f, paint)
+
+        paint.textSize = 12f
+        paint.isFakeBoldText = false
+        canvas.drawText(
+            "Generated: ${SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()).format(Date())}",
+            42f,
+            58f,
+            paint
+        )
+
+        paint.color = AndroidColor.BLACK
+        paint.textSize = 18f
+        paint.isFakeBoldText = true
+        canvas.drawText(subtitle, 42f, 115f, paint)
+
+        paint.textSize = 12f
+        paint.isFakeBoldText = false
+        paint.color = AndroidColor.rgb(75, 85, 99)
+        canvas.drawText(extraLine, 42f, 135f, paint)
+
+        drawPdfCard(canvas, paint, 42f, 160f, 511f, 95f, light, border)
+
+        drawPdfMetric(canvas, paint, "Total Tasks", stats.total.toString(), 75f, 205f, navy)
+        drawPdfMetric(canvas, paint, "Completed", stats.done.toString(), 205f, 205f, green)
+        drawPdfMetric(canvas, paint, "Active", stats.active.toString(), 335f, 205f, blue)
+        drawPdfMetric(canvas, paint, "To Do", stats.todo.toString(), 465f, 205f, grey)
+
+        drawPdfCard(canvas, paint, 42f, 280f, 511f, 210f, light, border)
+
+        paint.color = AndroidColor.BLACK
+        paint.textSize = 16f
+        paint.isFakeBoldText = true
+        canvas.drawText("Task Status Distribution", 62f, 315f, paint)
+
+        drawPdfDonut(
+            canvas = canvas,
+            paint = paint,
+            stats = stats,
+            centerX = 298f,
+            centerY = 390f,
+            radius = 62f,
+            stroke = 24f,
+            todoColor = grey,
+            activeColor = blue,
+            doneColor = green
+        )
+
+        drawPdfLegend(canvas, paint, "To do", stats.todo, stats.total, grey, 410f, 350f)
+        drawPdfLegend(canvas, paint, "Active", stats.active, stats.total, blue, 410f, 380f)
+        drawPdfLegend(canvas, paint, "Done", stats.done, stats.total, green, 410f, 410f)
+
+        drawPdfCard(canvas, paint, 42f, 520f, 511f, 220f, AndroidColor.WHITE, border)
+
+        paint.color = AndroidColor.BLACK
+        paint.textSize = 16f
+        paint.isFakeBoldText = true
+        canvas.drawText("Task Details", 62f, 555f, paint)
+
+        paint.textSize = 10f
+        paint.isFakeBoldText = true
+        canvas.drawText("Task", 62f, 585f, paint)
+        canvas.drawText("Status", 315f, 585f, paint)
+        canvas.drawText("Progress", 405f, 585f, paint)
+        canvas.drawText("Group", 475f, 585f, paint)
+
+        paint.isFakeBoldText = false
+        paint.color = AndroidColor.rgb(55, 65, 81)
+
+        var y = 610f
+
+        tasks.take(8).forEach { task ->
+            canvas.drawText(task.title.take(32), 62f, y, paint)
+            canvas.drawText(formatStatus(task.status), 315f, y, paint)
+            canvas.drawText("${task.completion_rate ?: 0}%", 405f, y, paint)
+            canvas.drawText((task.task_group ?: "General").take(16), 475f, y, paint)
+
+            paint.color = border
+            canvas.drawLine(62f, y + 12f, 532f, y + 12f, paint)
+            paint.color = AndroidColor.rgb(55, 65, 81)
+
+            y += 24f
+        }
+
+        paint.color = peach
+        canvas.drawRect(0f, 800f, 595f, 842f, paint)
+
+        paint.color = navy
+        paint.textSize = 11f
+        paint.isFakeBoldText = true
+        canvas.drawText("ForgePlan", 42f, 824f, paint)
+
+        pdf.finishPage(page)
+
+        context.contentResolver.openOutputStream(uri)?.use { output ->
+            pdf.writeTo(output)
+        }
+
+        pdf.close()
+
+        true
+    } catch (_: Exception) {
+        false
+    }
+}
+
+private fun drawPdfCard(
+    canvas: android.graphics.Canvas,
+    paint: Paint,
+    left: Float,
+    top: Float,
+    width: Float,
+    height: Float,
+    fillColor: Int,
+    borderColor: Int
+) {
+    paint.style = Paint.Style.FILL
+    paint.color = fillColor
+    canvas.drawRoundRect(left, top, left + width, top + height, 18f, 18f, paint)
+
+    paint.style = Paint.Style.STROKE
+    paint.strokeWidth = 1f
+    paint.color = borderColor
+    canvas.drawRoundRect(left, top, left + width, top + height, 18f, 18f, paint)
+
+    paint.style = Paint.Style.FILL
+}
+
+private fun drawPdfMetric(
+    canvas: android.graphics.Canvas,
+    paint: Paint,
+    label: String,
+    value: String,
+    x: Float,
+    y: Float,
+    color: Int
+) {
+    paint.color = color
+    paint.textSize = 22f
+    paint.isFakeBoldText = true
+    canvas.drawText(value, x, y, paint)
+
+    paint.color = AndroidColor.rgb(75, 85, 99)
+    paint.textSize = 10f
+    paint.isFakeBoldText = false
+    canvas.drawText(label, x - 14f, y + 18f, paint)
+}
+
+private fun drawPdfDonut(
+    canvas: android.graphics.Canvas,
+    paint: Paint,
+    stats: ReportTaskStats,
+    centerX: Float,
+    centerY: Float,
+    radius: Float,
+    stroke: Float,
+    todoColor: Int,
+    activeColor: Int,
+    doneColor: Int
+) {
+    val total = stats.total
+
+    paint.style = Paint.Style.STROKE
+    paint.strokeWidth = stroke
+    paint.strokeCap = Paint.Cap.BUTT
+
+    val rect = android.graphics.RectF(
+        centerX - radius,
+        centerY - radius,
+        centerX + radius,
+        centerY + radius
+    )
+
+    if (total == 0) {
+        paint.color = AndroidColor.LTGRAY
+        canvas.drawArc(rect, -90f, 360f, false, paint)
+    } else {
+        var start = -90f
+
+        val todoSweep = 360f * stats.todo / total
+        val activeSweep = 360f * stats.active / total
+        val doneSweep = 360f * stats.done / total
+
+        if (stats.todo > 0) {
+            paint.color = todoColor
+            canvas.drawArc(rect, start, todoSweep, false, paint)
+            start += todoSweep
+        }
+
+        if (stats.active > 0) {
+            paint.color = activeColor
+            canvas.drawArc(rect, start, activeSweep, false, paint)
+            start += activeSweep
+        }
+
+        if (stats.done > 0) {
+            paint.color = doneColor
+            canvas.drawArc(rect, start, doneSweep, false, paint)
+        }
     }
 
-    document.finishPage(page)
+    paint.style = Paint.Style.FILL
+    paint.color = AndroidColor.rgb(28, 30, 89)
+    paint.textSize = 20f
+    paint.isFakeBoldText = true
+    canvas.drawText(total.toString(), centerX - 8f, centerY + 6f, paint)
 
-    context.contentResolver.openOutputStream(uri)?.use { output ->
-        document.writeTo(output)
-    }
+    paint.textSize = 10f
+    paint.isFakeBoldText = false
+    canvas.drawText("Total", centerX - 13f, centerY + 23f, paint)
+}
 
-    document.close()
+private fun drawPdfLegend(
+    canvas: android.graphics.Canvas,
+    paint: Paint,
+    label: String,
+    value: Int,
+    total: Int,
+    color: Int,
+    x: Float,
+    y: Float
+) {
+    paint.style = Paint.Style.FILL
+    paint.color = color
+    canvas.drawRoundRect(x, y - 10f, x + 14f, y + 4f, 4f, 4f, paint)
+
+    paint.color = AndroidColor.rgb(31, 41, 55)
+    paint.textSize = 11f
+    paint.isFakeBoldText = false
+    canvas.drawText("$label: $value • ${percent(value, total)}%", x + 22f, y + 1f, paint)
 }

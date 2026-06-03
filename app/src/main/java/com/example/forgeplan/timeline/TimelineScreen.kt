@@ -4,13 +4,30 @@ import android.content.res.Configuration
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -24,7 +41,11 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.forgeplan.core.language.appText
 import com.example.forgeplan.core.model.Task
 import com.example.forgeplan.core.session.SessionManager
-import com.example.forgeplan.core.ui.components.*
+import com.example.forgeplan.core.ui.components.ForgeCard
+import com.example.forgeplan.core.ui.components.ForgeOutlinedCard
+import com.example.forgeplan.core.ui.components.ForgePlanBottomBar
+import com.example.forgeplan.core.ui.components.ForgePlanTopBar
+import com.example.forgeplan.core.ui.components.ForgeSearchBar
 import com.example.forgeplan.tasks.viewmodel.UserDashboardViewModel
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
@@ -371,44 +392,77 @@ private fun computeBar(
     columnWidth: Dp
 ): BarData {
     val start = parseDate(task.start_date)
-    val end   = parseDate(task.end_date)
+    val end = parseDate(task.end_date)
 
     val colStart = columns.first().second
-    val colEnd   = columns.last().second.plusDays(if (mode == "Week") 1 else 7)
+    val colEnd = columns.last().second.plusDays(if (mode == "Week") 1 else 7)
 
     val totalWidth = columnWidth * 5
 
     val progress = task.completion_rate ?: 0
-    val status   = task.status?.uppercase()
+    val status = task.status?.uppercase()
 
     val labelText = when (status) {
-        "DONE"        -> appText("100% Finished", "100% Concluída")
+        "DONE" -> appText("100% Finished", "100% Concluída")
         "IN_PROGRESS" -> appText("$progress% Active", "$progress% Ativa")
-        else          -> appText("$progress% Pending", "$progress% Pendente")
+        else -> appText("$progress% Pending", "$progress% Pendente")
     }
 
     if (start == null) {
-        return BarData(8.dp, totalWidth * 0.6f, labelText)
+        return BarData(
+            startX = 8.dp,
+            width = totalWidth * 0.55f,
+            label = labelText
+        )
     }
 
-    val clippedStart = if (start < colStart) colStart else start
-    val clippedEnd = when {
-        end == null -> clippedStart.plusDays(1)
-        end < clippedStart -> clippedStart.plusDays(1)
-        end > colEnd -> colEnd
-        else -> end
+    if (start >= colEnd) {
+        return BarData(
+            startX = totalWidth - 90.dp,
+            width = 82.dp,
+            label = labelText
+        )
     }
 
-    val offsetDays = ChronoUnit.DAYS.between(colStart, clippedStart).coerceAtLeast(0).toFloat()
-    val durationDays = ChronoUnit.DAYS.between(clippedStart, clippedEnd).coerceAtLeast(1).toFloat()
-    val totalDays = ChronoUnit.DAYS.between(colStart, colEnd).coerceAtLeast(1).toFloat()
+    val safeEnd = end ?: start.plusDays(1)
 
-    val pxPerDay = totalWidth / totalDays
+    if (safeEnd <= colStart) {
+        return BarData(
+            startX = 8.dp,
+            width = 82.dp,
+            label = labelText
+        )
+    }
 
-    val startX = pxPerDay * offsetDays + 6.dp
-    val barWidth = (pxPerDay * durationDays).coerceAtLeast(48.dp)
+    val clippedStart = maxOf(start, colStart)
+    val clippedEnd = minOf(maxOf(safeEnd, clippedStart.plusDays(1)), colEnd)
 
-    return BarData(startX, barWidth, labelText)
+    val offsetDays = ChronoUnit.DAYS.between(colStart, clippedStart)
+        .coerceAtLeast(0)
+        .toFloat()
+
+    val durationDays = ChronoUnit.DAYS.between(clippedStart, clippedEnd)
+        .coerceAtLeast(1)
+        .toFloat()
+
+    val totalDays = ChronoUnit.DAYS.between(colStart, colEnd)
+        .coerceAtLeast(1)
+        .toFloat()
+
+    val widthPerDay = totalWidth / totalDays
+
+    val startX = (widthPerDay * offsetDays + 6.dp)
+        .coerceAtMost(totalWidth - 60.dp)
+
+    val barWidth = (widthPerDay * durationDays)
+        .coerceAtLeast(58.dp)
+        .coerceAtMost(totalWidth - startX - 6.dp)
+
+    return BarData(
+        startX = startX,
+        width = barWidth,
+        label = labelText
+    )
 }
 
 // ── Barra de progresso posicionada ───────────────────────────────────────────

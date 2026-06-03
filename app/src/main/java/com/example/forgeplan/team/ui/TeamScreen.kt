@@ -2,7 +2,6 @@ package com.example.forgeplan.team.ui
 
 import android.content.res.Configuration
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -13,6 +12,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -24,8 +24,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.forgeplan.core.language.appText
 import com.example.forgeplan.core.model.User
 import com.example.forgeplan.core.network.SupabaseApi
@@ -60,25 +62,23 @@ fun TeamScreen(
 
     var searchText by remember { mutableStateOf("") }
 
-    val viewModel: TeamViewModel = androidx.lifecycle.viewmodel.compose.viewModel()
+    val viewModel: TeamViewModel = viewModel()
     val users = viewModel.users.value
     val loading = viewModel.loading.value
 
-    if (loading) {
-        Text("Loading team...")
-        return
-    }
-    val members = users.map { user ->
-        TeamMemberUi(
-            initials = user.name.take(1).uppercase(),
-            name = user.name,
-            username = user.username ?: "",
-            email = user.email,
-            role = user.role ?: "Worker",
-            status = "Online",
-            projects = "0"
-        )
-    }
+    val members = users
+        .filter { it.is_active }
+        .map { user ->
+            TeamMemberUi(
+                initials = getInitials(user.name),
+                name = user.name,
+                username = user.username ?: "",
+                email = user.email,
+                role = translatedRole(user.role),
+                status = appText(en = "Online", pt = "Online"),
+                projects = "0"
+            )
+        }
 
     val filteredMembers = members.filter { member ->
         member.name.contains(searchText, ignoreCase = true) ||
@@ -106,6 +106,7 @@ fun TeamScreen(
                     horizontal = if (isLandscape) 28.dp else 18.dp,
                     vertical = if (isLandscape) 12.dp else 16.dp
                 )
+                .padding(bottom = 90.dp)
         ) {
             ForgeSearchBar(
                 value = searchText,
@@ -121,59 +122,37 @@ fun TeamScreen(
             Text(
                 text = appText(en = "Your Team", pt = "A tua equipa"),
                 style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onBackground
             )
 
             Spacer(modifier = Modifier.height(if (isLandscape) 12.dp else 16.dp))
 
-            if (filteredMembers.isEmpty()) {
-                Text(
-                    text = appText(
-                        en = "No team members found.",
-                        pt = "Nenhum membro encontrado."
-                    ),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onBackground
-                )
-            } else {
-                if (isLandscape) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(14.dp)
-                    ) {
-                        filteredMembers.take(3).forEach { member ->
-                            TeamMemberCard(
-                                member = member,
-                                modifier = Modifier.weight(1f),
-                                compact = true
-                            )
-                        }
-                    }
+            when {
+                loading -> {
+                    CircularProgressIndicator(
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
 
-                    Spacer(modifier = Modifier.height(14.dp))
+                filteredMembers.isEmpty() -> {
+                    Text(
+                        text = appText(
+                            en = "No team members found.",
+                            pt = "Nenhum membro encontrado."
+                        ),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onBackground
+                    )
+                }
 
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(14.dp)
-                    ) {
-                        filteredMembers.drop(3).take(3).forEach { member ->
-                            TeamMemberCard(
-                                member = member,
-                                modifier = Modifier.weight(1f),
-                                compact = true
-                            )
-                        }
-                    }
-                } else {
+                else -> {
                     filteredMembers.forEach { member ->
                         TeamMemberCard(member = member)
-
                         Spacer(modifier = Modifier.height(12.dp))
                     }
                 }
             }
-
-            Spacer(modifier = Modifier.height(24.dp))
         }
 
         ForgePlanBottomBar(
@@ -188,8 +167,7 @@ fun TeamScreen(
 @Composable
 fun TeamMemberCard(
     member: TeamMemberUi,
-    modifier: Modifier = Modifier,
-    compact: Boolean = false
+    modifier: Modifier = Modifier
 ) {
     ForgeCard(
         modifier = modifier.fillMaxWidth()
@@ -197,16 +175,13 @@ fun TeamMemberCard(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(if (compact) 126.dp else 150.dp)
-                .padding(
-                    horizontal = if (compact) 14.dp else 20.dp,
-                    vertical = if (compact) 14.dp else 18.dp
-                ),
+                .height(150.dp)
+                .padding(horizontal = 20.dp, vertical = 18.dp),
             verticalAlignment = Alignment.Top
         ) {
             UserAvatarChip(initials = member.initials)
 
-            Spacer(modifier = Modifier.width(if (compact) 12.dp else 18.dp))
+            Spacer(modifier = Modifier.width(18.dp))
 
             Column(
                 modifier = Modifier.weight(1f)
@@ -218,10 +193,11 @@ fun TeamMemberCard(
                 Text(
                     text = member.name,
                     style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onSurface
                 )
 
-                Spacer(modifier = Modifier.height(if (compact) 8.dp else 12.dp))
+                Spacer(modifier = Modifier.height(12.dp))
 
                 ForgeMiniChip(text = appText(en = "Role", pt = "Função"))
 
@@ -247,7 +223,7 @@ fun TeamMemberCard(
                     color = MaterialTheme.colorScheme.onSurface
                 )
 
-                Spacer(modifier = Modifier.height(if (compact) 18.dp else 26.dp))
+                Spacer(modifier = Modifier.height(26.dp))
 
                 ForgeMiniChip(text = appText(en = "Currently in", pt = "Atualmente em"))
 
@@ -263,6 +239,28 @@ fun TeamMemberCard(
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun translatedRole(role: String?): String {
+    return when (role?.uppercase()) {
+        "ADMIN" -> appText(en = "Admin", pt = "Administrador")
+        "PROJECT_MANAGER" -> appText(en = "Project Manager", pt = "Gestor de Projeto")
+        "MANAGER" -> appText(en = "Manager", pt = "Gestor")
+        "USER" -> appText(en = "User", pt = "Utilizador")
+        "WORKER" -> appText(en = "Worker", pt = "Trabalhador")
+        else -> appText(en = "User", pt = "Utilizador")
+    }
+}
+
+private fun getInitials(name: String): String {
+    val parts = name.trim().split(" ").filter { it.isNotBlank() }
+
+    return when {
+        parts.size >= 2 -> "${parts.first().first()}${parts.last().first()}".uppercase()
+        parts.isNotEmpty() -> parts.first().take(2).uppercase()
+        else -> "UN"
     }
 }
 
@@ -290,7 +288,10 @@ class TeamViewModel : ViewModel() {
                     _loading.value = false
                 }
 
-                override fun onFailure(call: Call<List<User>>, t: Throwable) {
+                override fun onFailure(
+                    call: Call<List<User>>,
+                    t: Throwable
+                ) {
                     _users.value = emptyList()
                     _loading.value = false
                 }

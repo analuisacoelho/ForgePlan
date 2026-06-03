@@ -268,10 +268,16 @@ fun AppNavigation() {
 
         // Progresso / relatórios do utilizador
         composable("userProgress") {
-            com.example.forgeplan.progress.ui.ProgressScreen(
-                onProjectsClick  = { navController.navigate("user") },
-                onTimelineClick  = { navController.navigate("userTimeline") },
-                onTeamClick      = { navController.navigate("userTeam") }
+            ReportsScreen(
+                onProjectsClick = {
+                    navController.navigate("user")
+                },
+                onTimelineClick = {
+                    navController.navigate("userTimeline")
+                },
+                onTeamClick = {
+                    navController.navigate("userTeam")
+                }
             )
         }
 
