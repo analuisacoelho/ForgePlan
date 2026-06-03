@@ -87,6 +87,16 @@ interface SupabaseService {
         @Body task: TaskPayload
     ): Call<List<Task>>
 
+    data class CommentRequest(
+        val task_id: Long,
+        val user_id: Long,
+        val content: String
+    )
+    @POST("comments")
+    suspend fun insertComment(
+        @Body comment: CommentRequest
+    )
+
     // ── TASK ASSIGNMENTS ─────────────────────────────────────────────────────
 
     @GET("task_assignments")

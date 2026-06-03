@@ -4,31 +4,17 @@ import android.content.res.Configuration
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -36,76 +22,93 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.forgeplan.core.language.appText
-import com.example.forgeplan.core.model.Project
 import com.example.forgeplan.core.model.Task
-import com.example.forgeplan.core.ui.components.ForgeCard
-import com.example.forgeplan.core.ui.components.ForgeOutlinedCard
-import com.example.forgeplan.core.ui.components.ForgePlanBottomBar
-import com.example.forgeplan.core.ui.components.ForgePlanTopBar
-import com.example.forgeplan.core.ui.components.ForgeSearchBar
-import com.example.forgeplan.projects.viewmodel.ProjectViewModel
-import com.example.forgeplan.tasks.viewmodel.TaskViewModel
+import com.example.forgeplan.core.session.SessionManager
+import com.example.forgeplan.core.ui.components.*
+import com.example.forgeplan.tasks.viewmodel.UserDashboardViewModel
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
+import java.time.format.TextStyle
+import java.time.temporal.ChronoUnit
+import java.util.Locale
 
-private object TimelineStateHolder {
-    var selectedProjectId: Long? = null
-    var selectedMode: String = "Week"
-}
+// ─────────────────────────────────────────────────────────────────────────────
+// Localização: app/src/main/java/com/example/forgeplan/timeline/TimelineScreen.kt
+// SUBSTITUI completamente o ficheiro existente.
+//
+// Alterações principais:
+//  1. Usa UserDashboardViewModel — mostra apenas as tarefas do utilizador logado
+//  2. As tarefas são ordenadas por start_date (asc); sem data ficam no fim
+//  3. O cabeçalho do Gantt mostra as semanas/meses reais com base nas datas
+//  4. As barras são posicionadas proporcionalmente ao intervalo start→end
+//  5. Modo Week: janela de 7 dias a partir da tarefa mais cedo
+//     Modo Month: 5 semanas a partir do início do mês actual
+// ─────────────────────────────────────────────────────────────────────────────
+
+private val DATE_FMT = DateTimeFormatter.ISO_LOCAL_DATE   // "yyyy-MM-dd"
+
+private fun parseDate(s: String?): LocalDate? =
+    s?.takeIf { it.isNotBlank() }?.let {
+        try { LocalDate.parse(it, DATE_FMT) } catch (e: Exception) { null }
+    }
+
+// Largura de cada coluna de data no Gantt
+private val COL_W = 98.dp
+private val TASK_COL_W = 120.dp
 
 @Composable
 fun TimelineScreen(
     onProjectsClick: () -> Unit = {},
     onProgressClick: () -> Unit = {},
     onTeamClick: () -> Unit = {},
-    projectViewModel: ProjectViewModel = viewModel(),
-    taskViewModel: TaskViewModel = viewModel()
+    dashboardViewModel: UserDashboardViewModel = viewModel()
 ) {
-    val isLandscape =
-        LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
+    val isLandscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
 
-    val projects by projectViewModel.projects.collectAsState()
-    val projectError by projectViewModel.error.collectAsState()
-    val tasks by taskViewModel.tasks.collectAsState()
-    val taskError by taskViewModel.error.collectAsState()
+    val projectsWithTasks by dashboardViewModel.projectsWithTasks.collectAsState()
+    val isLoading         by dashboardViewModel.isLoading.collectAsState()
+    val error             by dashboardViewModel.error.collectAsState()
 
-    var searchText by remember { mutableStateOf("") }
-    var selectedProject by remember { mutableStateOf<Project?>(null) }
-    var selectedMode by remember { mutableStateOf(TimelineStateHolder.selectedMode) }
+    // rememberSaveable → sobrevive a rotações
+    var searchText   by rememberSaveable { mutableStateOf("") }
+    var selectedMode by rememberSaveable { mutableStateOf("Week") }
 
-    LaunchedEffect(Unit) {
-        projectViewModel.loadProjects()
+    LaunchedEffect(Unit) { dashboardViewModel.loadDashboard() }
+
+    // Junta todas as tarefas do utilizador de todos os projectos
+    val allTasks: List<Task> = remember(projectsWithTasks) {
+        projectsWithTasks.values.flatten()
     }
 
-    LaunchedEffect(projects) {
-        if (projects.isNotEmpty()) {
-            selectedProject =
-                projects.firstOrNull { it.id == TimelineStateHolder.selectedProjectId }
-                    ?: projects.firstOrNull { it.name.contains("ForgePlan", ignoreCase = true) }
-                            ?: projects.first()
+    // Ordena por start_date (tarefas sem data vão para o fim)
+    val sortedTasks: List<Task> = remember(allTasks) {
+        allTasks.sortedWith(compareBy(nullsLast()) { parseDate(it.start_date) })
+    }
 
-            TimelineStateHolder.selectedProjectId = selectedProject?.id
-            selectedProject?.let { taskViewModel.loadTasks(it.id) }
+    // Filtra por texto de pesquisa
+    val filteredTasks = remember(sortedTasks, searchText) {
+        if (searchText.isBlank()) sortedTasks
+        else sortedTasks.filter {
+            it.title.contains(searchText, ignoreCase = true) ||
+                    (it.description ?: "").contains(searchText, ignoreCase = true)
         }
     }
 
-    LaunchedEffect(selectedMode) {
-        TimelineStateHolder.selectedMode = selectedMode
-    }
-
-    val filteredTasks = tasks.filter {
-        it.title.contains(searchText, ignoreCase = true) ||
-                (it.description ?: "").contains(searchText, ignoreCase = true)
+    // Mapa projectId → projectName para mostrar no label
+    val projectNameById = remember(projectsWithTasks) {
+        projectsWithTasks.keys.associate { it.id to it.name }
     }
 
     val finishedCount = filteredTasks.count { it.status?.uppercase() == "DONE" }
-    val activeCount = filteredTasks.count { it.status?.uppercase() == "IN_PROGRESS" }
-    val pendingCount = filteredTasks.size - finishedCount - activeCount
+    val activeCount   = filteredTasks.count { it.status?.uppercase() == "IN_PROGRESS" }
+    val pendingCount  = filteredTasks.size - finishedCount - activeCount
 
     Column(
         modifier = Modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
     ) {
-        ForgePlanTopBar(title = "ForgePlan", initials = "FP")
+        ForgePlanTopBar(title = "ForgePlan", initials = SessionManager.userInitials)
 
         Column(
             modifier = Modifier
@@ -113,314 +116,242 @@ fun TimelineScreen(
                 .verticalScroll(rememberScrollState())
                 .padding(
                     horizontal = if (isLandscape) 28.dp else 14.dp,
-                    vertical = if (isLandscape) 12.dp else 16.dp
+                    vertical   = if (isLandscape) 12.dp else 16.dp
                 )
                 .padding(bottom = 90.dp)
         ) {
             ForgeSearchBar(
-                value = searchText,
+                value         = searchText,
                 onValueChange = { searchText = it },
-                placeholder = appText(en = "Search your task", pt = "Pesquisar tarefa")
+                placeholder   = appText("Search your task", "Pesquisar tarefa")
             )
 
-            Spacer(modifier = Modifier.height(if (isLandscape) 14.dp else 24.dp))
+            Spacer(Modifier.height(if (isLandscape) 14.dp else 24.dp))
 
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
+            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    text = appText(en = "Timeline", pt = "Cronologia"),
-                    style = MaterialTheme.typography.headlineSmall,
+                    text       = appText("Timeline", "Cronologia"),
+                    style      = MaterialTheme.typography.headlineSmall,
                     fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onBackground,
-                    modifier = Modifier.weight(1f)
+                    color      = MaterialTheme.colorScheme.onBackground,
+                    modifier   = Modifier.weight(1f)
                 )
-
-                TimelineToggle(
-                    text = appText(en = "Week", pt = "Semana"),
-                    selected = selectedMode == "Week",
-                    onClick = { selectedMode = "Week" }
-                )
-
-                TimelineToggle(
-                    text = appText(en = "Month", pt = "Mês"),
-                    selected = selectedMode == "Month",
-                    onClick = { selectedMode = "Month" }
-                )
+                TimelineToggle(appText("Week", "Semana"), selectedMode == "Week") { selectedMode = "Week" }
+                Spacer(Modifier.width(4.dp))
+                TimelineToggle(appText("Month", "Mês"),  selectedMode == "Month") { selectedMode = "Month" }
             }
 
-            Spacer(modifier = Modifier.height(if (isLandscape) 14.dp else 22.dp))
+            Spacer(Modifier.height(if (isLandscape) 14.dp else 22.dp))
 
-            projectError?.let {
-                Text(it, color = MaterialTheme.colorScheme.error)
-                Spacer(modifier = Modifier.height(8.dp))
-            }
+            // Erros
+            error?.let { Text(it, color = MaterialTheme.colorScheme.error); Spacer(Modifier.height(8.dp)) }
 
-            taskError?.let {
-                Text(it, color = MaterialTheme.colorScheme.error)
-                Spacer(modifier = Modifier.height(8.dp))
-            }
-
-            if (filteredTasks.isEmpty()) {
+            if (isLoading) {
+                Box(Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
+                }
+            } else if (filteredTasks.isEmpty()) {
                 ForgeCard(modifier = Modifier.fillMaxWidth()) {
                     Column(modifier = Modifier.padding(16.dp)) {
                         Text(
-                            text = appText(
-                                en = "There are no tasks to show.",
-                                pt = "Não existem tarefas para apresentar."
-                            ),
+                            text  = appText("No tasks to show.", "Não existem tarefas para apresentar."),
                             color = MaterialTheme.colorScheme.onSurface
                         )
                     }
                 }
             } else {
                 TimelineBoardWithSummary(
-                    tasks = filteredTasks,
-                    mode = selectedMode,
-                    projectName = selectedProject?.name ?: "project",
-                    finished = finishedCount,
-                    active = activeCount,
-                    pending = pendingCount,
+                    tasks       = filteredTasks,
+                    mode        = selectedMode,
+                    projectNameById = projectNameById,
+                    finished    = finishedCount,
+                    active      = activeCount,
+                    pending     = pendingCount,
                     isLandscape = isLandscape
                 )
             }
         }
 
         ForgePlanBottomBar(
-            selectedItem = "Timeline",
+            selectedItem    = "Timeline",
             onProjectsClick = onProjectsClick,
             onProgressClick = onProgressClick,
-            onTeamClick = onTeamClick
+            onTeamClick     = onTeamClick
         )
     }
 }
 
+// ── Toggle ────────────────────────────────────────────────────────────────────
+
 @Composable
-fun TimelineToggle(
-    text: String,
-    selected: Boolean,
-    onClick: () -> Unit
-) {
+fun TimelineToggle(text: String, selected: Boolean, onClick: () -> Unit) {
     Box(
         modifier = Modifier
-            .width(88.dp)
-            .height(36.dp)
+            .width(88.dp).height(36.dp)
             .clip(RoundedCornerShape(8.dp))
-            .background(
-                if (selected) MaterialTheme.colorScheme.tertiary
-                else MaterialTheme.colorScheme.secondaryContainer
-            )
+            .background(if (selected) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.secondaryContainer)
             .clickable { onClick() },
         contentAlignment = Alignment.Center
     ) {
         Text(
-            text = text,
+            text  = text,
             style = MaterialTheme.typography.bodyMedium,
-            color = if (selected) {
-                MaterialTheme.colorScheme.onTertiary
-            } else {
-                MaterialTheme.colorScheme.onSecondaryContainer
-            }
+            color = if (selected) MaterialTheme.colorScheme.onTertiary else MaterialTheme.colorScheme.onSecondaryContainer
         )
     }
 }
+
+// ── Board + Summary ───────────────────────────────────────────────────────────
 
 @Composable
 fun TimelineBoardWithSummary(
     tasks: List<Task>,
     mode: String,
-    projectName: String,
+    projectNameById: Map<Long, String>,
     finished: Int,
     active: Int,
     pending: Int,
     isLandscape: Boolean
 ) {
     if (isLandscape) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            Box(
-                modifier = Modifier
-                    .weight(1f)
-                    .height(315.dp)
-                    .horizontalScroll(rememberScrollState())
-            ) {
-                TimelineBoard(
-                    tasks = tasks,
-                    mode = mode,
-                    projectName = projectName,
-                    isLandscape = true
-                )
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+            Box(modifier = Modifier.weight(1f).height(315.dp).horizontalScroll(rememberScrollState())) {
+                TimelineBoard(tasks, mode, projectNameById, isLandscape = true)
             }
-
-            TimelineSummary(
-                finished = finished,
-                active = active,
-                pending = pending,
-                modifier = Modifier.width(240.dp)
-            )
+            TimelineSummary(finished, active, pending, modifier = Modifier.width(240.dp))
         }
     } else {
         Column {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(390.dp)
-                    .horizontalScroll(rememberScrollState())
-            ) {
-                TimelineBoard(
-                    tasks = tasks,
-                    mode = mode,
-                    projectName = projectName,
-                    isLandscape = false
-                )
+            Box(modifier = Modifier.fillMaxWidth().height(390.dp).horizontalScroll(rememberScrollState())) {
+                TimelineBoard(tasks, mode, projectNameById, isLandscape = false)
             }
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            TimelineSummary(
-                finished = finished,
-                active = active,
-                pending = pending,
-                modifier = Modifier.fillMaxWidth()
-            )
+            Spacer(Modifier.height(12.dp))
+            TimelineSummary(finished, active, pending, modifier = Modifier.fillMaxWidth())
         }
     }
 }
+
+// ── Board principal com datas reais ──────────────────────────────────────────
 
 @Composable
 fun TimelineBoard(
     tasks: List<Task>,
     mode: String,
-    projectName: String,
+    projectNameById: Map<Long, String>,
     isLandscape: Boolean
 ) {
     val visibleTasks = tasks.take(if (isLandscape) 5 else 6)
+    val today        = LocalDate.now()
+    val locale       = if (com.example.forgeplan.core.language.AppLanguage.isPortuguese())
+        Locale("pt") else Locale("en")
 
-    val columns =
-        if (mode == "Week") {
-            listOf(
-                appText(en = "Monday\n25th July", pt = "Segunda\n25 Jul."),
-                appText(en = "Tuesday\n26th July", pt = "Terça\n26 Jul."),
-                appText(en = "Wednesday\n27th July", pt = "Quarta\n27 Jul."),
-                appText(en = "Thursday\n28th July", pt = "Quinta\n28 Jul."),
-                appText(en = "Friday\n29th July", pt = "Sexta\n29 Jul.")
-            )
-        } else {
-            listOf(
-                appText(en = "Week 1", pt = "Semana 1"),
-                appText(en = "Week 2", pt = "Semana 2"),
-                appText(en = "Week 3", pt = "Semana 3"),
-                appText(en = "Week 4", pt = "Semana 4"),
-                appText(en = "Week 5", pt = "Semana 5")
-            )
+    // ── Calcula as colunas de data ────────────────────────────────────────────
+    // "âncora" = data mais cedo nas tarefas visíveis, ou hoje se não houver datas
+    val anchor: LocalDate = visibleTasks
+        .mapNotNull { parseDate(it.start_date) }
+        .minOrNull() ?: today
+
+    val columns: List<Pair<String, LocalDate>> = if (mode == "Week") {
+        // 7 dias a partir da âncora (limitamos a 5 para caber no ecrã)
+        (0 until 5).map { i ->
+            val day = anchor.plusDays(i.toLong())
+            val label = buildString {
+                append(day.dayOfWeek.getDisplayName(TextStyle.SHORT, locale))
+                append("\n")
+                append(day.dayOfMonth)
+                append(" ")
+                append(day.month.getDisplayName(TextStyle.SHORT, locale))
+            }
+            label to day
         }
+    } else {
+        // Modo Month: 5 semanas a partir do início do mês da âncora
+        val monthStart = anchor.withDayOfMonth(1)
+        (0 until 5).map { i ->
+            val weekStart = monthStart.plusWeeks(i.toLong())
+            val weekEnd   = weekStart.plusDays(6)
+            val label = buildString {
+                append(appText("Week", "Sem."))
+                append(" ${i + 1}\n")
+                append(weekStart.dayOfMonth)
+                append("–")
+                append(weekEnd.dayOfMonth)
+                append(" ")
+                append(weekStart.month.getDisplayName(TextStyle.SHORT, locale))
+            }
+            label to weekStart
+        }
+    }
 
-    val taskColumnWidth = if (isLandscape) 122.dp else 112.dp
-    val columnWidth = if (isLandscape) 108.dp else 98.dp
-    val boardWidth = taskColumnWidth + columnWidth * 5
-    val boardHeight = if (isLandscape) 315.dp else 390.dp
-    val headerHeight = 48.dp
-    val gridHeight = boardHeight - headerHeight
+    val taskColumnWidth = if (isLandscape) 122.dp else TASK_COL_W
+    val columnWidth     = if (isLandscape) 108.dp else COL_W
+    val boardWidth      = taskColumnWidth + columnWidth * 5
+    val boardHeight     = if (isLandscape) 315.dp else 390.dp
+    val headerHeight    = 52.dp
+    val gridHeight      = boardHeight - headerHeight
 
-    val boardColor = MaterialTheme.colorScheme.secondaryContainer
-    val taskColumnColor = MaterialTheme.colorScheme.tertiary.copy(alpha = 0.45f)
-    val gridLineColor = MaterialTheme.colorScheme.tertiary.copy(alpha = 0.28f)
+    val boardColor     = MaterialTheme.colorScheme.secondaryContainer
+    val taskColumnColor= MaterialTheme.colorScheme.tertiary.copy(alpha = 0.45f)
+    val gridLineColor  = MaterialTheme.colorScheme.tertiary.copy(alpha = 0.28f)
 
     ForgeCard(modifier = Modifier.width(boardWidth)) {
-        Row(
-            modifier = Modifier
-                .width(boardWidth)
-                .height(boardHeight)
-                .background(boardColor)
-        ) {
+        Row(modifier = Modifier.width(boardWidth).height(boardHeight).background(boardColor)) {
+
+            // ── Coluna esquerda: nomes das tarefas ────────────────────────
             Column(
                 modifier = Modifier
-                    .width(taskColumnWidth)
-                    .height(boardHeight)
+                    .width(taskColumnWidth).height(boardHeight)
                     .background(taskColumnColor)
-                    .padding(horizontal = 12.dp, vertical = 12.dp)
+                    .padding(horizontal = 10.dp, vertical = 12.dp)
             ) {
                 Text(
-                    text = appText(en = "Tasks", pt = "Tarefas"),
-                    style = MaterialTheme.typography.titleLarge,
+                    text       = appText("Tasks", "Tarefas"),
+                    style      = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.primary
+                    color      = MaterialTheme.colorScheme.primary
                 )
-
-                Spacer(modifier = Modifier.height(18.dp))
-
+                Spacer(Modifier.height(14.dp))
                 visibleTasks.forEach { task ->
-                    TimelineTaskLabel(task = task, projectName = projectName)
-                    Spacer(modifier = Modifier.height(if (isLandscape) 8.dp else 12.dp))
+                    TimelineTaskLabel(task, projectNameById[task.project_id] ?: "—")
+                    Spacer(Modifier.height(if (isLandscape) 8.dp else 12.dp))
                 }
             }
 
+            // ── Área de datas + barras ────────────────────────────────────
             Column(modifier = Modifier.width(columnWidth * 5)) {
+
+                // Cabeçalho de datas
                 Row {
-                    columns.forEachIndexed { index, column ->
+                    columns.forEachIndexed { i, (label, date) ->
+                        val isToday = date == today || (mode == "Month" && today >= date && today < date.plusWeeks(1))
                         Text(
-                            text = column,
-                            style = MaterialTheme.typography.labelSmall,
+                            text      = label,
+                            style     = MaterialTheme.typography.labelSmall,
                             textAlign = TextAlign.Center,
-                            modifier = Modifier
-                                .width(columnWidth)
-                                .height(headerHeight)
-                                .background(
-                                    if (index == 2) MaterialTheme.colorScheme.tertiary
-                                    else boardColor
-                                )
-                                .padding(top = 7.dp, start = 4.dp, end = 4.dp),
-                            color = if (index == 2) {
-                                MaterialTheme.colorScheme.onTertiary
-                            } else {
-                                MaterialTheme.colorScheme.onSecondaryContainer
-                            }
+                            modifier  = Modifier
+                                .width(columnWidth).height(headerHeight)
+                                .background(if (isToday) MaterialTheme.colorScheme.tertiary else boardColor)
+                                .padding(top = 6.dp, start = 4.dp, end = 4.dp),
+                            color = if (isToday) MaterialTheme.colorScheme.onTertiary
+                            else MaterialTheme.colorScheme.onSecondaryContainer
                         )
                     }
                 }
 
-                Box(
-                    modifier = Modifier
-                        .width(columnWidth * 5)
-                        .height(gridHeight)
-                        .background(boardColor)
-                ) {
-                    TimelineGrid(
-                        gridWidth = columnWidth * 5,
-                        columnWidth = columnWidth,
-                        gridHeight = gridHeight,
-                        gridLineColor = gridLineColor
-                    )
+                // Grelha + barras
+                Box(modifier = Modifier.width(columnWidth * 5).height(gridHeight).background(boardColor)) {
+                    TimelineGrid(columnWidth * 5, columnWidth, gridHeight, gridLineColor)
 
                     visibleTasks.forEachIndexed { index, task ->
-                        val progress = task.completion_rate ?: 0
-                        val normalizedStatus = task.status?.uppercase()
+                        val barData = computeBar(task, columns, mode, columnWidth)
+                        val rowTop  = (index * if (isLandscape) 39 else 46).dp + 10.dp
 
-                        val statusText = when (normalizedStatus) {
-                            "DONE" -> appText(en = "100% Finished", pt = "100% Concluída")
-                            "IN_PROGRESS" -> appText(en = "$progress% Active", pt = "$progress% Ativa")
-                            else -> appText(en = "$progress% Pending", pt = "$progress% Pendente")
-                        }
-
-                        val barStart =
-                            (columnWidth.value * (index % 5) + 12f).dp
-
-                        TimelineProgressBarPositioned(
-                            text = statusText,
-                            width = when {
-                                progress >= 100 -> 190.dp
-                                progress >= 70 -> 180.dp
-                                progress >= 40 -> 170.dp
-                                progress > 0 -> 160.dp
-                                else -> 160.dp
-                            },
-                            top = (index * if (isLandscape) 39 else 46).dp + 12.dp,
-                            start = barStart,
-                            pending = normalizedStatus != "DONE" &&
-                                    normalizedStatus != "IN_PROGRESS"
+                        TimelineProgressBar(
+                            text       = barData.label,
+                            startX     = barData.startX,
+                            barWidth   = barData.width,
+                            top        = rowTop,
+                            isDone     = task.status?.uppercase() == "DONE"
                         )
                     }
                 }
@@ -429,136 +360,131 @@ fun TimelineBoard(
     }
 }
 
-@Composable
-fun TimelineGrid(
-    gridWidth: Dp,
-    columnWidth: Dp,
-    gridHeight: Dp,
-    gridLineColor: androidx.compose.ui.graphics.Color
-) {
-    Box(
-        modifier = Modifier
-            .width(gridWidth)
-            .height(gridHeight)
-    ) {
-        Row {
-            repeat(5) {
-                Box(
-                    modifier = Modifier
-                        .width(columnWidth)
-                        .height(gridHeight)
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .width(1.dp)
-                            .height(gridHeight)
-                            .background(gridLineColor)
-                    )
-                }
-            }
-        }
+// ── Calcula posição e largura da barra com base nas datas reais ──────────────
 
-        Column {
-            repeat(7) {
-                Box(
-                    modifier = Modifier
-                        .width(gridWidth)
-                        .height(1.dp)
-                        .background(gridLineColor)
-                )
+private data class BarData(val startX: Dp, val width: Dp, val label: String)
 
-                Spacer(modifier = Modifier.height(45.dp))
-            }
-        }
+private fun computeBar(
+    task: Task,
+    columns: List<Pair<String, LocalDate>>,
+    mode: String,
+    columnWidth: Dp
+): BarData {
+    val start = parseDate(task.start_date)
+    val end   = parseDate(task.end_date)
+
+    val colStart = columns.first().second
+    val colEnd   = columns.last().second.plusDays(if (mode == "Week") 1 else 7)
+
+    val totalWidth = columnWidth * 5
+
+    val progress = task.completion_rate ?: 0
+    val status   = task.status?.uppercase()
+
+    val labelText = when (status) {
+        "DONE"        -> appText("100% Finished", "100% Concluída")
+        "IN_PROGRESS" -> appText("$progress% Active", "$progress% Ativa")
+        else          -> appText("$progress% Pending", "$progress% Pendente")
     }
+
+    if (start == null) {
+        return BarData(8.dp, totalWidth * 0.6f, labelText)
+    }
+
+    val clippedStart = if (start < colStart) colStart else start
+    val clippedEnd = when {
+        end == null -> clippedStart.plusDays(1)
+        end < clippedStart -> clippedStart.plusDays(1)
+        end > colEnd -> colEnd
+        else -> end
+    }
+
+    val offsetDays = ChronoUnit.DAYS.between(colStart, clippedStart).coerceAtLeast(0).toFloat()
+    val durationDays = ChronoUnit.DAYS.between(clippedStart, clippedEnd).coerceAtLeast(1).toFloat()
+    val totalDays = ChronoUnit.DAYS.between(colStart, colEnd).coerceAtLeast(1).toFloat()
+
+    val pxPerDay = totalWidth / totalDays
+
+    val startX = pxPerDay * offsetDays + 6.dp
+    val barWidth = (pxPerDay * durationDays).coerceAtLeast(48.dp)
+
+    return BarData(startX, barWidth, labelText)
 }
 
-@Composable
-fun TimelineProgressBarPositioned(
-    text: String,
-    width: Dp,
-    top: Dp,
-    start: Dp,
-    pending: Boolean
-) {
-    val barColor =
-        if (pending) MaterialTheme.colorScheme.primary
-        else MaterialTheme.colorScheme.tertiary
+// ── Barra de progresso posicionada ───────────────────────────────────────────
 
+@Composable
+fun TimelineProgressBar(
+    text: String,
+    startX: Dp,
+    barWidth: Dp,
+    top: Dp,
+    isDone: Boolean
+) {
+    val barColor = if (isDone) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.primary
     Box(
         modifier = Modifier
-            .padding(start = start, top = top)
-            .width(width)
-            .height(22.dp)
+            .padding(start = startX, top = top)
+            .width(barWidth).height(22.dp)
             .clip(RoundedCornerShape(50))
             .background(barColor),
         contentAlignment = Alignment.Center
     ) {
         Text(
-            text = text,
-            style = MaterialTheme.typography.labelSmall,
+            text       = text,
+            style      = MaterialTheme.typography.labelSmall,
             fontWeight = FontWeight.Bold,
-            color = if (pending) {
-                MaterialTheme.colorScheme.onPrimary
-            } else {
-                MaterialTheme.colorScheme.onTertiary
-            }
+            color      = if (isDone) MaterialTheme.colorScheme.onTertiary else MaterialTheme.colorScheme.onPrimary,
+            maxLines   = 1
         )
     }
 }
 
-@Composable
-fun TimelineTaskLabel(
-    task: Task,
-    projectName: String
-) {
-    Column(modifier = Modifier.height(38.dp)) {
-        Text(
-            text = task.title,
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSecondaryContainer,
-            maxLines = 1
-        )
+// ── Grelha de fundo ───────────────────────────────────────────────────────────
 
-        Text(
-            text = appText(en = "From $projectName", pt = "De $projectName"),
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.72f),
-            maxLines = 1
-        )
+@Composable
+fun TimelineGrid(gridWidth: Dp, columnWidth: Dp, gridHeight: Dp, gridLineColor: Color) {
+    Box(modifier = Modifier.width(gridWidth).height(gridHeight)) {
+        Row { repeat(5) { Box(Modifier.width(columnWidth).height(gridHeight)) { Box(Modifier.width(1.dp).height(gridHeight).background(gridLineColor)) } } }
+        Column { repeat(7) { Box(Modifier.width(gridWidth).height(1.dp).background(gridLineColor)); Spacer(Modifier.height(45.dp)) } }
     }
 }
 
+// ── Label da tarefa ───────────────────────────────────────────────────────────
+
 @Composable
-fun TimelineSummary(
-    finished: Int,
-    active: Int,
-    pending: Int,
-    modifier: Modifier = Modifier
-) {
+fun TimelineTaskLabel(task: Task, projectName: String) {
+    val dateStr = buildString {
+        val s = parseDate(task.start_date)
+        val e = parseDate(task.end_date)
+        if (s != null) {
+            append(s.dayOfMonth); append("/"); append(s.monthValue)
+            if (e != null && e != s) { append("→"); append(e.dayOfMonth); append("/"); append(e.monthValue) }
+        } else {
+            append(appText("No date", "Sem data"))
+        }
+    }
+
+    Column(modifier = Modifier.height(42.dp)) {
+        Text(task.title, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSecondaryContainer, maxLines = 1)
+        Text(dateStr,    style = MaterialTheme.typography.labelSmall,  color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.72f), maxLines = 1)
+    }
+}
+
+// ── Resumo ────────────────────────────────────────────────────────────────────
+
+@Composable
+fun TimelineSummary(finished: Int, active: Int, pending: Int, modifier: Modifier = Modifier) {
     ForgeOutlinedCard(modifier = modifier) {
-        Column(
-            modifier = Modifier.padding(horizontal = 18.dp, vertical = 12.dp)
-        ) {
-            Text(
-                text = appText(en = "Summary of the day", pt = "Resumo do dia"),
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onSurface
-            )
-
-            Spacer(modifier = Modifier.height(6.dp))
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceEvenly,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                TimelineSummaryItem(finished.toString(), appText(en = "Finished", pt = "Concluídas"), "finished")
+        Column(modifier = Modifier.padding(horizontal = 18.dp, vertical = 12.dp)) {
+            Text(appText("Summary", "Resumo"), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
+            Spacer(Modifier.height(6.dp))
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly, verticalAlignment = Alignment.CenterVertically) {
+                TimelineSummaryItem(finished.toString(), appText("Finished", "Concluídas"), "finished")
                 TimelineDivider()
-                TimelineSummaryItem(active.toString(), appText(en = "Active", pt = "Ativas"), "active")
+                TimelineSummaryItem(active.toString(),   appText("Active", "Ativas"),      "active")
                 TimelineDivider()
-                TimelineSummaryItem(pending.toString(), appText(en = "Pending", pt = "Pendentes"), "pending")
+                TimelineSummaryItem(pending.toString(),  appText("Pending", "Pendentes"),  "pending")
             }
         }
     }
@@ -566,39 +492,18 @@ fun TimelineSummary(
 
 @Composable
 fun TimelineDivider() {
-    Box(
-        modifier = Modifier
-            .width(1.dp)
-            .height(52.dp)
-            .background(MaterialTheme.colorScheme.tertiary)
-    )
+    Box(modifier = Modifier.width(1.dp).height(52.dp).background(MaterialTheme.colorScheme.tertiary))
 }
 
 @Composable
-fun TimelineSummaryItem(
-    number: String,
-    label: String,
-    variant: String
-) {
-    val numberColor =
-        when (variant) {
-            "finished" -> MaterialTheme.colorScheme.secondary
-            "active" -> MaterialTheme.colorScheme.primary
-            else -> MaterialTheme.colorScheme.onSurface
-        }
-
+fun TimelineSummaryItem(number: String, label: String, variant: String) {
+    val numberColor = when (variant) {
+        "finished" -> MaterialTheme.colorScheme.secondary
+        "active"   -> MaterialTheme.colorScheme.primary
+        else       -> MaterialTheme.colorScheme.onSurface
+    }
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(
-            text = number,
-            style = MaterialTheme.typography.headlineLarge,
-            fontWeight = FontWeight.Bold,
-            color = numberColor
-        )
-
-        Text(
-            text = label,
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurface
-        )
+        Text(number, style = MaterialTheme.typography.headlineLarge, fontWeight = FontWeight.Bold, color = numberColor)
+        Text(label,  style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurface)
     }
 }

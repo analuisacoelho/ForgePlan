@@ -14,14 +14,21 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlin.coroutines.resume
-
+import com.example.forgeplan.core.network.SupabaseApi
+import com.example.forgeplan.core.network.SupabaseService.CommentRequest
 /**
+ * Localização: app/src/main/java/com/example/forgeplan/tasks/viewmodel/UserDashboardViewModel.kt
+ * SUBSTITUI completamente o ficheiro existente.
+ *
  * Lógica:
- *  1. Vai à tabela project_users e filtra por user_id → obtém os IDs dos projectos
- *  2. Para cada project_id vai buscar o Project completo
- *  3. Para cada projecto, vai à tabela task_assignments filtrando por user_id → obtém task_ids
- *  4. Para cada task_id vai buscar a Task completa
+ *  1. project_users filtrado por user_id → IDs dos projectos
+ *  2. Para cada project_id → busca o Project completo
+ *  3. task_assignments filtrado por user_id → IDs das tarefas
+ *  4. Para cada projecto → intersecção de tarefas do projecto com as atribuídas ao user
  *  5. Expõe projectsWithTasks: Map<Project, List<Task>>
+ *
+ * Novo método updateTaskProgress: usado pelo ProgressScreen para guardar
+ * data, taxa de conclusão e status sem recarregar o dashboard inteiro.
  */
 class UserDashboardViewModel : ViewModel() {
 
@@ -30,19 +37,16 @@ class UserDashboardViewModel : ViewModel() {
     private val taskAssignmentRepo = TaskAssignmentRepository()
     private val taskRepo           = TaskRepository()
 
-    // Estado de carregamento
     private val _isLoading = MutableStateFlow(false)
     val isLoading: StateFlow<Boolean> = _isLoading
 
-    // Erro
     private val _error = MutableStateFlow<String?>(null)
     val error: StateFlow<String?> = _error
 
-    // Projectos do utilizador com as suas tarefas
     private val _projectsWithTasks = MutableStateFlow<Map<Project, List<Task>>>(emptyMap())
     val projectsWithTasks: StateFlow<Map<Project, List<Task>>> = _projectsWithTasks
 
-    // ── Entrada pública ──────────────────────────────────────────────────────
+    // ── Carregamento principal ───────────────────────────────────────────────
 
     fun loadDashboard() {
         val userId = SessionManager.userId
@@ -53,22 +57,15 @@ class UserDashboardViewModel : ViewModel() {
 
         viewModelScope.launch {
             _isLoading.value = true
-            _error.value = null
-
+            _error.value     = null
             try {
-                // 1. Obtém IDs dos projectos onde o user participa
                 val projectIds = fetchProjectIds(userId)
+                val projects   = projectIds.mapNotNull { fetchProject(it) }
 
-                // 2. Vai buscar cada projecto em paralelo
-                val projects = projectIds.mapNotNull { fetchProject(it) }
-
-                // 3. Para cada projecto, obtém as tarefas do user nesse projecto
                 val result = linkedMapOf<Project, List<Task>>()
                 for (project in projects) {
-                    val tasks = fetchUserTasksForProject(userId, project.id)
-                    result[project] = tasks
+                    result[project] = fetchUserTasksForProject(userId, project.id)
                 }
-
                 _projectsWithTasks.value = result
             } catch (e: Exception) {
                 _error.value = e.message ?: "Erro desconhecido"
@@ -78,20 +75,47 @@ class UserDashboardViewModel : ViewModel() {
         }
     }
 
-    /**
-     * Marca uma tarefa como concluída e recarrega o dashboard.
-     */
+    // ── Marcar como feita (UserDashboardScreen) ──────────────────────────────
+
     fun markTaskAsDone(task: Task) {
         viewModelScope.launch {
             val updated = task.copy(status = "Done", completion_rate = 100)
             suspendCancellableCoroutine { cont ->
+                taskRepo.updateTask(task = updated, onSuccess = { cont.resume(Unit) }, onError = { cont.resume(Unit) })
+            }
+            loadDashboard()
+        }
+    }
+
+    // ── Guardar progresso (ProgressScreen) ───────────────────────────────────
+
+    /**
+     * Actualiza uma tarefa com o novo status, taxa de conclusão e data.
+     * Ao contrário de markTaskAsDone, não recarrega o dashboard inteiro —
+     * apenas actualiza a tarefa no mapa em memória para a UI reflectir
+     * a mudança imediatamente, evitando um reload desnecessário.
+     */
+    fun updateTaskProgress(
+        task: Task,
+        onSuccess: () -> Unit,
+        onError: (String) -> Unit
+    ) {
+        viewModelScope.launch {
+            val ok = suspendCancellableCoroutine { cont ->
                 taskRepo.updateTask(
-                    task = updated,
-                    onSuccess = { cont.resume(Unit) },
-                    onError   = { cont.resume(Unit) }   // falha silenciosa, recarrega à mesma
+                    task      = task,
+                    onSuccess = { cont.resume(true) },
+                    onError   = { msg -> onError(msg); cont.resume(false) }
                 )
             }
-            loadDashboard()   // recarrega para reflectir a alteração
+            if (ok) {
+                // Actualiza apenas a tarefa no mapa sem reload completo
+                val updated = _projectsWithTasks.value.mapValues { (_, tasks) ->
+                    tasks.map { if (it.id == task.id) task else it }
+                }
+                _projectsWithTasks.value = updated
+                onSuccess()
+            }
         }
     }
 
@@ -116,17 +140,15 @@ class UserDashboardViewModel : ViewModel() {
         }
 
     private suspend fun fetchUserTasksForProject(userId: Long, projectId: Long): List<Task> {
-        // Passo A – todos os task_ids atribuídos ao user
-        val assignedTaskIds: List<Long> = suspendCancellableCoroutine { cont ->
+        val assignedIds: List<Long> = suspendCancellableCoroutine { cont ->
             taskAssignmentRepo.getTaskIdsByUserId(
                 userId    = userId,
                 onSuccess = { cont.resume(it) },
                 onError   = { cont.resume(emptyList()) }
             )
         }
-        if (assignedTaskIds.isEmpty()) return emptyList()
+        if (assignedIds.isEmpty()) return emptyList()
 
-        // Passo B – tarefas deste projecto
         val projectTasks: List<Task> = suspendCancellableCoroutine { cont ->
             taskRepo.getTasksByProjectId(
                 projectId = projectId,
@@ -134,8 +156,32 @@ class UserDashboardViewModel : ViewModel() {
                 onError   = { cont.resume(emptyList()) }
             )
         }
+        return projectTasks.filter { it.id in assignedIds }
+    }
+    fun insertComment(
+        taskId: Long,
+        content: String,
+        onSuccess: () -> Unit,
+        onError: (String) -> Unit
+    ) {
+        viewModelScope.launch {
+            try {
+                val userId = SessionManager.userId
 
-        // Passo C – intersecção: só as tarefas do projecto que foram atribuídas ao user
-        return projectTasks.filter { it.id in assignedTaskIds }
+                val comment = CommentRequest(
+                    task_id = taskId,
+                    user_id = userId,
+                    content = content
+                )
+
+                SupabaseApi.service.insertComment(comment)
+
+                onSuccess()
+
+            } catch (e: Exception) {
+                onError(e.message ?: "Erro ao guardar comentário")
+            }
+        }
+
     }
 }

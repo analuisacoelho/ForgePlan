@@ -8,42 +8,19 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.CalendarMonth
 import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.KeyboardArrowDown
 import androidx.compose.material.icons.outlined.LocationOn
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Slider
-import androidx.compose.material3.SliderDefaults
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -55,68 +32,123 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.forgeplan.core.language.appText
 import com.example.forgeplan.core.model.Project
 import com.example.forgeplan.core.model.Task
+import com.example.forgeplan.core.session.SessionManager
 import com.example.forgeplan.core.ui.components.ForgePlanBottomBar
 import com.example.forgeplan.core.ui.components.ForgePlanTopBar
-import com.example.forgeplan.projects.viewmodel.ProjectViewModel
-import com.example.forgeplan.tasks.viewmodel.TaskViewModel
+import com.example.forgeplan.tasks.viewmodel.UserDashboardViewModel
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
+import java.util.Locale
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Localização: app/src/main/java/com/example/forgeplan/progress/ui/ProgressScreen.kt
+// SUBSTITUI completamente o ficheiro existente.
+//
+// Alterações principais:
+//  1. Usa UserDashboardViewModel (já existente) para carregar apenas os
+//     projectos e tarefas do utilizador logado via project_users e task_assignments
+//  2. Adiciona campo de DATA com DatePickerDialog nativo
+//  3. Mantém local, taxa de conclusão, tempo e notas existentes
+//  4. Guarda todas as alterações na tarefa (status, completion_rate, start_date)
+// ─────────────────────────────────────────────────────────────────────────────
+
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ProgressScreen(
     onProjectsClick: () -> Unit = {},
     onTimelineClick: () -> Unit = {},
     onTeamClick: () -> Unit = {},
-    projectViewModel: ProjectViewModel = viewModel(),
-    taskViewModel: TaskViewModel = viewModel()
+    dashboardViewModel: UserDashboardViewModel = viewModel()
 ) {
     val configuration = LocalConfiguration.current
-    val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+    val isLandscape   = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
 
-    val projects by projectViewModel.projects.collectAsState()
-    val projectError by projectViewModel.error.collectAsState()
-    val tasks by taskViewModel.tasks.collectAsState()
-    val taskError by taskViewModel.error.collectAsState()
+    // ── Dados do utilizador (já filtrados por user) ──────────────────────────
+    val projectsWithTasks by dashboardViewModel.projectsWithTasks.collectAsState()
+    val isLoading         by dashboardViewModel.isLoading.collectAsState()
 
-    var selectedProject by remember { mutableStateOf<Project?>(null) }
-    var selectedTask by remember { mutableStateOf<Task?>(null) }
-    var progressValue by remember { mutableStateOf(0) }
-    var timeSpentHours by remember { mutableStateOf(3) }
-    var location by remember { mutableStateOf("") }
-    var notes by remember { mutableStateOf("") }
-    var selectedPhotoUri by remember { mutableStateOf<Uri?>(null) }
-    var message by remember { mutableStateOf<String?>(null) }
+    // Lista plana de projectos e tarefas derivada do ViewModel
+    val userProjects = remember(projectsWithTasks) { projectsWithTasks.keys.toList() }
+    val userTasksForProject: (Project?) -> List<Task> = { proj ->
+        if (proj == null) emptyList() else projectsWithTasks[proj] ?: emptyList()
+    }
 
+    // ── Estado do formulário (rememberSaveable → sobrevive a rotações) ───────
+    var selectedProject   by rememberSaveable { mutableStateOf<Long?>(null) }
+    var selectedTaskId    by rememberSaveable { mutableStateOf<Long?>(null) }
+    var progressValue     by rememberSaveable { mutableStateOf(0) }
+    var timeSpentHours    by rememberSaveable { mutableStateOf(0) }
+    var location          by rememberSaveable { mutableStateOf("") }
+    var notes             by rememberSaveable { mutableStateOf("") }
+    var selectedPhotoUri  by remember { mutableStateOf<Uri?>(null) }
+    var selectedDate      by rememberSaveable { mutableStateOf("") }  // "yyyy-MM-dd"
+    var message           by remember { mutableStateOf<String?>(null) }
+
+    // Objectos derivados do estado salvo
+    val currentProject = userProjects.firstOrNull { it.id == selectedProject }
+    val currentTasks   = userTasksForProject(currentProject)
+    val currentTask    = currentTasks.firstOrNull { it.id == selectedTaskId }
+
+    // ── DatePickerDialog ──────────────────────────────────────────────────────
+    var showDatePicker by remember { mutableStateOf(false) }
+    val datePickerState = rememberDatePickerState()
+
+    if (showDatePicker) {
+        DatePickerDialog(
+            onDismissRequest = { showDatePicker = false },
+            confirmButton = {
+                TextButton(onClick = {
+                    datePickerState.selectedDateMillis?.let { millis ->
+                        val date = java.time.Instant.ofEpochMilli(millis)
+                            .atZone(java.time.ZoneId.of("UTC"))
+                            .toLocalDate()
+                        selectedDate = date.format(DateTimeFormatter.ISO_LOCAL_DATE)
+                    }
+                    showDatePicker = false
+                }) {
+                    Text(appText("OK", "OK"))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDatePicker = false }) {
+                    Text(appText("Cancel", "Cancelar"))
+                }
+            }
+        ) {
+            DatePicker(state = datePickerState)
+        }
+    }
+
+    // ── Carrega dados ao entrar ───────────────────────────────────────────────
     LaunchedEffect(Unit) {
-        projectViewModel.loadProjects()
+        dashboardViewModel.loadDashboard()
     }
 
-    LaunchedEffect(projects) {
-        if (selectedProject == null && projects.isNotEmpty()) {
-            selectedProject = projects.first()
+    // Selecciona automaticamente o primeiro projecto/tarefa quando chegam dados
+    LaunchedEffect(userProjects) {
+        if (selectedProject == null && userProjects.isNotEmpty()) {
+            val first = userProjects.first()
+            selectedProject = first.id
+        }
+    }
+    LaunchedEffect(selectedProject, projectsWithTasks) {
+        val tasks = userTasksForProject(currentProject)
+        if (selectedTaskId == null && tasks.isNotEmpty()) {
+            selectedTaskId  = tasks.first().id
+            progressValue   = tasks.first().completion_rate ?: 0
+            selectedDate    = tasks.first().start_date ?: ""
         }
     }
 
-    LaunchedEffect(selectedProject?.id) {
-        selectedProject?.let {
-            selectedTask = null
-            taskViewModel.loadTasks(it.id)
-        }
-    }
-
-    LaunchedEffect(tasks) {
-        if (selectedTask == null && tasks.isNotEmpty()) {
-            selectedTask = tasks.first()
-            progressValue = tasks.first().completion_rate ?: 0
-        }
-    }
-
+    // ── UI ────────────────────────────────────────────────────────────────────
     Column(
         modifier = Modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
     ) {
         ForgePlanTopBar(
-            title = "ForgePlan",
-            initials = "UN"
+            title    = "ForgePlan",
+            initials = SessionManager.userInitials
         )
 
         Column(
@@ -125,253 +157,277 @@ fun ProgressScreen(
                 .verticalScroll(rememberScrollState())
                 .padding(
                     horizontal = if (isLandscape) 32.dp else 22.dp,
-                    vertical = if (isLandscape) 14.dp else 18.dp
+                    vertical   = if (isLandscape) 14.dp else 18.dp
                 )
         ) {
             Text(
-                text = appText(en = "Progress", pt = "Progresso"),
-                style = MaterialTheme.typography.headlineSmall,
+                text       = appText("Progress", "Progresso"),
+                style      = MaterialTheme.typography.headlineSmall,
                 fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onBackground
+                color      = MaterialTheme.colorScheme.onBackground
             )
 
-            Spacer(modifier = Modifier.height(if (isLandscape) 12.dp else 18.dp))
+            Spacer(Modifier.height(if (isLandscape) 12.dp else 18.dp))
 
-            if (isLandscape) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
+            if (isLoading) {
+                Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator()
+                }
+            } else if (isLandscape) {
+                // ── Landscape: 2 colunas ──────────────────────────────────
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     ProjectSelector(
-                        selectedProject = selectedProject,
-                        projects = projects,
-                        modifier = Modifier.weight(1f),
+                        selectedProject = currentProject,
+                        projects        = userProjects,
+                        modifier        = Modifier.weight(1f),
                         onProjectSelected = {
-                            selectedProject = it
-                            selectedTask = null
-                            message = null
+                            selectedProject = it.id
+                            selectedTaskId  = null
+                            message         = null
                         }
                     )
-
                     TaskSelector(
-                        selectedTask = selectedTask,
-                        tasks = tasks,
-                        modifier = Modifier.weight(1f),
+                        selectedTask = currentTask,
+                        tasks        = currentTasks,
+                        modifier     = Modifier.weight(1f),
                         onTaskSelected = {
-                            selectedTask = it
-                            progressValue = it.completion_rate ?: 0
-                            message = null
+                            selectedTaskId = it.id
+                            progressValue  = it.completion_rate ?: 0
+                            selectedDate   = it.start_date ?: ""
+                            message        = null
                         }
                     )
                 }
 
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(Modifier.height(16.dp))
 
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(16.dp)
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        ProgressMainCard(
-                            progress = progressValue,
-                            onProgressChange = {
-                                progressValue = it
-                                message = null
-                            }
-                        )
-
-                        Spacer(modifier = Modifier.height(12.dp))
-
-                        TimeSpentRow(
-                            hours = timeSpentHours,
-                            onIncrease = { timeSpentHours++ },
-                            onDecrease = {
-                                if (timeSpentHours > 0) timeSpentHours--
-                            }
-                        )
-
-                        Spacer(modifier = Modifier.height(12.dp))
-
-                        LocationRow(
-                            value = location,
-                            onValueChange = { location = it }
-                        )
+                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                    Column(Modifier.weight(1f)) {
+                        ProgressMainCard(progress = progressValue, onProgressChange = { progressValue = it; message = null })
+                        Spacer(Modifier.height(12.dp))
+                        DateRow(selectedDate = selectedDate, onPickDate = { showDatePicker = true })
+                        Spacer(Modifier.height(12.dp))
+                        TimeSpentRow(hours = timeSpentHours, onIncrease = { timeSpentHours++ }, onDecrease = { if (timeSpentHours > 0) timeSpentHours-- })
+                        Spacer(Modifier.height(12.dp))
+                        LocationRow(value = location, onValueChange = { location = it })
                     }
-
-                    Column(modifier = Modifier.weight(1f)) {
-                        PhotoAttachmentCard(
-                            selectedPhotoUri = selectedPhotoUri,
-                            onPhotoSelected = { selectedPhotoUri = it },
-                            onRemovePhoto = { selectedPhotoUri = null }
-                        )
-
-                        Spacer(modifier = Modifier.height(12.dp))
-
-                        NotesCard(
-                            value = notes,
-                            onValueChange = { notes = it }
-                        )
+                    Column(Modifier.weight(1f)) {
+                        PhotoAttachmentCard(selectedPhotoUri = selectedPhotoUri, onPhotoSelected = { selectedPhotoUri = it }, onRemovePhoto = { selectedPhotoUri = null })
+                        Spacer(Modifier.height(12.dp))
+                        NotesCard(value = notes, onValueChange = { notes = it })
                     }
                 }
             } else {
+                // ── Portrait: coluna única ────────────────────────────────
                 ProjectSelector(
-                    selectedProject = selectedProject,
-                    projects = projects,
+                    selectedProject = currentProject,
+                    projects        = userProjects,
                     onProjectSelected = {
-                        selectedProject = it
-                        selectedTask = null
-                        message = null
+                        selectedProject = it.id
+                        selectedTaskId  = null
+                        message         = null
                     }
                 )
 
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(Modifier.height(12.dp))
 
                 TaskSelector(
-                    selectedTask = selectedTask,
-                    tasks = tasks,
+                    selectedTask = currentTask,
+                    tasks        = currentTasks,
                     onTaskSelected = {
-                        selectedTask = it
-                        progressValue = it.completion_rate ?: 0
-                        message = null
+                        selectedTaskId = it.id
+                        progressValue  = it.completion_rate ?: 0
+                        selectedDate   = it.start_date ?: ""
+                        message        = null
                     }
                 )
 
-                Spacer(modifier = Modifier.height(28.dp))
+                Spacer(Modifier.height(28.dp))
 
-                ProgressMainCard(
-                    progress = progressValue,
-                    onProgressChange = {
-                        progressValue = it
-                        message = null
-                    }
-                )
+                ProgressMainCard(progress = progressValue, onProgressChange = { progressValue = it; message = null })
 
-                Spacer(modifier = Modifier.height(26.dp))
+                Spacer(Modifier.height(20.dp))
 
-                TimeSpentRow(
-                    hours = timeSpentHours,
-                    onIncrease = { timeSpentHours++ },
-                    onDecrease = {
-                        if (timeSpentHours > 0) timeSpentHours--
-                    }
-                )
+                // ── DATA ─────────────────────────────────────────────────
+                DateRow(selectedDate = selectedDate, onPickDate = { showDatePicker = true })
 
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(Modifier.height(12.dp))
 
-                LocationRow(
-                    value = location,
-                    onValueChange = { location = it }
-                )
+                TimeSpentRow(hours = timeSpentHours, onIncrease = { timeSpentHours++ }, onDecrease = { if (timeSpentHours > 0) timeSpentHours-- })
 
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(Modifier.height(12.dp))
 
-                PhotoAttachmentCard(
-                    selectedPhotoUri = selectedPhotoUri,
-                    onPhotoSelected = { selectedPhotoUri = it },
-                    onRemovePhoto = { selectedPhotoUri = null }
-                )
+                LocationRow(value = location, onValueChange = { location = it })
 
-                Spacer(modifier = Modifier.height(14.dp))
+                Spacer(Modifier.height(12.dp))
 
-                NotesCard(
-                    value = notes,
-                    onValueChange = { notes = it }
-                )
+                PhotoAttachmentCard(selectedPhotoUri = selectedPhotoUri, onPhotoSelected = { selectedPhotoUri = it }, onRemovePhoto = { selectedPhotoUri = null })
+
+                Spacer(Modifier.height(14.dp))
+
+                NotesCard(value = notes, onValueChange = { notes = it })
             }
 
-            projectError?.let {
-                Spacer(modifier = Modifier.height(8.dp))
-                Text(
-                    text = it,
-                    color = MaterialTheme.colorScheme.error,
-                    style = MaterialTheme.typography.bodySmall
-                )
-            }
-
-            taskError?.let {
-                Spacer(modifier = Modifier.height(8.dp))
-                Text(
-                    text = it,
-                    color = MaterialTheme.colorScheme.error,
-                    style = MaterialTheme.typography.bodySmall
-                )
-            }
-
+            // ── Mensagens de erro/sucesso ─────────────────────────────────
             message?.let {
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(Modifier.height(8.dp))
                 Text(
-                    text = it,
-                    color = MaterialTheme.colorScheme.primary,
+                    text  = it,
+                    color = if (it.startsWith("✓") || it.contains("sucesso") || it.contains("success"))
+                        MaterialTheme.colorScheme.primary
+                    else MaterialTheme.colorScheme.error,
                     style = MaterialTheme.typography.bodySmall
                 )
             }
 
-            Spacer(modifier = Modifier.height(18.dp))
+            Spacer(Modifier.height(18.dp))
 
+            // ── Botão Guardar ─────────────────────────────────────────────
             Button(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(58.dp),
-                shape = RoundedCornerShape(8.dp),
-                colors = ButtonDefaults.buttonColors(
+                modifier = Modifier.fillMaxWidth().height(58.dp),
+                shape    = RoundedCornerShape(8.dp),
+                colors   = ButtonDefaults.buttonColors(
                     containerColor = MaterialTheme.colorScheme.primary,
-                    contentColor = MaterialTheme.colorScheme.onPrimary
+                    contentColor   = MaterialTheme.colorScheme.onPrimary
                 ),
                 onClick = {
-                    val task = selectedTask
+                    val task = currentTask
 
                     if (task == null) {
                         message = appText(
-                            en = "Select a task before saving.",
-                            pt = "Seleciona uma tarefa antes de guardar."
+                            "Select a task before saving.",
+                            "Seleciona uma tarefa antes de guardar."
                         )
-                    } else {
-                        val newStatus = when {
-                            progressValue >= 100 -> "DONE"
-                            progressValue > 0 -> "IN_PROGRESS"
-                            else -> "PENDING"
-                        }
+                        return@Button
+                    }
 
-                        val updatedTask = task.copy(
-                            completion_rate = progressValue,
-                            status = newStatus
-                        )
+                    // 1️⃣ Guardar progresso (tasks)
+                    val newStatus = when {
+                        progressValue >= 100 -> "Done"
+                        progressValue > 0    -> "IN_PROGRESS"
+                        else                 -> "PENDING"
+                    }
 
-                        taskViewModel.updateTask(
-                            task = updatedTask,
-                            onSuccess = {
-                                selectedTask = updatedTask
+                    val updatedTask = task.copy(
+                        completion_rate = progressValue,
+                        status          = newStatus,
+                        start_date      = selectedDate.ifBlank { task.start_date },
+                    )
+
+                    dashboardViewModel.updateTaskProgress(
+                        task = updatedTask,
+                        onSuccess = {
+
+                            // 2️⃣ Guardar comentário (comments)
+                            if (notes.isNotBlank()) {
+                                dashboardViewModel.insertComment(
+                                    taskId = task.id,
+                                    content = notes,
+                                    onSuccess = {
+                                        message = appText(
+                                            "✓ Progress and comment saved.",
+                                            "✓ Progresso e comentário guardados."
+                                        )
+                                        notes = "" // limpa campo
+                                    },
+                                    onError = { err ->
+                                        message = err
+                                    }
+                                )
+                            } else {
                                 message = appText(
-                                    en = "Progress saved successfully.",
-                                    pt = "Progresso guardado com sucesso."
+                                    "✓ Progress saved.",
+                                    "✓ Progresso guardado."
                                 )
                             }
-                        )
-                    }
+                        },
+                        onError = { err ->
+                            message = err
+                        }
+                    )
                 }
             ) {
                 Text("⇧", style = MaterialTheme.typography.titleMedium)
-
-                Spacer(modifier = Modifier.size(8.dp))
-
+                Spacer(Modifier.size(8.dp))
                 Text(
-                    text = appText(en = "Save progress", pt = "Guardar progresso"),
-                    style = MaterialTheme.typography.titleLarge,
+                    text       = appText("Save progress", "Guardar progresso"),
+                    style      = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Bold
                 )
             }
 
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(Modifier.height(24.dp))
         }
 
         ForgePlanBottomBar(
-            selectedItem = "Progress",
+            selectedItem    = "Progress",
             onProjectsClick = onProjectsClick,
             onTimelineClick = onTimelineClick,
-            onTeamClick = onTeamClick
+            onTeamClick     = onTeamClick
         )
     }
 }
+
+// ── Campo de Data ────────────────────────────────────────────────────────────
+
+@Composable
+fun DateRow(
+    selectedDate: String,
+    onPickDate: () -> Unit
+) {
+    val displayText = if (selectedDate.isBlank()) {
+        appText("Select date", "Selecionar data")
+    } else {
+        // Converte de "yyyy-MM-dd" para formato legível
+        try {
+            val parsed = LocalDate.parse(selectedDate, DateTimeFormatter.ISO_LOCAL_DATE)
+            val fmt = DateTimeFormatter.ofPattern(
+                appText("d MMMM yyyy", "d 'de' MMMM 'de' yyyy"),
+                Locale(if (com.example.forgeplan.core.language.AppLanguage.isPortuguese()) "pt" else "en")
+            )
+            parsed.format(fmt)
+        } catch (e: Exception) {
+            selectedDate
+        }
+    }
+
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(46.dp)
+            .clickable { onPickDate() },
+        shape  = RoundedCornerShape(8.dp),
+        color  = MaterialTheme.colorScheme.surface,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.tertiary)
+    ) {
+        Row(
+            modifier          = Modifier.padding(horizontal = 12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                imageVector        = Icons.Outlined.CalendarMonth,
+                contentDescription = null,
+                modifier           = Modifier.size(20.dp),
+                tint               = MaterialTheme.colorScheme.onSurface
+            )
+            Spacer(Modifier.size(10.dp))
+            Text(
+                text     = displayText,
+                color    = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.weight(1f),
+                style    = MaterialTheme.typography.bodyMedium
+            )
+            Icon(
+                imageVector        = Icons.Outlined.KeyboardArrowDown,
+                contentDescription = null,
+                modifier           = Modifier.size(20.dp),
+                tint               = MaterialTheme.colorScheme.onSurface
+            )
+        }
+    }
+}
+
+// ── Selectors (iguais ao original, mas com parâmetros de objecto) ────────────
 
 @Composable
 fun ProjectSelector(
@@ -381,28 +437,23 @@ fun ProjectSelector(
     onProjectSelected: (Project) -> Unit
 ) {
     var expanded by remember { mutableStateOf(false) }
-
     Box(modifier = modifier) {
         SelectorCard(
-            text = selectedProject?.name ?: appText(
-                en = "Select your project",
-                pt = "Selecionar projeto"
-            ),
-            iconText = "□",
-            onClick = { expanded = true }
+            text      = selectedProject?.name ?: appText("Select your project", "Selecionar projeto"),
+            iconText  = "□",
+            onClick   = { expanded = true }
         )
-
-        DropdownMenu(
-            expanded = expanded,
-            onDismissRequest = { expanded = false }
-        ) {
+        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            if (projects.isEmpty()) {
+                DropdownMenuItem(
+                    text    = { Text(appText("No projects available", "Sem projectos disponíveis")) },
+                    onClick = { expanded = false }
+                )
+            }
             projects.forEach { project ->
                 DropdownMenuItem(
-                    text = { Text(project.name) },
-                    onClick = {
-                        onProjectSelected(project)
-                        expanded = false
-                    }
+                    text    = { Text(project.name) },
+                    onClick = { onProjectSelected(project); expanded = false }
                 )
             }
         }
@@ -417,28 +468,23 @@ fun TaskSelector(
     onTaskSelected: (Task) -> Unit
 ) {
     var expanded by remember { mutableStateOf(false) }
-
     Box(modifier = modifier) {
         SelectorCard(
-            text = selectedTask?.title ?: appText(
-                en = "Select your task",
-                pt = "Selecionar tarefa"
-            ),
+            text     = selectedTask?.title ?: appText("Select your task", "Selecionar tarefa"),
             iconText = "☑",
-            onClick = { expanded = true }
+            onClick  = { expanded = true }
         )
-
-        DropdownMenu(
-            expanded = expanded,
-            onDismissRequest = { expanded = false }
-        ) {
+        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+            if (tasks.isEmpty()) {
+                DropdownMenuItem(
+                    text    = { Text(appText("Select a project first", "Seleciona um projecto primeiro")) },
+                    onClick = { expanded = false }
+                )
+            }
             tasks.forEach { task ->
                 DropdownMenuItem(
-                    text = { Text(task.title) },
-                    onClick = {
-                        onTaskSelected(task)
-                        expanded = false
-                    }
+                    text    = { Text(task.title) },
+                    onClick = { onTaskSelected(task); expanded = false }
                 )
             }
         }
@@ -446,114 +492,52 @@ fun TaskSelector(
 }
 
 @Composable
-fun SelectorCard(
-    text: String,
-    iconText: String,
-    onClick: () -> Unit
-) {
+fun SelectorCard(text: String, iconText: String, onClick: () -> Unit) {
     Surface(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(42.dp)
-            .clickable { onClick() },
-        shape = RoundedCornerShape(6.dp),
-        color = MaterialTheme.colorScheme.surface,
-        border = BorderStroke(
-            width = 1.dp,
-            color = MaterialTheme.colorScheme.tertiary
-        )
+        modifier = Modifier.fillMaxWidth().height(42.dp).clickable { onClick() },
+        shape    = RoundedCornerShape(6.dp),
+        color    = MaterialTheme.colorScheme.surface,
+        border   = BorderStroke(1.dp, MaterialTheme.colorScheme.tertiary)
     ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 12.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                text = iconText,
-                color = MaterialTheme.colorScheme.onSurface
-            )
-
-            Spacer(modifier = Modifier.size(10.dp))
-
-            Text(
-                text = text,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurface,
-                modifier = Modifier.weight(1f)
-            )
-
-            Icon(
-                imageVector = Icons.Outlined.KeyboardArrowDown,
-                contentDescription = null,
-                modifier = Modifier.size(20.dp),
-                tint = MaterialTheme.colorScheme.onSurface
-            )
+        Row(modifier = Modifier.padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text(text = iconText, color = MaterialTheme.colorScheme.onSurface)
+            Spacer(Modifier.size(10.dp))
+            Text(text = text, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.weight(1f))
+            Icon(imageVector = Icons.Outlined.KeyboardArrowDown, contentDescription = null, modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.onSurface)
         }
     }
 }
 
+// ── Componentes iguais ao original ───────────────────────────────────────────
+
 @Composable
-fun ProgressMainCard(
-    progress: Int,
-    onProgressChange: (Int) -> Unit
-) {
+fun ProgressMainCard(progress: Int, onProgressChange: (Int) -> Unit) {
     Surface(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(132.dp),
-        shape = RoundedCornerShape(8.dp),
-        color = MaterialTheme.colorScheme.primary
+        modifier = Modifier.fillMaxWidth().height(132.dp),
+        shape    = RoundedCornerShape(8.dp),
+        color    = MaterialTheme.colorScheme.primary
     ) {
-        Column(
-            modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp)
-        ) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "◔",
-                    color = MaterialTheme.colorScheme.tertiary,
-                    style = MaterialTheme.typography.headlineMedium
-                )
-
-                Spacer(modifier = Modifier.size(8.dp))
-
-                Text(
-                    text = appText(en = "Progress", pt = "Progresso"),
-                    style = MaterialTheme.typography.headlineSmall,
-                    color = MaterialTheme.colorScheme.onPrimary,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.weight(1f)
-                )
-
+        Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("◔", color = MaterialTheme.colorScheme.tertiary, style = MaterialTheme.typography.headlineMedium)
+                Spacer(Modifier.size(8.dp))
+                Text(appText("Progress", "Progresso"), style = MaterialTheme.typography.headlineSmall, color = MaterialTheme.colorScheme.onPrimary, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
                 ProgressBadge(progress)
             }
-
-            Spacer(modifier = Modifier.height(30.dp))
-
+            Spacer(Modifier.height(30.dp))
             Slider(
-                value = progress.toFloat(),
+                value         = progress.toFloat(),
                 onValueChange = { onProgressChange(it.toInt()) },
-                valueRange = 0f..100f,
-                colors = SliderDefaults.colors(
-                    thumbColor = MaterialTheme.colorScheme.tertiary,
-                    activeTrackColor = MaterialTheme.colorScheme.tertiary,
+                valueRange    = 0f..100f,
+                colors        = SliderDefaults.colors(
+                    thumbColor         = MaterialTheme.colorScheme.tertiary,
+                    activeTrackColor   = MaterialTheme.colorScheme.tertiary,
                     inactiveTrackColor = MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.35f)
                 )
             )
-
             Row(modifier = Modifier.fillMaxWidth()) {
-                Text(
-                    text = "0%",
-                    color = MaterialTheme.colorScheme.onPrimary,
-                    style = MaterialTheme.typography.labelSmall,
-                    modifier = Modifier.weight(1f)
-                )
-
-                Text(
-                    text = "100%",
-                    color = MaterialTheme.colorScheme.onPrimary,
-                    style = MaterialTheme.typography.labelSmall
-                )
+                Text("0%",   color = MaterialTheme.colorScheme.onPrimary, style = MaterialTheme.typography.labelSmall, modifier = Modifier.weight(1f))
+                Text("100%", color = MaterialTheme.colorScheme.onPrimary, style = MaterialTheme.typography.labelSmall)
             }
         }
     }
@@ -562,273 +546,110 @@ fun ProgressMainCard(
 @Composable
 fun ProgressBadge(progress: Int) {
     Box(
-        modifier = Modifier
-            .clip(RoundedCornerShape(50))
-            .background(MaterialTheme.colorScheme.tertiary)
-            .padding(horizontal = 10.dp, vertical = 3.dp),
+        modifier         = Modifier.clip(RoundedCornerShape(50)).background(MaterialTheme.colorScheme.tertiary).padding(horizontal = 10.dp, vertical = 3.dp),
         contentAlignment = Alignment.Center
     ) {
-        Text(
-            text = "${progress.coerceIn(0, 100)}%",
-            color = MaterialTheme.colorScheme.onTertiary,
-            fontWeight = FontWeight.Bold
-        )
+        Text("${progress.coerceIn(0, 100)}%", color = MaterialTheme.colorScheme.onTertiary, fontWeight = FontWeight.Bold)
     }
 }
 
 @Composable
-fun TimeSpentRow(
-    hours: Int,
-    onIncrease: () -> Unit,
-    onDecrease: () -> Unit
-) {
-    val hourText =
-        if (hours == 1) {
-            appText(en = "1 hour", pt = "1 hora")
-        } else {
-            appText(en = "$hours hours", pt = "$hours horas")
-        }
-
+fun TimeSpentRow(hours: Int, onIncrease: () -> Unit, onDecrease: () -> Unit) {
+    val hourText = if (hours == 1) appText("1 hour", "1 hora") else appText("$hours hours", "$hours horas")
     Surface(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(46.dp),
-        shape = RoundedCornerShape(8.dp),
-        color = MaterialTheme.colorScheme.surface,
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.tertiary)
+        modifier = Modifier.fillMaxWidth().height(46.dp),
+        shape    = RoundedCornerShape(8.dp),
+        color    = MaterialTheme.colorScheme.surface,
+        border   = BorderStroke(1.dp, MaterialTheme.colorScheme.tertiary)
     ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 12.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Icon(
-                imageVector = Icons.Outlined.CheckCircle,
-                contentDescription = null,
-                modifier = Modifier.size(20.dp),
-                tint = MaterialTheme.colorScheme.onSurface
-            )
-
-            Spacer(modifier = Modifier.size(10.dp))
-
-            Text(
-                text = appText(en = "Time spent", pt = "Tempo gasto"),
-                color = MaterialTheme.colorScheme.onSurface,
-                modifier = Modifier.weight(1f)
-            )
-
-            Box(
-                modifier = Modifier
-                    .clip(RoundedCornerShape(4.dp))
-                    .background(MaterialTheme.colorScheme.tertiary)
-                    .padding(horizontal = 12.dp, vertical = 6.dp)
-            ) {
-                Text(
-                    text = hourText,
-                    color = MaterialTheme.colorScheme.onTertiary,
-                    fontWeight = FontWeight.Bold
-                )
+        Row(modifier = Modifier.padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+            Icon(Icons.Outlined.CheckCircle, null, Modifier.size(20.dp), tint = MaterialTheme.colorScheme.onSurface)
+            Spacer(Modifier.size(10.dp))
+            Text(appText("Time spent", "Tempo gasto"), color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.weight(1f))
+            Box(modifier = Modifier.clip(RoundedCornerShape(4.dp)).background(MaterialTheme.colorScheme.tertiary).padding(horizontal = 12.dp, vertical = 6.dp)) {
+                Text(hourText, color = MaterialTheme.colorScheme.onTertiary, fontWeight = FontWeight.Bold)
             }
-
-            Spacer(modifier = Modifier.size(8.dp))
-
+            Spacer(Modifier.size(8.dp))
             Column {
-                Text(
-                    text = "▲",
-                    modifier = Modifier.clickable { onIncrease() },
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-
-                Text(
-                    text = "▼",
-                    modifier = Modifier.clickable { onDecrease() },
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
+                Text("▲", modifier = Modifier.clickable { onIncrease() }, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurface)
+                Text("▼", modifier = Modifier.clickable { onDecrease() }, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurface)
             }
         }
     }
 }
 
 @Composable
-fun LocationRow(
-    value: String,
-    onValueChange: (String) -> Unit
-) {
+fun LocationRow(value: String, onValueChange: (String) -> Unit) {
     var expanded by remember { mutableStateOf(false) }
-
     val locations = listOf(
-        appText(en = "Workshop A", pt = "Oficina A"),
-        appText(en = "Workshop B", pt = "Oficina B"),
-        appText(en = "Office", pt = "Escritório"),
-        appText(en = "Client site", pt = "Cliente"),
-        appText(en = "Remote", pt = "Remoto")
+        appText("Workshop A", "Oficina A"),
+        appText("Workshop B", "Oficina B"),
+        appText("Office", "Escritório"),
+        appText("Client site", "Cliente"),
+        appText("Remote", "Remoto")
     )
-
-    val displayValue =
-        value.ifBlank {
-            appText(en = "Location", pt = "Localização")
-        }
+    val displayValue = value.ifBlank { appText("Location", "Localização") }
 
     Box {
         Surface(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(46.dp)
-                .clickable { expanded = true },
-            shape = RoundedCornerShape(8.dp),
-            color = MaterialTheme.colorScheme.surface,
-            border = BorderStroke(1.dp, MaterialTheme.colorScheme.tertiary)
+            modifier = Modifier.fillMaxWidth().height(46.dp).clickable { expanded = true },
+            shape    = RoundedCornerShape(8.dp),
+            color    = MaterialTheme.colorScheme.surface,
+            border   = BorderStroke(1.dp, MaterialTheme.colorScheme.tertiary)
         ) {
-            Row(
-                modifier = Modifier.padding(horizontal = 12.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Icon(
-                    imageVector = Icons.Outlined.LocationOn,
-                    contentDescription = null,
-                    modifier = Modifier.size(22.dp),
-                    tint = MaterialTheme.colorScheme.onSurface
-                )
-
-                Spacer(modifier = Modifier.size(10.dp))
-
-                Text(
-                    text = displayValue,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    modifier = Modifier.weight(1f)
-                )
-
-                Icon(
-                    imageVector = Icons.Outlined.KeyboardArrowDown,
-                    contentDescription = null,
-                    modifier = Modifier.size(20.dp),
-                    tint = MaterialTheme.colorScheme.onSurface
-                )
+            Row(modifier = Modifier.padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+                Icon(Icons.Outlined.LocationOn, null, Modifier.size(22.dp), tint = MaterialTheme.colorScheme.onSurface)
+                Spacer(Modifier.size(10.dp))
+                Text(displayValue, color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.weight(1f))
+                Icon(Icons.Outlined.KeyboardArrowDown, null, Modifier.size(20.dp), tint = MaterialTheme.colorScheme.onSurface)
             }
         }
-
-        DropdownMenu(
-            expanded = expanded,
-            onDismissRequest = { expanded = false }
-        ) {
+        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
             locations.forEach {
-                DropdownMenuItem(
-                    text = { Text(it) },
-                    onClick = {
-                        onValueChange(it)
-                        expanded = false
-                    }
-                )
+                DropdownMenuItem(text = { Text(it) }, onClick = { onValueChange(it); expanded = false })
             }
         }
     }
 }
 
 @Composable
-fun PhotoAttachmentCard(
-    selectedPhotoUri: Uri?,
-    onPhotoSelected: (Uri) -> Unit,
-    onRemovePhoto: () -> Unit
-) {
+fun PhotoAttachmentCard(selectedPhotoUri: Uri?, onPhotoSelected: (Uri) -> Unit, onRemovePhoto: () -> Unit) {
     val context = LocalContext.current
-
-    val photoLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.GetContent()
-    ) { uri ->
-        uri?.let { onPhotoSelected(it) }
-    }
-
+    val photoLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri -> uri?.let { onPhotoSelected(it) } }
     Surface(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(164.dp),
-        shape = RoundedCornerShape(8.dp),
-        color = MaterialTheme.colorScheme.surface,
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.tertiary)
+        modifier = Modifier.fillMaxWidth().height(164.dp),
+        shape    = RoundedCornerShape(8.dp),
+        color    = MaterialTheme.colorScheme.surface,
+        border   = BorderStroke(1.dp, MaterialTheme.colorScheme.tertiary)
     ) {
-        Column(
-            modifier = Modifier.padding(12.dp)
-        ) {
+        Column(modifier = Modifier.padding(12.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    text = "▧",
-                    style = MaterialTheme.typography.titleLarge,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-
-                Spacer(modifier = Modifier.size(8.dp))
-
-                Text(
-                    text = appText(en = "Photo attachment", pt = "Anexo fotográfico"),
-                    color = MaterialTheme.colorScheme.onSurface
-                )
+                Text("▧", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onSurface)
+                Spacer(Modifier.size(8.dp))
+                Text(appText("Photo attachment", "Anexo fotográfico"), color = MaterialTheme.colorScheme.onSurface)
             }
-
-            Spacer(modifier = Modifier.height(12.dp))
-
+            Spacer(Modifier.height(12.dp))
             if (selectedPhotoUri == null) {
                 Surface(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(92.dp)
-                        .clickable { photoLauncher.launch("image/*") },
-                    shape = RoundedCornerShape(10.dp),
-                    color = MaterialTheme.colorScheme.background,
-                    border = BorderStroke(
-                        width = 1.dp,
-                        color = MaterialTheme.colorScheme.tertiary.copy(alpha = 0.45f)
-                    )
+                    modifier = Modifier.fillMaxWidth().height(92.dp).clickable { photoLauncher.launch("image/*") },
+                    shape    = RoundedCornerShape(10.dp),
+                    color    = MaterialTheme.colorScheme.background,
+                    border   = BorderStroke(1.dp, MaterialTheme.colorScheme.tertiary.copy(alpha = 0.45f))
                 ) {
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.Center
-                    ) {
-                        Text(
-                            text = "▣",
-                            style = MaterialTheme.typography.headlineSmall,
-                            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.65f)
-                        )
-
-                        Spacer(modifier = Modifier.height(6.dp))
-
-                        Text(
-                            text = appText(en = "Add Photo", pt = "Adicionar foto"),
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.75f)
-                        )
+                    Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
+                        Text("▣", style = MaterialTheme.typography.headlineSmall, color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.65f))
+                        Spacer(Modifier.height(6.dp))
+                        Text(appText("Add Photo", "Adicionar foto"), fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.75f))
                     }
                 }
             } else {
                 Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(92.dp)
-                        .clip(RoundedCornerShape(10.dp))
-                        .background(MaterialTheme.colorScheme.secondaryContainer)
-                        .padding(12.dp),
+                    modifier = Modifier.fillMaxWidth().height(92.dp).clip(RoundedCornerShape(10.dp)).background(MaterialTheme.colorScheme.secondaryContainer).padding(12.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(
-                        text = getFileNameFromUri(context, selectedPhotoUri),
-                        modifier = Modifier.weight(1f),
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSecondaryContainer
-                    )
-
-                    Box(
-                        modifier = Modifier
-                            .size(26.dp)
-                            .clip(CircleShape)
-                            .background(MaterialTheme.colorScheme.error)
-                            .clickable { onRemovePhoto() },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = "×",
-                            color = MaterialTheme.colorScheme.onPrimary,
-                            fontWeight = FontWeight.Bold
-                        )
+                    Text(getFileNameFromUri(context, selectedPhotoUri), modifier = Modifier.weight(1f), fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSecondaryContainer)
+                    Box(modifier = Modifier.size(26.dp).clip(CircleShape).background(MaterialTheme.colorScheme.error).clickable { onRemovePhoto() }, contentAlignment = Alignment.Center) {
+                        Text("×", color = MaterialTheme.colorScheme.onPrimary, fontWeight = FontWeight.Bold)
                     }
                 }
             }
@@ -837,58 +658,23 @@ fun PhotoAttachmentCard(
 }
 
 @Composable
-fun NotesCard(
-    value: String,
-    onValueChange: (String) -> Unit
-) {
+fun NotesCard(value: String, onValueChange: (String) -> Unit) {
     OutlinedTextField(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(150.dp),
-        value = value,
+        modifier    = Modifier.fillMaxWidth().height(150.dp),
+        value       = value,
         onValueChange = onValueChange,
-        placeholder = {
-            Text(
-                text = appText(
-                    en = "Here you can write about your progress and any obstacles you may have encountered.",
-                    pt = "Aqui podes escrever sobre o progresso e eventuais obstáculos encontrados."
-                )
-            )
-        },
-        label = {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("▤")
-
-                Spacer(modifier = Modifier.size(8.dp))
-
-                Text(appText(en = "Notes", pt = "Notas"))
-            }
-        },
-        shape = RoundedCornerShape(8.dp)
+        placeholder = { Text(appText("Here you can write about your progress and any obstacles you may have encountered.", "Aqui podes escrever sobre o progresso e eventuais obstáculos encontrados.")) },
+        label       = { Row(verticalAlignment = Alignment.CenterVertically) { Text("▤"); Spacer(Modifier.size(8.dp)); Text(appText("Notes", "Notas")) } },
+        shape       = RoundedCornerShape(8.dp)
     )
 }
 
-private fun getFileNameFromUri(
-    context: android.content.Context,
-    uri: Uri
-): String {
+private fun getFileNameFromUri(context: android.content.Context, uri: Uri): String {
     var fileName = "photo_attachment"
-
-    val cursor = context.contentResolver.query(
-        uri,
-        null,
-        null,
-        null,
-        null
-    )
-
+    val cursor = context.contentResolver.query(uri, null, null, null, null)
     cursor?.use {
         val nameIndex = it.getColumnIndex(OpenableColumns.DISPLAY_NAME)
-
-        if (it.moveToFirst() && nameIndex >= 0) {
-            fileName = it.getString(nameIndex)
-        }
+        if (it.moveToFirst() && nameIndex >= 0) fileName = it.getString(nameIndex)
     }
-
     return fileName
 }
