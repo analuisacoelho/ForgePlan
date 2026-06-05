@@ -104,6 +104,9 @@ fun ForgePlanBottomBar(
     onTeamClick: () -> Unit = {},
     onProfileClick: () -> Unit = {}
 ) {
+    val role = SessionManager.userRole.uppercase()
+    val isUser = role == "USER"
+
     Surface(
         modifier = Modifier
             .fillMaxWidth()
@@ -122,10 +125,11 @@ fun ForgePlanBottomBar(
             horizontalArrangement = Arrangement.SpaceAround,
             verticalAlignment = Alignment.CenterVertically
         ) {
+
             ForgeBottomBarItem(
                 label = appText(en = "Tasks", pt = "Tarefas"),
                 icon = "☑",
-                selected = selectedItem == "Projects" || selectedItem == "Tasks",
+                selected = selectedItem == "Tasks",
                 onClick = onProjectsClick
             )
 
@@ -135,13 +139,15 @@ fun ForgePlanBottomBar(
                 selected = selectedItem == "Timeline",
                 onClick = onTimelineClick
             )
-
-            ForgeBottomBarItem(
-                label = appText(en = "Reports", pt = "Relatórios"),
-                icon = "▤",
-                selected = selectedItem == "Reports",
-                onClick = onProgressClick
-            )
+            // REPORTS só para ADMIN / MANAGER (não USER)
+            if (!isUser) {
+                ForgeBottomBarItem(
+                    label = appText(en = "Reports", pt = "Relatórios"),
+                    icon = "▤",
+                    selected = selectedItem == "Reports",
+                    onClick = onProgressClick
+                )
+            }
 
             ForgeBottomBarItem(
                 label = appText(en = "Team", pt = "Equipa"),
@@ -156,6 +162,8 @@ fun ForgePlanBottomBar(
                 selected = selectedItem == "Profile",
                 onClick = onProfileClick
             )
+
+
         }
     }
 }

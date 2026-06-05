@@ -16,9 +16,12 @@ import com.example.forgeplan.projects.ui.ProjectReviewScreen
 import com.example.forgeplan.reports.ui.ReportsScreen
 import com.example.forgeplan.tasks.ui.CreateTaskScreen
 import com.example.forgeplan.tasks.ui.EditTaskScreen
+import com.example.forgeplan.tasks.ui.ProjectTasksScreen
 import com.example.forgeplan.tasks.ui.UserDashboardScreen
 import com.example.forgeplan.team.ui.TeamScreen
 import com.example.forgeplan.timeline.ui.TimelineScreen
+import com.example.forgeplan.progress.ui.ProgressScreen
+import com.example.forgeplan.profile.ProfileScreen
 
 @Composable
 fun AppNavigation() {
@@ -47,6 +50,7 @@ fun AppNavigation() {
                 }
             )
         }
+
 
         composable("admin") {
             AdminDashboardScreen()
@@ -240,8 +244,33 @@ fun AppNavigation() {
             )
         }
 
+        composable(
+            route = "projectTasks/{projectId}",
+            arguments = listOf(
+                navArgument("projectId") { type = NavType.LongType }
+            )
+        ) { backStackEntry ->
+
+            val projectId = backStackEntry.arguments?.getLong("projectId") ?: 0L
+
+            ProjectTasksScreen(
+                projectId = projectId,
+                onBack = { navController.popBackStack() },
+                onTaskClick = { taskId ->
+                    navController.navigate("userProgress/$taskId")
+                },
+                onTimelineClick = { navController.navigate("userTimeline") },
+                onProgressClick = { navController.navigate("userProgress") },
+                onTeamClick = { navController.navigate("userTeam") },
+                onProfileClick = { navController.navigate("profile") }
+            )
+        }
+
         composable("user") {
             UserDashboardScreen(
+                onProjectClick = { projectId ->
+                    navController.navigate("projectTasks/$projectId")
+                },
                 onTimelineClick = {
                     navController.navigate("userTimeline")
                 },
@@ -267,8 +296,17 @@ fun AppNavigation() {
         }
 
         // Progresso / relatórios do utilizador
-        composable("userProgress") {
-            ReportsScreen(
+        composable(
+            route = "userProgress/{taskId}",
+            arguments = listOf(
+                navArgument("taskId") { type = NavType.LongType }
+            )
+        ) { backStackEntry ->
+
+            val taskId = backStackEntry.arguments?.getLong("taskId") ?: 0L
+
+            ProgressScreen(
+                taskId = taskId,
                 onProjectsClick = {
                     navController.navigate("user")
                 },
@@ -287,6 +325,16 @@ fun AppNavigation() {
                 onProjectsClick  = { navController.navigate("user") },
                 onTimelineClick  = { navController.navigate("userTimeline") },
                 onProgressClick  = { navController.navigate("userProgress") }
+            )
+        }
+
+        composable("profile") {
+            ProfileScreen(
+                onLogout = {
+                    navController.navigate("login") {
+                        popUpTo(0)
+                    }
+                }
             )
         }
 

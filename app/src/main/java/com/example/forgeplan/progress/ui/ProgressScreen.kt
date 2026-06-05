@@ -55,6 +55,7 @@ import java.util.Locale
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ProgressScreen(
+    taskId: Long,
     onProjectsClick: () -> Unit = {},
     onTimelineClick: () -> Unit = {},
     onTeamClick: () -> Unit = {},
@@ -93,6 +94,28 @@ fun ProgressScreen(
     var showDatePicker by remember { mutableStateOf(false) }
     val datePickerState = rememberDatePickerState()
 
+    LaunchedEffect(taskId, projectsWithTasks) {
+        if (taskId != 0L) {
+            val task = projectsWithTasks
+                .values
+                .flatten()
+                .firstOrNull { it.id == taskId }
+
+            task?.let { t ->
+                selectedTaskId = t.id
+                progressValue = t.completion_rate ?: 0
+                selectedDate = t.start_date ?: ""
+
+                // encontrar o projeto automaticamente
+                val project = projectsWithTasks
+                    .entries
+                    .firstOrNull { it.value.any { task -> task.id == t.id } }
+                    ?.key
+
+                selectedProject = project?.id
+            }
+        }
+    }
     if (showDatePicker) {
         DatePickerDialog(
             onDismissRequest = { showDatePicker = false },
@@ -175,28 +198,32 @@ fun ProgressScreen(
                 }
             } else if (isLandscape) {
                 // ── Landscape: 2 colunas ──────────────────────────────────
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    ProjectSelector(
-                        selectedProject = currentProject,
-                        projects        = userProjects,
-                        modifier        = Modifier.weight(1f),
-                        onProjectSelected = {
-                            selectedProject = it.id
-                            selectedTaskId  = null
-                            message         = null
-                        }
-                    )
-                    TaskSelector(
-                        selectedTask = currentTask,
-                        tasks        = currentTasks,
-                        modifier     = Modifier.weight(1f),
-                        onTaskSelected = {
-                            selectedTaskId = it.id
-                            progressValue  = it.completion_rate ?: 0
-                            selectedDate   = it.start_date ?: ""
-                            message        = null
-                        }
-                    )
+
+                if (taskId == 0L) {
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+
+                        ProjectSelector(
+                            selectedProject = currentProject,
+                            projects = userProjects,
+                            modifier = Modifier.weight(1f),
+                            onProjectSelected = {
+                                selectedProject = it.id
+                                selectedTaskId = null
+                                message = null
+                            }
+                        )
+                        TaskSelector(
+                            selectedTask = currentTask,
+                            tasks = currentTasks,
+                            modifier = Modifier.weight(1f),
+                            onTaskSelected = {
+                                selectedTaskId = it.id
+                                progressValue = it.completion_rate ?: 0
+                                selectedDate = it.start_date ?: ""
+                                message = null
+                            }
+                        )
+                    }
                 }
 
                 Spacer(Modifier.height(16.dp))
@@ -219,7 +246,7 @@ fun ProgressScreen(
                 }
             } else {
                 // ── Portrait: coluna única ────────────────────────────────
-                ProjectSelector(
+                if (taskId == 0L) {ProjectSelector(
                     selectedProject = currentProject,
                     projects        = userProjects,
                     onProjectSelected = {
@@ -240,7 +267,7 @@ fun ProgressScreen(
                         selectedDate   = it.start_date ?: ""
                         message        = null
                     }
-                )
+                )}
 
                 Spacer(Modifier.height(28.dp))
 
