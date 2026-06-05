@@ -1,18 +1,17 @@
 package com.example.forgeplan.core.network
 
+import com.example.forgeplan.BuildConfig
 import okhttp3.OkHttpClient
 import retrofit2.Retrofit
 import retrofit2.converter.gson.GsonConverterFactory
 
 object SupabaseApi {
 
-    private const val PROJECT_URL = "https://ywoqflowqzejqijhmlfv.supabase.co"
-
+    private const val PROJECT_URL = BuildConfig.SUPABASE_URL
+    private const val SUPABASE_KEY = BuildConfig.SUPABASE_ANON_KEY
     private const val REST_BASE_URL = "$PROJECT_URL/rest/v1/"
     private const val STORAGE_BASE_URL = "$PROJECT_URL/storage/v1/"
 
-    private const val SUPABASE_KEY =
-        "sb_publishable_H4GJ5Ze3kCsglCmvLq1Bmg_jHMmW62F"
 
     private val client = OkHttpClient.Builder()
         .addInterceptor { chain ->

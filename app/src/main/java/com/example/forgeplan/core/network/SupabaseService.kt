@@ -34,6 +34,21 @@ interface SupabaseService {
         @Query("select") select: String = "*"
     ): Call<List<User>>
 
+    // Cria um novo utilizador - a password já vem em hash bcrypt do AdminViewModel
+    @Headers("Prefer: return=representation")
+    @POST("users")
+    fun createUser(
+        @Body user: User
+    ): Call<List<User>>
+
+    // Atualiza utilizador pelo id - usado para editar dados e ativar/desativar conta
+    @Headers("Prefer: return=representation")
+    @PATCH("users")
+    fun updateUser(
+        @Query("id") id: String,
+        @Body user: User
+    ): Call<List<User>>
+
     // ── PROJECTS ─────────────────────────────────────────────────────────────
 
     @GET("projects")

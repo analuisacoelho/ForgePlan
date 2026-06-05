@@ -3,6 +3,7 @@ package com.example.forgeplan.tasks.viewmodel
 import androidx.lifecycle.ViewModel
 import com.example.forgeplan.core.model.User
 import com.example.forgeplan.core.repository.UserRepository
+import com.example.forgeplan.core.session.SessionManager
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 
@@ -25,6 +26,7 @@ class UserViewModel : ViewModel() {
 
         repository.getUsers(
             onSuccess = { userList ->
+                // Filtra apenas utilizadores ativos para mostrar nas listas
                 _users.value = userList.filter { it.is_active }
                 _isLoading.value = false
             },
@@ -35,13 +37,12 @@ class UserViewModel : ViewModel() {
         )
     }
 
-    // Utilizador com sessão activa (definido após o login pelo LoginViewModel)
-    var currentUser: com.example.forgeplan.auth.model.User? = null
+    // Usa o SessionManager em vez de guardar o utilizador aqui duplicado
+    val currentUser: User?
+        get() = SessionManager.currentUser
 
-    /**
-     * Iniciais do utilizador para mostrar no TopBar.
-     * Devolve "UN" (Unknown) se ainda não há sessão.
-     */
+    // Iniciais do utilizador para mostrar no TopBar
+    // Devolve "UN" (Unknown) se ainda não há sessão ativa
     val currentUserInitials: String
         get() {
             val name = currentUser?.name ?: return "UN"
