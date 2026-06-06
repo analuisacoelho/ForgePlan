@@ -80,6 +80,7 @@ dependencies {
 
     // BCrypt para hashing de passwords
     implementation("at.favre.lib:bcrypt:0.10.2")
+    implementation("com.squareup.okhttp3:logging-interceptor:4.12.0")
 
     // Testes
     testImplementation(libs.junit)

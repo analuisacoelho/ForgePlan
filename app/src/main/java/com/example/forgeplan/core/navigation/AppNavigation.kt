@@ -14,6 +14,7 @@ import com.example.forgeplan.projects.ui.ManagerDashboardScreen
 import com.example.forgeplan.projects.ui.ProjectDetailScreen
 import com.example.forgeplan.projects.ui.ProjectReviewScreen
 import com.example.forgeplan.reports.ui.ReportsScreen
+import com.example.forgeplan.social.ui.UserPublicScreen
 import com.example.forgeplan.tasks.ui.CreateTaskScreen
 import com.example.forgeplan.tasks.ui.EditTaskScreen
 import com.example.forgeplan.tasks.ui.ProjectTasksScreen
@@ -28,315 +29,201 @@ fun AppNavigation() {
     val navController = rememberNavController()
 
     NavHost(
-        navController = navController,
+        navController  = navController,
         startDestination = "login"
     ) {
         composable("login") {
             LoginScreen(
                 onLoginSuccess = { role ->
                     when (role) {
-                        "ADMIN" -> navController.navigate("admin") {
-                            popUpTo("login") { inclusive = true }
-                        }
-
-                        "MANAGER" -> navController.navigate("manager") {
-                            popUpTo("login") { inclusive = true }
-                        }
-
-                        else -> navController.navigate("user") {
-                            popUpTo("login") { inclusive = true }
-                        }
+                        "ADMIN"   -> navController.navigate("admin") { popUpTo("login") { inclusive = true } }
+                        "MANAGER" -> navController.navigate("manager") { popUpTo("login") { inclusive = true } }
+                        else      -> navController.navigate("user") { popUpTo("login") { inclusive = true } }
                     }
                 }
             )
         }
 
-
-        composable("admin") {
-            AdminDashboardScreen()
-        }
+        composable("admin") { AdminDashboardScreen() }
 
         composable("manager") {
             ManagerDashboardScreen(
-                onProjectClick = { projectId ->
-                    navController.navigate("projectDetail/$projectId")
-                },
-                onCreateProjectClick = {
-                    navController.navigate("createProject")
-                },
-                onEditTaskClick = { taskId ->
-                    navController.navigate("editTask/$taskId")
-                },
-                onTimelineClick = {
-                    navController.navigate("timeline")
-                },
-                onProgressClick = {
-                    navController.navigate("reports")
-                },
-                onTeamClick = {
-                    navController.navigate("team")
-                }
+                onProjectClick      = { navController.navigate("projectDetail/$it") },
+                onCreateProjectClick= { navController.navigate("createProject") },
+                onEditTaskClick     = { navController.navigate("editTask/$it") },
+                onTimelineClick     = { navController.navigate("timeline") },
+                onProgressClick     = { navController.navigate("reports") },
+                onTeamClick         = { navController.navigate("team") }
             )
         }
 
         composable("createProject") {
-            CreateProjectScreen(
-                onProjectCreated = {
-                    navController.popBackStack()
-                }
-            )
+            CreateProjectScreen(onProjectCreated = { navController.popBackStack() })
         }
 
         composable(
-            route = "editProject/{projectId}",
-            arguments = listOf(
-                navArgument("projectId") { type = NavType.LongType }
-            )
-        ) { backStackEntry ->
-            val projectId = backStackEntry.arguments?.getLong("projectId") ?: 0L
-
+            route     = "editProject/{projectId}",
+            arguments = listOf(navArgument("projectId") { type = NavType.LongType })
+        ) { back ->
             EditProjectScreen(
-                projectId = projectId,
-                onProjectUpdated = {
-                    navController.popBackStack()
-                }
+                projectId       = back.arguments?.getLong("projectId") ?: 0L,
+                onProjectUpdated = { navController.popBackStack() }
             )
         }
 
         composable(
-            route = "projectDetail/{projectId}",
-            arguments = listOf(
-                navArgument("projectId") { type = NavType.LongType }
-            )
-        ) { backStackEntry ->
-            val projectId = backStackEntry.arguments?.getLong("projectId") ?: 0L
-
+            route     = "projectDetail/{projectId}",
+            arguments = listOf(navArgument("projectId") { type = NavType.LongType })
+        ) { back ->
+            val projectId = back.arguments?.getLong("projectId") ?: 0L
             ProjectDetailScreen(
-                projectId = projectId,
-                onCreateTaskClick = {
-                    navController.navigate("createTask/$projectId")
-                },
-                onEditProjectClick = {
-                    navController.navigate("editProject/$projectId")
-                },
-                onTaskClick = { taskId ->
-                    navController.navigate("editTask/$taskId")
-                },
-                onReviewProjectClick = {
-                    navController.navigate("projectReview/$projectId")
-                },
-                onProjectsClick = {
-                    navController.navigate("manager") {
-                        popUpTo("manager") { inclusive = true }
-                    }
-                },
-                onTimelineClick = {
-                    navController.navigate("timeline")
-                },
-                onProgressClick = {
-                    navController.navigate("reports")
-                },
-                onTeamClick = {
-                    navController.navigate("team")
-                }
+                projectId          = projectId,
+                onCreateTaskClick  = { navController.navigate("createTask/$projectId") },
+                onEditProjectClick = { navController.navigate("editProject/$projectId") },
+                onTaskClick        = { navController.navigate("editTask/$it") },
+                onReviewProjectClick = { navController.navigate("projectReview/$projectId") },
+                onProjectsClick    = { navController.navigate("manager") { popUpTo("manager") { inclusive = true } } },
+                onTimelineClick    = { navController.navigate("timeline") },
+                onProgressClick    = { navController.navigate("reports") },
+                onTeamClick        = { navController.navigate("team") }
             )
         }
 
         composable(
-            route = "projectReview/{projectId}",
-            arguments = listOf(
-                navArgument("projectId") { type = NavType.LongType }
-            )
-        ) { backStackEntry ->
-            val projectId = backStackEntry.arguments?.getLong("projectId") ?: 0L
-
+            route     = "projectReview/{projectId}",
+            arguments = listOf(navArgument("projectId") { type = NavType.LongType })
+        ) { back ->
             ProjectReviewScreen(
-                projectId = projectId,
-                onBackClick = {
-                    navController.popBackStack()
-                },
-                onSaveClick = {
-                    navController.popBackStack()
-                }
+                projectId   = back.arguments?.getLong("projectId") ?: 0L,
+                onBackClick = { navController.popBackStack() },
+                onSaveClick = { navController.popBackStack() }
             )
         }
 
         composable("timeline") {
             TimelineScreen(
-                onProjectsClick = {
-                    navController.navigate("manager")
-                },
-                onProgressClick = {
-                    navController.navigate("reports")
-                },
-                onTeamClick = {
-                    navController.navigate("team")
-                }
+                onProjectsClick = { navController.navigate("manager") },
+                onProgressClick = { navController.navigate("reports") },
+                onTeamClick     = { navController.navigate("team") }
             )
         }
 
         composable("reports") {
             ReportsScreen(
-                onProjectsClick = {
-                    navController.navigate("manager")
-                },
-                onTimelineClick = {
-                    navController.navigate("timeline")
-                },
-                onTeamClick = {
-                    navController.navigate("team")
-                }
+                onProjectsClick = { navController.navigate("manager") },
+                onTimelineClick = { navController.navigate("timeline") },
+                onTeamClick     = { navController.navigate("team") }
             )
         }
 
         composable("team") {
             TeamScreen(
-                onProjectsClick = {
-                    navController.navigate("manager")
-                },
-                onTimelineClick = {
-                    navController.navigate("timeline")
-                },
-                onProgressClick = {
-                    navController.navigate("reports")
-                }
+                onProjectsClick = { navController.navigate("manager") },
+                onTimelineClick = { navController.navigate("timeline") },
+                onProgressClick = { navController.navigate("reports") }
             )
         }
 
         composable("createTask") {
+            CreateTaskScreen(projectId = null, onTaskCreated = { navController.popBackStack() })
+        }
+
+        composable(
+            route     = "createTask/{projectId}",
+            arguments = listOf(navArgument("projectId") { type = NavType.LongType })
+        ) { back ->
             CreateTaskScreen(
-                projectId = null,
-                onTaskCreated = {
-                    navController.popBackStack()
-                }
+                projectId   = back.arguments?.getLong("projectId"),
+                onTaskCreated = { navController.popBackStack() }
             )
         }
 
         composable(
-            route = "createTask/{projectId}",
-            arguments = listOf(
-                navArgument("projectId") { type = NavType.LongType }
-            )
-        ) { backStackEntry ->
-            val projectId = backStackEntry.arguments?.getLong("projectId")
-
-            CreateTaskScreen(
-                projectId = projectId,
-                onTaskCreated = {
-                    navController.popBackStack()
-                }
-            )
-        }
-
-        composable(
-            route = "editTask/{taskId}",
-            arguments = listOf(
-                navArgument("taskId") { type = NavType.LongType }
-            )
-        ) { backStackEntry ->
-            val taskId = backStackEntry.arguments?.getLong("taskId") ?: 0L
-
+            route     = "editTask/{taskId}",
+            arguments = listOf(navArgument("taskId") { type = NavType.LongType })
+        ) { back ->
             EditTaskScreen(
-                taskId = taskId,
-                onTaskUpdated = {
-                    navController.popBackStack()
-                }
+                taskId        = back.arguments?.getLong("taskId") ?: 0L,
+                onTaskUpdated = { navController.popBackStack() }
             )
         }
 
         composable(
-            route = "projectTasks/{projectId}",
-            arguments = listOf(
-                navArgument("projectId") { type = NavType.LongType }
-            )
-        ) { backStackEntry ->
-
-            val projectId = backStackEntry.arguments?.getLong("projectId") ?: 0L
-
+            route     = "projectTasks/{projectId}",
+            arguments = listOf(navArgument("projectId") { type = NavType.LongType })
+        ) { back ->
             ProjectTasksScreen(
-                projectId = projectId,
-                onBack = { navController.popBackStack() },
-                onTaskClick = { taskId ->
-                    navController.navigate("userProgress/$taskId")
-                },
-                onTimelineClick = { navController.navigate("userTimeline") },
-                onProgressClick = { navController.navigate("userProgress") },
-                onTeamClick = { navController.navigate("userTeam") },
+                projectId      = back.arguments?.getLong("projectId") ?: 0L,
+                onBack         = { navController.popBackStack() },
+                onTaskClick    = { navController.navigate("userProgress/$it") },
+                onTimelineClick= { navController.navigate("userTimeline") },
+                onProgressClick= { navController.navigate("userProgress") },
+                onTeamClick    = { navController.navigate("userTeam") },
                 onProfileClick = { navController.navigate("profile") }
             )
         }
 
         composable("user") {
             UserDashboardScreen(
-                onProjectClick = { projectId ->
-                    navController.navigate("projectTasks/$projectId")
-                },
-                onTimelineClick = {
-                    navController.navigate("userTimeline")
-                },
-                onProgressClick = {
-                    navController.navigate("userProgress")
-                },
-                onTeamClick = {
-                    navController.navigate("userTeam")
-                },
-                onProfileClick = {
-                    navController.navigate("profile")
-                }
+                onProjectClick  = { navController.navigate("projectTasks/$it") },
+                onTimelineClick = { navController.navigate("userTimeline") },
+                onProgressClick = { navController.navigate("userProgress") },
+                onTeamClick     = { navController.navigate("userTeam") },
+                onProfileClick  = { navController.navigate("profile") }
             )
         }
 
-        // Timeline do utilizador (reutiliza o mesmo ecrã do gestor)
         composable("userTimeline") {
-            com.example.forgeplan.timeline.ui.TimelineScreen(
+            TimelineScreen(
                 onProjectsClick = { navController.navigate("user") },
                 onProgressClick = { navController.navigate("userProgress") },
                 onTeamClick     = { navController.navigate("userTeam") }
             )
         }
 
-        // Progresso / relatórios do utilizador
         composable(
-            route = "userProgress/{taskId}",
-            arguments = listOf(
-                navArgument("taskId") { type = NavType.LongType }
-            )
-        ) { backStackEntry ->
-
-            val taskId = backStackEntry.arguments?.getLong("taskId") ?: 0L
-
+            route     = "userProgress/{taskId}",
+            arguments = listOf(navArgument("taskId") { type = NavType.LongType })
+        ) { back ->
             ProgressScreen(
-                taskId = taskId,
-                onProjectsClick = {
-                    navController.navigate("user")
-                },
-                onTimelineClick = {
-                    navController.navigate("userTimeline")
-                },
-                onTeamClick = {
-                    navController.navigate("userTeam")
-                }
+                taskId          = back.arguments?.getLong("taskId") ?: 0L,
+                onProjectsClick = { navController.navigate("user") },
+                onTimelineClick = { navController.navigate("userTimeline") },
+                onTeamClick     = { navController.navigate("userTeam") }
             )
         }
 
-        // Ecrã de equipa do utilizador
+        // ─── NOVA ROTA — progresso sem tarefa pré-selecionada ─────────────────
+        composable("userProgress") {
+            ProgressScreen(
+                taskId          = 0L,
+                onProjectsClick = { navController.navigate("user") },
+                onTimelineClick = { navController.navigate("userTimeline") },
+                onTeamClick     = { navController.navigate("userTeam") }
+            )
+        }
+
+        // ─── NOVA ROTA — página pública da equipa ─────────────────────────────
+        composable("userPublic") {
+            UserPublicScreen(
+                onProjectsClick = { navController.navigate("user") },
+                onTimelineClick = { navController.navigate("userTimeline") },
+                onTeamClick     = { navController.navigate("userTeam") }
+            )
+        }
+
         composable("userTeam") {
-            com.example.forgeplan.team.ui.TeamScreen(
-                onProjectsClick  = { navController.navigate("user") },
-                onTimelineClick  = { navController.navigate("userTimeline") },
-                onProgressClick  = { navController.navigate("userProgress") }
+            TeamScreen(
+                onProjectsClick = { navController.navigate("user") },
+                onTimelineClick = { navController.navigate("userTimeline") },
+                onProgressClick = { navController.navigate("userProgress") }
             )
         }
 
         composable("profile") {
             ProfileScreen(
-                onLogout = {
-                    navController.navigate("login") {
-                        popUpTo(0)
-                    }
-                }
+                onLogout = { navController.navigate("login") { popUpTo(0) } }
             )
         }
-
     }
 }

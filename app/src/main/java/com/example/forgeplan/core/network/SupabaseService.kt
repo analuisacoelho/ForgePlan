@@ -1,5 +1,6 @@
 package com.example.forgeplan.core.network
 
+import com.example.forgeplan.core.model.Comment
 import com.example.forgeplan.core.model.Project
 import com.example.forgeplan.core.model.ProjectEvaluation
 import com.example.forgeplan.core.model.ProjectEvaluationPayload
@@ -11,7 +12,9 @@ import com.example.forgeplan.core.model.TaskAssignment
 import com.example.forgeplan.core.model.TaskAttachment
 import com.example.forgeplan.core.model.TaskAttachmentPayload
 import com.example.forgeplan.core.model.TaskDependency
+import com.example.forgeplan.core.model.TaskLog
 import com.example.forgeplan.core.model.TaskPayload
+import com.example.forgeplan.core.model.TaskPhoto
 import com.example.forgeplan.core.model.User
 import retrofit2.Call
 import retrofit2.http.Body
@@ -34,14 +37,10 @@ interface SupabaseService {
         @Query("select") select: String = "*"
     ): Call<List<User>>
 
-    // Cria um novo utilizador - a password já vem em hash bcrypt do AdminViewModel
     @Headers("Prefer: return=representation")
     @POST("users")
-    fun createUser(
-        @Body user: User
-    ): Call<List<User>>
+    fun createUser(@Body user: User): Call<List<User>>
 
-    // Atualiza utilizador pelo id - usado para editar dados e ativar/desativar conta
     @Headers("Prefer: return=representation")
     @PATCH("users")
     fun updateUser(
@@ -52,9 +51,7 @@ interface SupabaseService {
     // ── PROJECTS ─────────────────────────────────────────────────────────────
 
     @GET("projects")
-    fun getProjects(
-        @Query("select") select: String = "*"
-    ): Call<List<Project>>
+    fun getProjects(@Query("select") select: String = "*"): Call<List<Project>>
 
     @GET("projects")
     fun getProjectById(
@@ -64,9 +61,7 @@ interface SupabaseService {
 
     @Headers("Prefer: return=representation")
     @POST("projects")
-    fun createProject(
-        @Body project: ProjectPayload
-    ): Call<List<Project>>
+    fun createProject(@Body project: ProjectPayload): Call<List<Project>>
 
     @Headers("Prefer: return=representation")
     @PATCH("projects")
@@ -91,9 +86,7 @@ interface SupabaseService {
 
     @Headers("Prefer: return=representation")
     @POST("tasks")
-    fun createTask(
-        @Body task: TaskPayload
-    ): Call<List<Task>>
+    fun createTask(@Body task: TaskPayload): Call<List<Task>>
 
     @Headers("Prefer: return=representation")
     @PATCH("tasks")
@@ -102,15 +95,67 @@ interface SupabaseService {
         @Body task: TaskPayload
     ): Call<List<Task>>
 
+    // ── TASK LOGS ────────────────────────────────────────────────────────────
+
+    data class TaskLogPayload(
+        val task_id: Long,
+        val user_id: Long,
+        val log_date: String,
+        val location: String,
+        val completion_rate: Int,
+        val minutes_spent: Int,
+        val notes: String,
+        val is_synced: Boolean = true
+    )
+
+    @Headers("Prefer: return=representation")
+    @POST("task_logs")
+    suspend fun insertTaskLog(@Body log: TaskLogPayload): List<TaskLog>
+
+    @GET("task_logs")
+    fun getTaskLogsByTaskId(
+        @Query("task_id") taskId: String,
+        @Query("select") select: String = "*",
+        @Query("order") order: String = "created_at.desc"
+    ): Call<List<TaskLog>>
+
+    // ── TASK PHOTOS ──────────────────────────────────────────────────────────
+
+    data class TaskPhotoPayload(
+        val task_log_id: Long,
+        val photo_url: String,
+        val captured_at: String,
+        val is_synced: Boolean = true
+    )
+
+    @Headers("Prefer: return=representation")
+    @POST("task_photos")
+    suspend fun insertTaskPhoto(@Body photo: TaskPhotoPayload): List<TaskPhoto>
+
+    @GET("task_photos")
+    fun getTaskPhotosByLogId(
+        @Query("task_log_id") taskLogId: String,
+        @Query("select") select: String = "*"
+    ): Call<List<TaskPhoto>>
+
+    // ── COMMENTS ─────────────────────────────────────────────────────────────
+
     data class CommentRequest(
         val task_id: Long,
         val user_id: Long,
         val content: String
     )
+
+    @Headers("Prefer: return=representation")
     @POST("comments")
-    suspend fun insertComment(
-        @Body comment: CommentRequest
-    )
+    suspend fun insertComment(@Body comment: CommentRequest): List<Comment>
+
+    @GET("comments")
+    fun getCommentsByTaskId(
+        @Query("task_id") taskId: String,
+        @Query("select") select: String = "*",
+        @Query("order") order: String = "created_at.asc"
+    ): Call<List<Comment>>
 
     // ── TASK ASSIGNMENTS ─────────────────────────────────────────────────────
 
@@ -128,9 +173,7 @@ interface SupabaseService {
 
     @Headers("Prefer: return=representation")
     @POST("task_assignments")
-    fun assignUserToTask(
-        @Body assignment: TaskAssignment
-    ): Call<List<TaskAssignment>>
+    fun assignUserToTask(@Body assignment: TaskAssignment): Call<List<TaskAssignment>>
 
     // ── TASK ATTACHMENTS ─────────────────────────────────────────────────────
 
@@ -142,9 +185,7 @@ interface SupabaseService {
 
     @Headers("Prefer: return=representation")
     @POST("task_attachments")
-    fun createTaskAttachment(
-        @Body attachment: TaskAttachmentPayload
-    ): Call<List<TaskAttachment>>
+    fun createTaskAttachment(@Body attachment: TaskAttachmentPayload): Call<List<TaskAttachment>>
 
     // ── PROJECT USERS ─────────────────────────────────────────────────────────
 
@@ -162,9 +203,7 @@ interface SupabaseService {
 
     @Headers("Prefer: return=representation")
     @POST("project_users")
-    fun assignUserToProject(
-        @Body projectUser: ProjectUserPayload
-    ): Call<List<ProjectUser>>
+    fun assignUserToProject(@Body projectUser: ProjectUserPayload): Call<List<ProjectUser>>
 
     // ── PROJECT EVALUATIONS ───────────────────────────────────────────────────
 
@@ -176,9 +215,7 @@ interface SupabaseService {
 
     @Headers("Prefer: return=representation")
     @POST("project_evaluations")
-    fun createProjectEvaluation(
-        @Body evaluation: ProjectEvaluationPayload
-    ): Call<List<ProjectEvaluation>>
+    fun createProjectEvaluation(@Body evaluation: ProjectEvaluationPayload): Call<List<ProjectEvaluation>>
 
     // ── TASK DEPENDENCIES ─────────────────────────────────────────────────────
 
@@ -190,7 +227,5 @@ interface SupabaseService {
 
     @Headers("Prefer: return=representation")
     @POST("task_dependencies")
-    fun createDependency(
-        @Body dependency: TaskDependency
-    ): Call<List<TaskDependency>>
+    fun createDependency(@Body dependency: TaskDependency): Call<List<TaskDependency>>
 }

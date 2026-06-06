@@ -6,8 +6,9 @@ import android.provider.OpenableColumns
 import com.example.forgeplan.core.model.TaskAttachment
 import com.example.forgeplan.core.model.TaskAttachmentPayload
 import com.example.forgeplan.core.network.SupabaseApi
-import okhttp3.MediaType
-import okhttp3.RequestBody
+import okhttp3.MediaType.Companion.toMediaTypeOrNull
+import okhttp3.RequestBody.Companion.toRequestBody
+import okhttp3.ResponseBody
 import retrofit2.Call
 import retrofit2.Callback
 import retrofit2.Response
@@ -42,22 +43,22 @@ class TaskAttachmentRepository {
 
         val filePath = "tasks/$taskId/${System.currentTimeMillis()}_$safeName"
 
-        val requestBody = RequestBody.create(
-            MediaType.parse(mimeType),
-            bytes
-        )
+        val requestBody = bytes.toRequestBody(mimeType.toMediaTypeOrNull())
 
         SupabaseApi.storageService.uploadFile(
             bucket = bucketName,
             filePath = filePath,
             contentType = mimeType,
             file = requestBody
-        ).enqueue(object : Callback<Unit> {
+        ).enqueue(object : Callback<ResponseBody> {
             override fun onResponse(
-                call: Call<Unit>,
-                response: Response<Unit>
+                call: Call<ResponseBody>,
+                response: Response<ResponseBody>
             ) {
                 if (response.isSuccessful) {
+                    // Fechar o body para evitar leak
+                    response.body()?.close()
+
                     val publicUrl = SupabaseApi.publicStorageUrl(
                         bucket = bucketName,
                         filePath = filePath
@@ -72,12 +73,13 @@ class TaskAttachmentRepository {
                         onError = onError
                     )
                 } else {
-                    onError("Erro ao fazer upload do anexo: ${response.code()}")
+                    val errorMsg = response.errorBody()?.string() ?: "código ${response.code()}"
+                    onError("Erro ao fazer upload do anexo: $errorMsg")
                 }
             }
 
             override fun onFailure(
-                call: Call<Unit>,
+                call: Call<ResponseBody>,
                 t: Throwable
             ) {
                 onError(t.message ?: "Erro desconhecido no upload.")
