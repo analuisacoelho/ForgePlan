@@ -30,8 +30,7 @@ private val LightColorScheme = lightColorScheme(
 )
 
 private val DarkColorScheme = darkColorScheme(
-
-    primary = ForgeDark,
+    primary = ForgeDarkSurface,
     onPrimary = ForgeWhite,
 
     secondary = ForgeGold,
@@ -40,7 +39,7 @@ private val DarkColorScheme = darkColorScheme(
     background = ForgeDark,
     onBackground = ForgeWhite,
 
-    surface = ForgePrimary,
+    surface = ForgeDarkSurfaceElevated,
     onSurface = ForgeWhite,
 
     secondaryContainer = ForgePurple,

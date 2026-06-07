@@ -1,5 +1,6 @@
 package com.example.forgeplan.core.network
 
+import com.example.forgeplan.core.model.ActivityLog
 import com.example.forgeplan.core.model.Comment
 import com.example.forgeplan.core.model.Project
 import com.example.forgeplan.core.model.ProjectEvaluation
@@ -47,6 +48,11 @@ interface SupabaseService {
         @Query("id") id: String,
         @Body user: User
     ): Call<List<User>>
+
+    @GET("activity_logs")
+    fun getActivityLogs(
+        @Query("order") order: String = "created_at.desc"
+    ): Call<List<ActivityLog>>
 
     // ── PROJECTS ─────────────────────────────────────────────────────────────
 

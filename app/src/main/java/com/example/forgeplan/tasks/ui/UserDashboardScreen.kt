@@ -109,7 +109,8 @@ fun UserDashboardScreen(
         },
         bottomBar = {
             ForgePlanBottomBar(
-                selectedItem = "Tasks",
+                selectedItem = "Projects",
+                onProjectsClick = {},
                 onTimelineClick = onTimelineClick,
                 onProgressClick = onProgressClick,
                 onTeamClick = onTeamClick,
@@ -329,7 +330,7 @@ private fun DashboardHeader(
     }
 }
 
-// ── PROJECT CARD (FINAL LIMPO) ──────────────────────────────────────────
+// ── PROJECT CARD ──────────────────────────────────────────
 
 @Composable
 fun ProjectCard(
