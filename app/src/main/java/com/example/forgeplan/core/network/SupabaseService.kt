@@ -12,12 +12,15 @@ import com.example.forgeplan.core.model.TaskAssignment
 import com.example.forgeplan.core.model.TaskAttachment
 import com.example.forgeplan.core.model.TaskAttachmentPayload
 import com.example.forgeplan.core.model.TaskDependency
+import com.example.forgeplan.core.model.TaskGroup
+import com.example.forgeplan.core.model.TaskGroupPayload
 import com.example.forgeplan.core.model.TaskLog
 import com.example.forgeplan.core.model.TaskPayload
 import com.example.forgeplan.core.model.TaskPhoto
 import com.example.forgeplan.core.model.User
 import retrofit2.Call
 import retrofit2.http.Body
+import retrofit2.http.DELETE
 import retrofit2.http.GET
 import retrofit2.http.Headers
 import retrofit2.http.PATCH
@@ -25,8 +28,6 @@ import retrofit2.http.POST
 import retrofit2.http.Query
 
 interface SupabaseService {
-
-    // ── USERS ────────────────────────────────────────────────────────────────
 
     @GET("users")
     fun getUsers(): Call<List<User>>
@@ -48,8 +49,6 @@ interface SupabaseService {
         @Body user: User
     ): Call<List<User>>
 
-    // ── PROJECTS ─────────────────────────────────────────────────────────────
-
     @GET("projects")
     fun getProjects(@Query("select") select: String = "*"): Call<List<Project>>
 
@@ -69,8 +68,6 @@ interface SupabaseService {
         @Query("id") id: String,
         @Body project: ProjectPayload
     ): Call<List<Project>>
-
-    // ── TASKS ────────────────────────────────────────────────────────────────
 
     @GET("tasks")
     fun getTasksByProjectId(
@@ -95,8 +92,6 @@ interface SupabaseService {
         @Body task: TaskPayload
     ): Call<List<Task>>
 
-    // ── TASK LOGS ────────────────────────────────────────────────────────────
-
     data class TaskLogPayload(
         val task_id: Long,
         val user_id: Long,
@@ -119,8 +114,6 @@ interface SupabaseService {
         @Query("order") order: String = "created_at.desc"
     ): Call<List<TaskLog>>
 
-    // ── TASK PHOTOS ──────────────────────────────────────────────────────────
-
     data class TaskPhotoPayload(
         val task_log_id: Long,
         val photo_url: String,
@@ -137,8 +130,6 @@ interface SupabaseService {
         @Query("task_log_id") taskLogId: String,
         @Query("select") select: String = "*"
     ): Call<List<TaskPhoto>>
-
-    // ── COMMENTS ─────────────────────────────────────────────────────────────
 
     data class CommentRequest(
         val task_id: Long,
@@ -157,8 +148,6 @@ interface SupabaseService {
         @Query("order") order: String = "created_at.asc"
     ): Call<List<Comment>>
 
-    // ── TASK ASSIGNMENTS ─────────────────────────────────────────────────────
-
     @GET("task_assignments")
     fun getTaskAssignmentsByTaskId(
         @Query("task_id") taskId: String,
@@ -173,9 +162,15 @@ interface SupabaseService {
 
     @Headers("Prefer: return=representation")
     @POST("task_assignments")
-    fun assignUserToTask(@Body assignment: TaskAssignment): Call<List<TaskAssignment>>
+    fun assignUserToTask(
+        @Body assignment: TaskAssignment
+    ): Call<List<TaskAssignment>>
 
-    // ── TASK ATTACHMENTS ─────────────────────────────────────────────────────
+    @DELETE("task_assignments")
+    fun removeUserFromTask(
+        @Query("task_id") taskIdFilter: String,
+        @Query("user_id") userIdFilter: String
+    ): Call<Void>
 
     @GET("task_attachments")
     fun getTaskAttachmentsByTaskId(
@@ -185,9 +180,9 @@ interface SupabaseService {
 
     @Headers("Prefer: return=representation")
     @POST("task_attachments")
-    fun createTaskAttachment(@Body attachment: TaskAttachmentPayload): Call<List<TaskAttachment>>
-
-    // ── PROJECT USERS ─────────────────────────────────────────────────────────
+    fun createTaskAttachment(
+        @Body attachment: TaskAttachmentPayload
+    ): Call<List<TaskAttachment>>
 
     @GET("project_users")
     fun getProjectUsersByProjectId(
@@ -203,9 +198,9 @@ interface SupabaseService {
 
     @Headers("Prefer: return=representation")
     @POST("project_users")
-    fun assignUserToProject(@Body projectUser: ProjectUserPayload): Call<List<ProjectUser>>
-
-    // ── PROJECT EVALUATIONS ───────────────────────────────────────────────────
+    fun assignUserToProject(
+        @Body projectUser: ProjectUserPayload
+    ): Call<List<ProjectUser>>
 
     @GET("project_evaluations")
     fun getProjectEvaluations(
@@ -215,9 +210,9 @@ interface SupabaseService {
 
     @Headers("Prefer: return=representation")
     @POST("project_evaluations")
-    fun createProjectEvaluation(@Body evaluation: ProjectEvaluationPayload): Call<List<ProjectEvaluation>>
-
-    // ── TASK DEPENDENCIES ─────────────────────────────────────────────────────
+    fun createProjectEvaluation(
+        @Body evaluation: ProjectEvaluationPayload
+    ): Call<List<ProjectEvaluation>>
 
     @GET("task_dependencies")
     fun getDependenciesByTaskId(
@@ -227,5 +222,20 @@ interface SupabaseService {
 
     @Headers("Prefer: return=representation")
     @POST("task_dependencies")
-    fun createDependency(@Body dependency: TaskDependency): Call<List<TaskDependency>>
+    fun createDependency(
+        @Body dependency: TaskDependency
+    ): Call<List<TaskDependency>>
+
+    @GET("task_groups")
+    fun getTaskGroupsByProjectId(
+        @Query("project_id") projectId: String,
+        @Query("select") select: String = "*",
+        @Query("order") order: String = "created_at.asc"
+    ): Call<List<TaskGroup>>
+
+    @Headers("Prefer: return=representation")
+    @POST("task_groups")
+    fun createTaskGroup(
+        @Body group: TaskGroupPayload
+    ): Call<List<TaskGroup>>
 }

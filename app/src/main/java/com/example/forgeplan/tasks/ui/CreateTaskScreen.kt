@@ -661,6 +661,14 @@ fun TaskGroupField(
 ) {
     var expanded by remember { mutableStateOf(false) }
 
+    val normalizedGroups = remember(groups) {
+        groups
+            .map { it.trim() }
+            .filter { it.isNotBlank() }
+            .distinctBy { it.lowercase() }
+            .sortedBy { it.lowercase() }
+    }
+
     Column {
         Box {
             Surface(
@@ -687,8 +695,8 @@ fun TaskGroupField(
                     Text(
                         text = value.ifBlank {
                             appText(
-                                en = "General / type a new group",
-                                pt = "Geral / escreve novo grupo"
+                                en = "Select a group",
+                                pt = "Selecionar grupo"
                             )
                         },
                         style = MaterialTheme.typography.bodyMedium,
@@ -712,23 +720,27 @@ fun TaskGroupField(
                 expanded = expanded,
                 onDismissRequest = { expanded = false }
             ) {
-                DropdownMenuItem(
-                    text = {
-                        Text(appText(en = "General", pt = "Geral"))
-                    },
-                    onClick = {
-                        onValueChange("General")
-                        expanded = false
-                    }
-                )
-
-                groups.forEach { group ->
+                normalizedGroups.forEach { group ->
                     DropdownMenuItem(
                         text = { Text(group) },
                         onClick = {
                             onValueChange(group)
                             expanded = false
                         }
+                    )
+                }
+
+                if (normalizedGroups.isEmpty()) {
+                    DropdownMenuItem(
+                        text = {
+                            Text(
+                                appText(
+                                    en = "No groups available",
+                                    pt = "Sem grupos disponíveis"
+                                )
+                            )
+                        },
+                        onClick = { expanded = false }
                     )
                 }
             }
@@ -740,8 +752,8 @@ fun TaskGroupField(
             value = value,
             onValueChange = onValueChange,
             placeholder = appText(
-                en = "Example: Planning & Preparation",
-                pt = "Exemplo: Planeamento e Preparação"
+                en = "Or type a new group",
+                pt = "Ou escreve um novo grupo"
             )
         )
     }

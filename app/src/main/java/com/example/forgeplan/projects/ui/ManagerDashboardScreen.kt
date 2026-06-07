@@ -19,7 +19,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -84,22 +83,14 @@ fun ManagerDashboardScreen(
         projects.forEach { project ->
             taskRepository.getTasksByProjectId(
                 projectId = project.id,
-                onSuccess = { tasks ->
-                    projectTasks[project.id] = tasks
-                },
-                onError = {
-                    projectTasks[project.id] = emptyList()
-                }
+                onSuccess = { tasks -> projectTasks[project.id] = tasks },
+                onError = { projectTasks[project.id] = emptyList() }
             )
 
             projectUserRepository.getProjectUsersByProjectId(
                 projectId = project.id,
-                onSuccess = { users ->
-                    projectUsers[project.id] = users
-                },
-                onError = {
-                    projectUsers[project.id] = emptyList()
-                }
+                onSuccess = { users -> projectUsers[project.id] = users },
+                onError = { projectUsers[project.id] = emptyList() }
             )
         }
     }
@@ -112,8 +103,7 @@ fun ManagerDashboardScreen(
 
     val activeProjects = projects.count { project ->
         val tasks = projectTasks[project.id] ?: emptyList()
-        val progress = calculateProjectProgress(tasks)
-        progress < 100
+        calculateProjectProgress(tasks) < 100
     }
 
     val totalTeamMembers = projectUsers.values.flatten().map { it.user_id }.distinct().size
@@ -129,138 +119,145 @@ fun ManagerDashboardScreen(
                 initials = "FP"
             )
 
-            Column(
+            LazyColumn(
                 modifier = Modifier
                     .weight(1f)
                     .padding(
-                        horizontal = if (isLandscape) 30.dp else 18.dp,
-                        vertical = if (isLandscape) 12.dp else 16.dp
-                    )
+                        horizontal = if (isLandscape) 28.dp else 18.dp,
+                        vertical = if (isLandscape) 14.dp else 16.dp
+                    ),
+                verticalArrangement = Arrangement.spacedBy(0.dp)
             ) {
-                ForgeSearchBar(
-                    value = searchText,
-                    onValueChange = { searchText = it },
-                    placeholder = appText(
-                        en = "Search project",
-                        pt = "Pesquisar projeto"
+                item {
+                    ForgeSearchBar(
+                        value = searchText,
+                        onValueChange = { searchText = it },
+                        placeholder = appText(
+                            en = "Search project",
+                            pt = "Pesquisar projeto"
+                        )
                     )
-                )
 
-                Spacer(modifier = Modifier.height(if (isLandscape) 14.dp else 22.dp))
+                    Spacer(modifier = Modifier.height(if (isLandscape) 18.dp else 22.dp))
 
-                Text(
-                    text = appText(en = "Projects", pt = "Projetos"),
-                    style = MaterialTheme.typography.headlineSmall,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onBackground
-                )
+                    Text(
+                        text = appText(en = "My Projects", pt = "Os meus projetos"),
+                        style = MaterialTheme.typography.headlineSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onBackground
+                    )
 
-                Spacer(modifier = Modifier.height(14.dp))
+                    Text(
+                        text = appText(
+                            en = "Managing $activeProjects active projects",
+                            pt = "A gerir $activeProjects projetos ativos"
+                        ),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.65f)
+                    )
 
-                DashboardStatsRow(
-                    totalProjects = projects.size,
-                    activeProjects = activeProjects,
-                    totalTeamMembers = totalTeamMembers,
-                    isLandscape = isLandscape
-                )
+                    Spacer(modifier = Modifier.height(18.dp))
 
-                Spacer(modifier = Modifier.height(if (isLandscape) 14.dp else 18.dp))
+                    DashboardStatsRow(
+                        totalProjects = projects.size,
+                        activeProjects = activeProjects,
+                        totalTeamMembers = totalTeamMembers,
+                        isLandscape = isLandscape
+                    )
+
+                    Spacer(modifier = Modifier.height(22.dp))
+
+                    Text(
+                        text = appText(en = "Projects Overview", pt = "Visão geral dos projetos"),
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onBackground
+                    )
+
+                    Spacer(modifier = Modifier.height(14.dp))
+                }
 
                 when {
                     isLoading -> {
-                        CircularProgressIndicator(
-                            color = MaterialTheme.colorScheme.primary
-                        )
+                        item {
+                            CircularProgressIndicator(
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
                     }
 
                     error != null -> {
-                        Text(
-                            text = error ?: appText(en = "Unknown error", pt = "Erro desconhecido"),
-                            color = MaterialTheme.colorScheme.error
-                        )
+                        item {
+                            Text(
+                                text = error ?: appText(en = "Unknown error", pt = "Erro desconhecido"),
+                                color = MaterialTheme.colorScheme.error
+                            )
+                        }
                     }
 
                     visibleProjects.isEmpty() -> {
-                        Text(
-                            text = appText(
-                                en = "No projects found.",
-                                pt = "Nenhum projeto encontrado."
-                            ),
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onBackground
-                        )
+                        item {
+                            Text(
+                                text = appText(
+                                    en = "No projects found.",
+                                    pt = "Nenhum projeto encontrado."
+                                ),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onBackground
+                            )
+                        }
                     }
 
                     isLandscape -> {
-                        LazyColumn(
-                            verticalArrangement = Arrangement.spacedBy(14.dp),
-                            modifier = Modifier.padding(bottom = 96.dp)
-                        ) {
-                            items(visibleProjects.chunked(2)) { rowProjects ->
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.spacedBy(14.dp)
-                                ) {
-                                    rowProjects.forEach { project ->
-                                        ProjectOverviewCard(
-                                            project = project,
-                                            tasks = projectTasks[project.id] ?: emptyList(),
-                                            teamCount = projectUsers[project.id]?.size ?: 0,
-                                            modifier = Modifier.weight(1f),
-                                            onClick = { onProjectClick(project.id) }
-                                        )
-                                    }
+                        items(visibleProjects.chunked(3)) { rowProjects ->
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(bottom = 16.dp),
+                                horizontalArrangement = Arrangement.spacedBy(16.dp)
+                            ) {
+                                rowProjects.forEach { project ->
+                                    ProjectOverviewCard(
+                                        project = project,
+                                        tasks = projectTasks[project.id] ?: emptyList(),
+                                        teamCount = projectUsers[project.id]?.size ?: 0,
+                                        modifier = Modifier.weight(1f),
+                                        onClick = { onProjectClick(project.id) }
+                                    )
+                                }
 
-                                    if (rowProjects.size == 1) {
-                                        Spacer(modifier = Modifier.weight(1f))
-                                    }
+                                repeat(3 - rowProjects.size) {
+                                    Spacer(modifier = Modifier.weight(1f))
                                 }
                             }
                         }
                     }
 
                     else -> {
-                        LazyColumn(
-                            verticalArrangement = Arrangement.spacedBy(16.dp),
-                            modifier = Modifier.padding(bottom = 96.dp)
-                        ) {
-                            items(visibleProjects) { project ->
-                                ProjectOverviewCard(
-                                    project = project,
-                                    tasks = projectTasks[project.id] ?: emptyList(),
-                                    teamCount = projectUsers[project.id]?.size ?: 0,
-                                    modifier = Modifier.fillMaxWidth(),
-                                    onClick = { onProjectClick(project.id) }
-                                )
-                            }
+                        items(visibleProjects) { project ->
+                            ProjectOverviewCard(
+                                project = project,
+                                tasks = projectTasks[project.id] ?: emptyList(),
+                                teamCount = projectUsers[project.id]?.size ?: 0,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(bottom = 16.dp),
+                                onClick = { onProjectClick(project.id) }
+                            )
                         }
                     }
+                }
+
+                item {
+                    Spacer(modifier = Modifier.height(16.dp))
                 }
             }
 
             ForgePlanBottomBar(
-                selectedItem = "Projects",
+                selectedItem = "Tasks",
                 onTimelineClick = onTimelineClick,
                 onProgressClick = onProgressClick,
                 onTeamClick = onTeamClick
-            )
-        }
-
-        FloatingActionButton(
-            onClick = onCreateProjectClick,
-            containerColor = MaterialTheme.colorScheme.primary,
-            contentColor = MaterialTheme.colorScheme.onPrimary,
-            modifier = Modifier
-                .align(Alignment.BottomEnd)
-                .padding(
-                    end = if (isLandscape) 30.dp else 18.dp,
-                    bottom = if (isLandscape) 88.dp else 104.dp
-                )
-                .size(56.dp)
-        ) {
-            Text(
-                text = "+",
-                style = MaterialTheme.typography.headlineMedium
             )
         }
     }
@@ -276,23 +273,19 @@ fun DashboardStatsRow(
     if (isLandscape) {
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
+            horizontalArrangement = Arrangement.spacedBy(20.dp)
         ) {
             DashboardStatCard(
-                title = appText(en = "Total projects", pt = "Total de projetos"),
+                title = appText(en = "Total Projects", pt = "Total de projetos"),
                 value = totalProjects.toString(),
+                icon = "☑",
                 modifier = Modifier.weight(1f)
             )
 
             DashboardStatCard(
                 title = appText(en = "Active", pt = "Ativos"),
                 value = activeProjects.toString(),
-                modifier = Modifier.weight(1f)
-            )
-
-            DashboardStatCard(
-                title = appText(en = "Team members", pt = "Membros da equipa"),
-                value = totalTeamMembers.toString(),
+                icon = "↗",
                 modifier = Modifier.weight(1f)
             )
         }
@@ -304,12 +297,14 @@ fun DashboardStatsRow(
             DashboardStatCard(
                 title = appText(en = "Projects", pt = "Projetos"),
                 value = totalProjects.toString(),
+                icon = "☑",
                 modifier = Modifier.weight(1f)
             )
 
             DashboardStatCard(
                 title = appText(en = "Active", pt = "Ativos"),
                 value = activeProjects.toString(),
+                icon = "↗",
                 modifier = Modifier.weight(1f)
             )
         }
@@ -320,34 +315,53 @@ fun DashboardStatsRow(
 fun DashboardStatCard(
     title: String,
     value: String,
+    icon: String,
     modifier: Modifier = Modifier
 ) {
     Card(
-        modifier = modifier.height(78.dp),
+        modifier = modifier.height(84.dp),
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surface
         ),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
-        Column(
+        Row(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(horizontal = 14.dp, vertical = 10.dp),
-            verticalArrangement = Arrangement.Center
+                .padding(horizontal = 14.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(
-                text = value,
-                style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onSurface
-            )
+            Box(
+                modifier = Modifier
+                    .size(42.dp)
+                    .clip(RoundedCornerShape(50))
+                    .background(MaterialTheme.colorScheme.secondaryContainer),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = icon,
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.primary
+                )
+            }
 
-            Text(
-                text = title,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.65f)
-            )
+            Spacer(modifier = Modifier.size(12.dp))
+
+            Column {
+                Text(
+                    text = value,
+                    style = MaterialTheme.typography.headlineSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.65f)
+                )
+            }
         }
     }
 }
@@ -369,13 +383,13 @@ fun ProjectOverviewCard(
 
     Card(
         modifier = modifier
-            .height(190.dp)
+            .height(185.dp)
             .clickable { onClick() },
-        shape = RoundedCornerShape(22.dp),
+        shape = RoundedCornerShape(14.dp),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surface
         ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
         Column(
             modifier = Modifier
@@ -462,9 +476,9 @@ fun ProjectOverviewCard(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = appText(en = "Progress", pt = "Progresso"),
+                    text = appText(en = "Overall Progress", pt = "Progresso geral"),
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurface,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.72f),
                     modifier = Modifier.weight(1f)
                 )
 
@@ -484,11 +498,7 @@ fun ProjectOverviewCard(
                     .fillMaxWidth()
                     .height(8.dp)
                     .clip(RoundedCornerShape(50)),
-                color = if (isCompleted) {
-                    MaterialTheme.colorScheme.primary
-                } else {
-                    MaterialTheme.colorScheme.tertiary
-                },
+                color = MaterialTheme.colorScheme.primary,
                 trackColor = MaterialTheme.colorScheme.secondaryContainer
             )
         }

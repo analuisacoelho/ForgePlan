@@ -40,9 +40,9 @@ import com.example.forgeplan.core.model.Task
 import com.example.forgeplan.core.repository.ProjectUserRepository
 import com.example.forgeplan.core.repository.TaskRepository
 import com.example.forgeplan.core.session.SessionManager
-import com.example.forgeplan.core.ui.components.ForgeSideMenuScaffold
 import com.example.forgeplan.core.ui.components.ForgePlanTopBar
 import com.example.forgeplan.core.ui.components.ForgeSearchBar
+import com.example.forgeplan.core.ui.components.ForgeSideMenuScaffold
 import com.example.forgeplan.core.ui.components.SideMenuItem
 import com.example.forgeplan.projects.ui.DashboardStatCard
 import com.example.forgeplan.projects.ui.ProjectOverviewCard
@@ -166,16 +166,21 @@ fun AdminDashboardScreen(
                         DashboardStatCard(
                             title = appText(en = "Total", pt = "Total"),
                             value = projects.size.toString(),
+                            icon = "☑",
                             modifier = Modifier.weight(1f)
                         )
+
                         DashboardStatCard(
                             title = appText(en = "Active", pt = "Ativos"),
                             value = activeProjects.toString(),
+                            icon = "↗",
                             modifier = Modifier.weight(1f)
                         )
+
                         DashboardStatCard(
                             title = appText(en = "Done", pt = "Concluídos"),
                             value = completedProjects.toString(),
+                            icon = "✓",
                             modifier = Modifier.weight(1f)
                         )
                     }

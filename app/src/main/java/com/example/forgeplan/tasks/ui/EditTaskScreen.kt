@@ -26,8 +26,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
@@ -57,6 +55,7 @@ import com.example.forgeplan.core.repository.TaskAttachmentRepository
 import com.example.forgeplan.projects.viewmodel.ProjectViewModel
 import com.example.forgeplan.tasks.viewmodel.TaskAssignmentViewModel
 import com.example.forgeplan.tasks.viewmodel.TaskDependencyViewModel
+import com.example.forgeplan.tasks.viewmodel.TaskGroupViewModel
 import com.example.forgeplan.tasks.viewmodel.TaskViewModel
 import com.example.forgeplan.tasks.viewmodel.UserViewModel
 import retrofit2.Call
@@ -71,7 +70,8 @@ fun EditTaskScreen(
     projectViewModel: ProjectViewModel = viewModel(),
     userViewModel: UserViewModel = viewModel(),
     assignmentViewModel: TaskAssignmentViewModel = viewModel(),
-    dependencyViewModel: TaskDependencyViewModel = viewModel()
+    dependencyViewModel: TaskDependencyViewModel = viewModel(),
+    taskGroupViewModel: TaskGroupViewModel = viewModel()
 ) {
     val configuration = LocalConfiguration.current
     val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
@@ -86,16 +86,18 @@ fun EditTaskScreen(
     val users by userViewModel.users.collectAsState()
     val assignments by assignmentViewModel.assignments.collectAsState()
     val dependencies by dependencyViewModel.dependencies.collectAsState()
+    val groups by taskGroupViewModel.groups.collectAsState()
 
     val taskError by taskViewModel.error.collectAsState()
     val assignmentError by assignmentViewModel.error.collectAsState()
     val dependencyError by dependencyViewModel.error.collectAsState()
 
     var selectedProject by remember { mutableStateOf<Project?>(null) }
-    var selectedTaskForDropdown by remember { mutableStateOf<Task?>(null) }
+    var currentTask by remember { mutableStateOf<Task?>(null) }
 
     var title by remember { mutableStateOf("") }
     var description by remember { mutableStateOf("") }
+    var taskGroup by remember { mutableStateOf("") }
     var priority by remember { mutableStateOf("MEDIUM") }
     var startDate by remember { mutableStateOf("") }
     var endDate by remember { mutableStateOf("") }
@@ -113,6 +115,17 @@ fun EditTaskScreen(
     var titleError by remember { mutableStateOf<String?>(null) }
     var dateError by remember { mutableStateOf<String?>(null) }
     var isSaving by remember { mutableStateOf(false) }
+
+    val projectGroups = remember(groups, tasks, taskGroup) {
+        (
+                groups.map { it.name.trim() } +
+                        tasks.mapNotNull { it.task_group?.trim() } +
+                        listOf(taskGroup.trim())
+                )
+            .filter { it.isNotBlank() }
+            .distinctBy { it.lowercase() }
+            .sortedBy { it.lowercase() }
+    }
 
     val documentPicker = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
@@ -150,9 +163,10 @@ fun EditTaskScreen(
 
     LaunchedEffect(selectedTask) {
         selectedTask?.let { task ->
-            selectedTaskForDropdown = task
+            currentTask = task
             title = task.title
             description = task.description ?: ""
+            taskGroup = task.task_group ?: ""
             priority = task.priority ?: "MEDIUM"
             startDate = task.start_date ?: ""
             endDate = task.end_date ?: ""
@@ -160,6 +174,7 @@ fun EditTaskScreen(
             status = task.status ?: "PENDING"
 
             taskViewModel.loadTasks(task.project_id)
+            taskGroupViewModel.loadGroups(task.project_id)
             selectedProject = projects.firstOrNull { it.id == task.project_id }
         }
     }
@@ -186,7 +201,7 @@ fun EditTaskScreen(
     }
 
     val saveChanges: () -> Unit = {
-        val task = selectedTaskForDropdown
+        val task = currentTask
         val project = selectedProject
         var hasError = false
 
@@ -260,7 +275,7 @@ fun EditTaskScreen(
                 completion_rate = completionRate,
                 start_date = startDate.trim().ifBlank { null },
                 end_date = endDate.trim().ifBlank { null },
-                task_group = task.task_group
+                task_group = taskGroup.trim().ifBlank { null }
             )
 
             taskViewModel.updateTask(
@@ -355,39 +370,25 @@ fun EditTaskScreen(
                     Column(modifier = Modifier.weight(1f)) {
                         EditTaskMainFields(
                             selectedProject = selectedProject,
-                            projects = projects,
-                            selectedTaskForDropdown = selectedTaskForDropdown,
-                            tasks = tasks,
+                            task = currentTask,
                             title = title,
                             titleError = titleError,
                             description = description,
+                            taskGroup = taskGroup,
+                            projectGroups = projectGroups,
                             startDate = startDate,
                             endDate = endDate,
                             dateError = dateError,
-                            onProjectSelected = {
-                                selectedProject = it
-                                taskViewModel.loadTasks(it.id)
-                                message = null
-                            },
-                            onTaskSelected = { task ->
-                                selectedTaskForDropdown = task
-                                taskViewModel.loadTaskById(task.id)
-                                assignmentViewModel.loadAssignments(task.id)
-                                dependencyViewModel.loadDependencies(task.id)
-                                loadEditTaskAttachments(
-                                    taskId = task.id,
-                                    onSuccess = {
-                                        existingAttachments.clear()
-                                        existingAttachments.addAll(it)
-                                    }
-                                )
-                            },
                             onTitleChange = {
                                 title = it
                                 titleError = null
                                 message = null
                             },
                             onDescriptionChange = { description = it },
+                            onTaskGroupChange = {
+                                taskGroup = it
+                                message = null
+                            },
                             onStartDateChange = {
                                 startDate = it
                                 dateError = null
@@ -430,39 +431,25 @@ fun EditTaskScreen(
             } else {
                 EditTaskMainFields(
                     selectedProject = selectedProject,
-                    projects = projects,
-                    selectedTaskForDropdown = selectedTaskForDropdown,
-                    tasks = tasks,
+                    task = currentTask,
                     title = title,
                     titleError = titleError,
                     description = description,
+                    taskGroup = taskGroup,
+                    projectGroups = projectGroups,
                     startDate = startDate,
                     endDate = endDate,
                     dateError = dateError,
-                    onProjectSelected = {
-                        selectedProject = it
-                        taskViewModel.loadTasks(it.id)
-                        message = null
-                    },
-                    onTaskSelected = { task ->
-                        selectedTaskForDropdown = task
-                        taskViewModel.loadTaskById(task.id)
-                        assignmentViewModel.loadAssignments(task.id)
-                        dependencyViewModel.loadDependencies(task.id)
-                        loadEditTaskAttachments(
-                            taskId = task.id,
-                            onSuccess = {
-                                existingAttachments.clear()
-                                existingAttachments.addAll(it)
-                            }
-                        )
-                    },
                     onTitleChange = {
                         title = it
                         titleError = null
                         message = null
                     },
                     onDescriptionChange = { description = it },
+                    onTaskGroupChange = {
+                        taskGroup = it
+                        message = null
+                    },
                     onStartDateChange = {
                         startDate = it
                         dateError = null
@@ -508,19 +495,18 @@ fun EditTaskScreen(
 @Composable
 fun EditTaskMainFields(
     selectedProject: Project?,
-    projects: List<Project>,
-    selectedTaskForDropdown: Task?,
-    tasks: List<Task>,
+    task: Task?,
     title: String,
     titleError: String?,
     description: String,
+    taskGroup: String,
+    projectGroups: List<String>,
     startDate: String,
     endDate: String,
     dateError: String?,
-    onProjectSelected: (Project) -> Unit,
-    onTaskSelected: (Task) -> Unit,
     onTitleChange: (String) -> Unit,
     onDescriptionChange: (String) -> Unit,
+    onTaskGroupChange: (String) -> Unit,
     onStartDateChange: (String) -> Unit,
     onEndDateChange: (String) -> Unit
 ) {
@@ -532,11 +518,36 @@ fun EditTaskMainFields(
 
     Spacer(modifier = Modifier.height(8.dp))
 
-    ProjectDropdown(
-        selectedProject = selectedProject,
-        projects = projects,
-        onProjectSelected = onProjectSelected
-    )
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(48.dp),
+        shape = RoundedCornerShape(8.dp),
+        color = MaterialTheme.colorScheme.surface,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.tertiary)
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "□",
+                style = MaterialTheme.typography.titleLarge,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+
+            Spacer(modifier = Modifier.width(10.dp))
+
+            Text(
+                text = selectedProject?.name ?: appText(
+                    en = "Loading project...",
+                    pt = "A carregar projeto..."
+                ),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+        }
+    }
 
     Spacer(modifier = Modifier.height(18.dp))
 
@@ -548,10 +559,51 @@ fun EditTaskMainFields(
 
     Spacer(modifier = Modifier.height(8.dp))
 
-    EditTaskDropdown(
-        selectedTask = selectedTaskForDropdown,
-        tasks = tasks,
-        onTaskSelected = onTaskSelected
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(48.dp),
+        shape = RoundedCornerShape(8.dp),
+        color = MaterialTheme.colorScheme.surface,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.tertiary)
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "☑",
+                style = MaterialTheme.typography.titleLarge,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+
+            Spacer(modifier = Modifier.width(10.dp))
+
+            Text(
+                text = task?.title ?: appText(
+                    en = "Loading task...",
+                    pt = "A carregar tarefa..."
+                ),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+        }
+    }
+
+    Spacer(modifier = Modifier.height(18.dp))
+
+    Text(
+        text = appText(en = "Task group", pt = "Grupo da tarefa"),
+        style = MaterialTheme.typography.titleMedium,
+        color = MaterialTheme.colorScheme.onBackground
+    )
+
+    Spacer(modifier = Modifier.height(8.dp))
+
+    TaskGroupField(
+        value = taskGroup,
+        groups = projectGroups,
+        onValueChange = onTaskGroupChange
     )
 
     Spacer(modifier = Modifier.height(18.dp))
@@ -673,23 +725,11 @@ fun EditTaskSideFields(
     onDocumentClick: () -> Unit,
     onImageClick: () -> Unit
 ) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Text(
-            text = appText(en = "Priority", pt = "Prioridade"),
-            style = MaterialTheme.typography.titleMedium,
-            color = MaterialTheme.colorScheme.onBackground,
-            modifier = Modifier.weight(1f)
-        )
-
-        Text(
-            text = appText(en = "+ Add", pt = "+ Adicionar"),
-            style = MaterialTheme.typography.titleMedium,
-            color = MaterialTheme.colorScheme.primary
-        )
-    }
+    Text(
+        text = appText(en = "Priority", pt = "Prioridade"),
+        style = MaterialTheme.typography.titleMedium,
+        color = MaterialTheme.colorScheme.onBackground
+    )
 
     Spacer(modifier = Modifier.height(10.dp))
 
@@ -974,76 +1014,6 @@ fun EditTaskTopBar(
             fontWeight = FontWeight.Bold,
             color = MaterialTheme.colorScheme.onTertiary
         )
-    }
-}
-
-@Composable
-fun EditTaskDropdown(
-    selectedTask: Task?,
-    tasks: List<Task>,
-    onTaskSelected: (Task) -> Unit
-) {
-    var expanded by remember { mutableStateOf(false) }
-
-    Box {
-        Surface(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(48.dp)
-                .clickable { expanded = true },
-            shape = RoundedCornerShape(8.dp),
-            color = MaterialTheme.colorScheme.surface,
-            border = BorderStroke(1.dp, MaterialTheme.colorScheme.tertiary)
-        ) {
-            Row(
-                modifier = Modifier.padding(horizontal = 12.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "☑",
-                    style = MaterialTheme.typography.titleLarge,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-
-                Spacer(modifier = Modifier.width(10.dp))
-
-                Text(
-                    text = selectedTask?.title ?: appText(
-                        en = "Select your task",
-                        pt = "Selecionar tarefa"
-                    ),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    modifier = Modifier.weight(1f)
-                )
-
-                Text(
-                    text = "⌄",
-                    style = MaterialTheme.typography.titleSmall,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-            }
-        }
-
-        DropdownMenu(
-            expanded = expanded,
-            onDismissRequest = { expanded = false }
-        ) {
-            tasks.forEach { task ->
-                DropdownMenuItem(
-                    text = {
-                        Text(
-                            text = task.title,
-                            style = MaterialTheme.typography.bodyMedium
-                        )
-                    },
-                    onClick = {
-                        onTaskSelected(task)
-                        expanded = false
-                    }
-                )
-            }
-        }
     }
 }
 
