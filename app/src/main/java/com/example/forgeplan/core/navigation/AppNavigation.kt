@@ -6,7 +6,11 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import com.example.forgeplan.admin.ui.AdminActivityScreen
+import com.example.forgeplan.admin.ui.AdminCreateUserScreen
 import com.example.forgeplan.admin.ui.AdminDashboardScreen
+import com.example.forgeplan.admin.ui.AdminEditUserScreen
+import com.example.forgeplan.admin.ui.AdminUsersScreen
 import com.example.forgeplan.auth.ui.LoginScreen
 import com.example.forgeplan.profile.ProfileScreen
 import com.example.forgeplan.progress.ui.ProgressScreen
@@ -54,7 +58,94 @@ fun AppNavigation() {
         }
 
         composable("admin") {
-            AdminDashboardScreen()
+            AdminDashboardScreen(
+                onProjectClick = { projectId ->
+                    navController.navigate("adminProjectDetail/$projectId")
+                },
+                onCreateProjectClick = {
+                    navController.navigate("adminCreateProject")
+                },
+                onUsersClick = {
+                    navController.navigate("adminUsers")
+                },
+                onActivityClick = {
+                    navController.navigate("adminActivity")
+                },
+                onProfileClick = {
+                    navController.navigate("profile")
+                },
+                onLogout = {
+                    navController.navigate("login") {
+                        popUpTo(0) { inclusive = true }
+                    }
+                }
+            )
+        }
+
+        composable("adminUsers") {
+            AdminUsersScreen(
+                onBackClick = { navController.navigate("admin") },
+                onCreateUserClick = { navController.navigate("adminCreateUser") },
+                onEditUserClick = { userId ->
+                    navController.navigate("adminEditUser/$userId")
+                },
+                onActivityClick = { navController.navigate("adminActivity") },
+                onProfileClick = { navController.navigate("profile") },
+                onLogout = {
+                    navController.navigate("login") {
+                        popUpTo(0) { inclusive = true }
+                    }
+                }
+            )
+        }
+
+        composable("adminCreateUser") {
+            AdminCreateUserScreen(
+                onUserCreated = { navController.popBackStack() },
+                onBackClick = { navController.popBackStack() }
+            )
+        }
+
+        composable(
+            route = "adminEditUser/{userId}",
+            arguments = listOf(navArgument("userId") { type = NavType.LongType })
+        ) { back ->
+            AdminEditUserScreen(
+                userId = back.arguments?.getLong("userId") ?: 0L,
+                onUserUpdated = { navController.popBackStack() },
+                onBackClick = { navController.popBackStack() }
+            )
+        }
+
+        composable("adminActivity") {
+            AdminActivityScreen(
+                onBackClick = { navController.popBackStack() }
+            )
+        }
+
+        composable("adminCreateProject") {
+            CreateProjectScreen(
+                onProjectCreated = { navController.popBackStack() }
+            )
+        }
+
+        composable(
+            route = "adminProjectDetail/{projectId}",
+            arguments = listOf(navArgument("projectId") { type = NavType.LongType })
+        ) { back ->
+            val projectId = back.arguments?.getLong("projectId") ?: 0L
+
+            ProjectDetailScreen(
+                projectId = projectId,
+                onCreateTaskClick = { navController.navigate("createTask/$projectId") },
+                onEditProjectClick = { navController.navigate("editProject/$projectId") },
+                onTaskClick = { taskId -> navController.navigate("taskDetail/$taskId") },
+                onReviewProjectClick = { navController.navigate("projectReview/$projectId") },
+                onProjectsClick = { navController.navigate("admin") },
+                onTimelineClick = { navController.navigate("timeline") },
+                onProgressClick = { navController.navigate("reports") },
+                onTeamClick = { navController.navigate("team") }
+            )
         }
 
         composable("manager") {
@@ -94,12 +185,7 @@ fun AppNavigation() {
                 projectId = projectId,
                 onCreateTaskClick = { navController.navigate("createTask/$projectId") },
                 onEditProjectClick = { navController.navigate("editProject/$projectId") },
-
-                // IMPORTANTe:
-                // Agora o botão Details abre o detalhe da task,
-                // não o ecrã de editar.
                 onTaskClick = { taskId -> navController.navigate("taskDetail/$taskId") },
-
                 onReviewProjectClick = { navController.navigate("projectReview/$projectId") },
                 onProjectsClick = {
                     navController.navigate("manager") {
@@ -261,7 +347,7 @@ fun AppNavigation() {
             ProfileScreen(
                 onLogout = {
                     navController.navigate("login") {
-                        popUpTo(0)
+                        popUpTo(0) { inclusive = true }
                     }
                 }
             )

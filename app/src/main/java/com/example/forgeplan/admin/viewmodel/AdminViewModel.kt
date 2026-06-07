@@ -1,13 +1,16 @@
 package com.example.forgeplan.admin.viewmodel
 
 import androidx.lifecycle.ViewModel
-import androidx.lifecycle.viewModelScope
 import com.example.forgeplan.auth.repository.AuthRepository
+import com.example.forgeplan.core.model.ActivityLog
 import com.example.forgeplan.core.model.User
+import com.example.forgeplan.core.network.SupabaseApi
 import com.example.forgeplan.core.repository.UserRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.launch
+import retrofit2.Call
+import retrofit2.Callback
+import retrofit2.Response
 
 class AdminViewModel : ViewModel() {
 
@@ -16,6 +19,9 @@ class AdminViewModel : ViewModel() {
 
     private val _users = MutableStateFlow<List<User>>(emptyList())
     val users: StateFlow<List<User>> = _users
+
+    private val _activityLogs = MutableStateFlow<List<ActivityLog>>(emptyList())
+    val activityLogs: StateFlow<List<ActivityLog>> = _activityLogs
 
     private val _isLoading = MutableStateFlow(false)
     val isLoading: StateFlow<Boolean> = _isLoading
@@ -26,11 +32,9 @@ class AdminViewModel : ViewModel() {
     private val _successMessage = MutableStateFlow<String?>(null)
     val successMessage: StateFlow<String?> = _successMessage
 
-    // Carrega todos os utilizadores - admin vê todos, ativos e inativos
     fun loadUsers() {
         _isLoading.value = true
         _error.value = null
-
         userRepository.getUsers(
             onSuccess = { userList ->
                 _users.value = userList
@@ -43,7 +47,23 @@ class AdminViewModel : ViewModel() {
         )
     }
 
-    // Ativa ou desativa uma conta sem a apagar - histórico é preservado
+    // Carrega o histórico de atividades ordenado por data
+    fun loadActivityLogs() {
+        _isLoading.value = true
+        _error.value = null
+        SupabaseApi.service.getActivityLogs()
+            .enqueue(object : Callback<List<ActivityLog>> {
+                override fun onResponse(call: Call<List<ActivityLog>>, response: Response<List<ActivityLog>>) {
+                    _activityLogs.value = response.body() ?: emptyList()
+                    _isLoading.value = false
+                }
+                override fun onFailure(call: Call<List<ActivityLog>>, t: Throwable) {
+                    _error.value = t.message
+                    _isLoading.value = false
+                }
+            })
+    }
+
     fun toggleUserActive(user: User) {
         val updated = user.copy(is_active = !user.is_active)
         userRepository.updateUser(
@@ -52,23 +72,13 @@ class AdminViewModel : ViewModel() {
                 _successMessage.value = if (updated.is_active) "Conta ativada." else "Conta desativada."
                 loadUsers()
             },
-            onError = { message ->
-                _error.value = message
-            }
+            onError = { message -> _error.value = message }
         )
     }
 
-    // Cria novo utilizador com password já em hash bcrypt
-    fun createUser(
-        name: String,
-        username: String,
-        email: String,
-        password: String,
-        role: String
-    ) {
+    fun createUser(name: String, username: String, email: String, password: String, role: String) {
         _isLoading.value = true
         val hashedPassword = authRepository.hashPassword(password)
-
         userRepository.createUser(
             name = name,
             username = username,
@@ -86,7 +96,6 @@ class AdminViewModel : ViewModel() {
         )
     }
 
-    // Atualiza dados de um utilizador existente
     fun updateUser(user: User) {
         userRepository.updateUser(
             user = user,
@@ -94,9 +103,7 @@ class AdminViewModel : ViewModel() {
                 _successMessage.value = "Utilizador atualizado."
                 loadUsers()
             },
-            onError = { message ->
-                _error.value = message
-            }
+            onError = { message -> _error.value = message }
         )
     }
 

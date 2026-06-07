@@ -254,7 +254,8 @@ fun ManagerDashboardScreen(
             }
 
             ForgePlanBottomBar(
-                selectedItem = "Tasks",
+                selectedItem = "Projects",
+                onProjectsClick = {},
                 onTimelineClick = onTimelineClick,
                 onProgressClick = onProgressClick,
                 onTeamClick = onTeamClick

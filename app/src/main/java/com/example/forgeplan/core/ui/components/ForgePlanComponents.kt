@@ -3,6 +3,7 @@ package com.example.forgeplan.core.ui.components
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -97,15 +98,39 @@ fun ForgePlanTopBar(
 
 @Composable
 fun ForgePlanBottomBar(
-    selectedItem: String = "Tasks",
+    selectedItem: String = "Projects",
     onProjectsClick: () -> Unit = {},
     onTimelineClick: () -> Unit = {},
     onProgressClick: () -> Unit = {},
     onTeamClick: () -> Unit = {},
-    onProfileClick: () -> Unit = {}
+    onProfileClick: () -> Unit = {},
+    onUsersClick: () -> Unit = {},
+    onActivityClick: () -> Unit = {}
 ) {
     val role = SessionManager.userRole.uppercase()
-    val isUser = role == "USER"
+
+    // Itens diferentes por role - admin tem Users e Activity em vez de Timeline e Reports
+    val items: List<Triple<String, String, () -> Unit>> = when (role) {
+        "ADMIN" -> listOf(
+            Triple(appText(en = "Projects", pt = "Projetos"), "☑", onProjectsClick),
+            Triple(appText(en = "Users", pt = "Utilizadores"), "♧", onUsersClick),
+            Triple(appText(en = "Activity", pt = "Atividade"), "▤", onActivityClick),
+            Triple(appText(en = "Profile", pt = "Perfil"), "◎", onProfileClick)
+        )
+        "MANAGER" -> listOf(
+            Triple(appText(en = "Projects", pt = "Projetos"), "☑", onProjectsClick),
+            Triple(appText(en = "Timeline", pt = "Cronologia"), "◷", onTimelineClick),
+            Triple(appText(en = "Reports", pt = "Relatorios"), "▤", onProgressClick),
+            Triple(appText(en = "Team", pt = "Equipa"), "♧", onTeamClick),
+            Triple(appText(en = "Profile", pt = "Perfil"), "◎", onProfileClick)
+        )
+        else -> listOf(
+            Triple(appText(en = "Projects", pt = "Projetos"), "☑", onProjectsClick),
+            Triple(appText(en = "Timeline", pt = "Cronologia"), "◷", onTimelineClick),
+            Triple(appText(en = "Team", pt = "Equipa"), "♧", onTeamClick),
+            Triple(appText(en = "Profile", pt = "Perfil"), "◎", onProfileClick)
+        )
+    }
 
     Surface(
         modifier = Modifier
@@ -125,45 +150,15 @@ fun ForgePlanBottomBar(
             horizontalArrangement = Arrangement.SpaceAround,
             verticalAlignment = Alignment.CenterVertically
         ) {
-
-            ForgeBottomBarItem(
-                label = appText(en = "Tasks", pt = "Tarefas"),
-                icon = "☑",
-                selected = selectedItem == "Tasks",
-                onClick = onProjectsClick
-            )
-
-            ForgeBottomBarItem(
-                label = appText(en = "Timeline", pt = "Cronologia"),
-                icon = "◷",
-                selected = selectedItem == "Timeline",
-                onClick = onTimelineClick
-            )
-            // REPORTS só para ADMIN / MANAGER (não USER)
-            if (!isUser) {
+            items.forEach { (label, icon, onClick) ->
                 ForgeBottomBarItem(
-                    label = appText(en = "Reports", pt = "Relatórios"),
-                    icon = "▤",
-                    selected = selectedItem == "Reports",
-                    onClick = onProgressClick
+                    label = label,
+                    icon = icon,
+                    // Compara o label diretamente para saber qual está selecionado
+                    selected = selectedItem == label,
+                    onClick = onClick
                 )
             }
-
-            ForgeBottomBarItem(
-                label = appText(en = "Team", pt = "Equipa"),
-                icon = "♧",
-                selected = selectedItem == "Team",
-                onClick = onTeamClick
-            )
-
-            ForgeBottomBarItem(
-                label = appText(en = "Profile", pt = "Perfil"),
-                icon = "◎",
-                selected = selectedItem == "Profile",
-                onClick = onProfileClick
-            )
-
-
         }
     }
 }
@@ -366,19 +361,21 @@ fun ForgeSecondaryButton(
     modifier: Modifier = Modifier,
     onClick: () -> Unit
 ) {
+    val color = if (isSystemInDarkTheme())
+        MaterialTheme.colorScheme.secondary
+    else
+        MaterialTheme.colorScheme.primary
+
     OutlinedButton(
         modifier = modifier.height(42.dp),
         onClick = onClick,
         shape = RoundedCornerShape(14.dp),
-        border = BorderStroke(
-            width = 1.dp,
-            color = MaterialTheme.colorScheme.primary
-        )
+        border = BorderStroke(width = 1.dp, color = color)
     ) {
         Text(
             text = text,
             style = MaterialTheme.typography.labelLarge,
-            color = MaterialTheme.colorScheme.primary
+            color = color
         )
     }
 }

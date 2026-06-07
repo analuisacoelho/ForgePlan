@@ -1,6 +1,7 @@
 package com.example.forgeplan.admin.ui
 
-import androidx.compose.foundation.background
+import android.content.res.Configuration
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -33,16 +34,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.forgeplan.admin.viewmodel.AdminViewModel
 import com.example.forgeplan.core.language.appText
 import com.example.forgeplan.core.model.User
-import com.example.forgeplan.core.session.SessionManager
 import com.example.forgeplan.core.ui.components.ForgeMiniChip
-import com.example.forgeplan.core.ui.components.ForgePlanBottomBar
-import com.example.forgeplan.core.ui.components.ForgePlanTopBar
 import com.example.forgeplan.core.ui.components.ForgeSearchBar
 
 @Composable
@@ -50,23 +49,25 @@ fun AdminUsersScreen(
     onBackClick: () -> Unit = {},
     onCreateUserClick: () -> Unit = {},
     onEditUserClick: (Long) -> Unit = {},
+    onActivityClick: () -> Unit = {},
+    onProfileClick: () -> Unit = {},
+    onLogout: () -> Unit = {},
     viewModel: AdminViewModel = viewModel()
 ) {
     val users by viewModel.users.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
     val error by viewModel.error.collectAsState()
     val successMessage by viewModel.successMessage.collectAsState()
+    val isLandscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
 
     var searchText by remember { mutableStateOf("") }
 
-    // Utilizador selecionado para confirmar toggle ativo/inativo
+    // Utilizador selecionado para confirmação antes de ativar/desativar
     var userToToggle by remember { mutableStateOf<User?>(null) }
 
-    LaunchedEffect(Unit) {
-        viewModel.loadUsers()
-    }
+    LaunchedEffect(Unit) { viewModel.loadUsers() }
 
-    // Limpa mensagens depois de 2 segundos
+    // Limpa mensagens de sucesso após 2 segundos
     LaunchedEffect(successMessage) {
         if (successMessage != null) {
             kotlinx.coroutines.delay(2000)
@@ -98,12 +99,12 @@ fun AdminUsersScreen(
                     text = if (user.is_active)
                         appText(
                             en = "${user.name} will not be able to login.",
-                            pt = "${user.name} não conseguirá fazer login."
+                            pt = "${user.name} nao conseguira fazer login."
                         )
                     else
                         appText(
                             en = "${user.name} will be able to login again.",
-                            pt = "${user.name} voltará a conseguir fazer login."
+                            pt = "${user.name} voltara a conseguir fazer login."
                         )
                 )
             },
@@ -123,21 +124,22 @@ fun AdminUsersScreen(
         )
     }
 
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
+    AdminScaffold(
+        selectedItem = "Users",
+        onProjectsClick = onBackClick,
+        onUsersClick = {},
+        onActivityClick = onActivityClick,
+        onProfileClick = onProfileClick,
+        onLogout = onLogout
     ) {
-        Column(modifier = Modifier.fillMaxSize()) {
-            ForgePlanTopBar(
-                title = "ForgePlan",
-                initials = SessionManager.userInitials
-            )
-
+        Box(modifier = Modifier.fillMaxSize()) {
             Column(
                 modifier = Modifier
-                    .weight(1f)
-                    .padding(horizontal = 18.dp, vertical = 16.dp)
+                    .fillMaxSize()
+                    .padding(
+                        horizontal = if (isLandscape) 30.dp else 18.dp,
+                        vertical = if (isLandscape) 12.dp else 16.dp
+                    )
             ) {
                 ForgeSearchBar(
                     value = searchText,
@@ -145,7 +147,7 @@ fun AdminUsersScreen(
                     placeholder = appText(en = "Search user", pt = "Pesquisar utilizador")
                 )
 
-                Spacer(modifier = Modifier.height(22.dp))
+                Spacer(modifier = Modifier.height(if (isLandscape) 14.dp else 22.dp))
 
                 Text(
                     text = appText(en = "Users", pt = "Utilizadores"),
@@ -156,7 +158,6 @@ fun AdminUsersScreen(
 
                 Spacer(modifier = Modifier.height(14.dp))
 
-                // Mensagem de sucesso ou erro no topo da lista
                 successMessage?.let {
                     Text(
                         text = it,
@@ -178,48 +179,65 @@ fun AdminUsersScreen(
                     isLoading -> CircularProgressIndicator(
                         color = MaterialTheme.colorScheme.primary
                     )
-
                     visibleUsers.isEmpty() -> Text(
                         text = appText(en = "No users found.", pt = "Nenhum utilizador encontrado."),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onBackground
                     )
-
                     else -> {
-                        LazyColumn(
-                            verticalArrangement = Arrangement.spacedBy(12.dp),
-                            modifier = Modifier.padding(bottom = 96.dp)
-                        ) {
-                            items(visibleUsers) { user ->
-                                AdminUserCard(
-                                    user = user,
-                                    onEditClick = { onEditUserClick(user.id) },
-                                    onToggleActive = { userToToggle = user }
-                                )
+                        // Landscape: 2 colunas - Portrait: 1 coluna
+                        if (isLandscape) {
+                            LazyColumn(
+                                verticalArrangement = Arrangement.spacedBy(12.dp),
+                                modifier = Modifier.padding(bottom = 16.dp)
+                            ) {
+                                items(visibleUsers.chunked(2)) { rowUsers ->
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                    ) {
+                                        rowUsers.forEach { user ->
+                                            AdminUserCard(
+                                                user = user,
+                                                onEditClick = { onEditUserClick(user.id) },
+                                                onToggleActive = { userToToggle = user },
+                                                modifier = Modifier.weight(1f)
+                                            )
+                                        }
+                                        if (rowUsers.size == 1) Spacer(modifier = Modifier.weight(1f))
+                                    }
+                                }
+                            }
+                        } else {
+                            LazyColumn(
+                                verticalArrangement = Arrangement.spacedBy(12.dp),
+                                modifier = Modifier.padding(bottom = 16.dp)
+                            ) {
+                                items(visibleUsers) { user ->
+                                    AdminUserCard(
+                                        user = user,
+                                        onEditClick = { onEditUserClick(user.id) },
+                                        onToggleActive = { userToToggle = user }
+                                    )
+                                }
                             }
                         }
                     }
                 }
             }
 
-            ForgePlanBottomBar(
-                selectedItem = "Team",
-                onProjectsClick = onBackClick,
-                onTeamClick = {}
-            )
-        }
-
-        // FAB para criar novo utilizador
-        FloatingActionButton(
-            onClick = onCreateUserClick,
-            containerColor = MaterialTheme.colorScheme.primary,
-            contentColor = MaterialTheme.colorScheme.onPrimary,
-            modifier = Modifier
-                .align(Alignment.BottomEnd)
-                .padding(end = 18.dp, bottom = 104.dp)
-                .size(56.dp)
-        ) {
-            Text(text = "+", style = MaterialTheme.typography.headlineMedium)
+            // Criar novo utilizador
+            FloatingActionButton(
+                onClick = onCreateUserClick,
+                containerColor = MaterialTheme.colorScheme.primary,
+                contentColor = MaterialTheme.colorScheme.onPrimary,
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(end = 18.dp, bottom = 18.dp)
+                    .size(56.dp)
+            ) {
+                Text(text = "+", style = MaterialTheme.typography.headlineMedium)
+            }
         }
     }
 }
@@ -228,10 +246,11 @@ fun AdminUsersScreen(
 fun AdminUserCard(
     user: User,
     onEditClick: () -> Unit,
-    onToggleActive: () -> Unit
+    onToggleActive: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surface
@@ -263,7 +282,7 @@ fun AdminUserCard(
                 Spacer(modifier = Modifier.height(8.dp))
 
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    // Badge de role do utilizador
+                    // Cor do badge varia por role
                     ForgeMiniChip(
                         text = user.role.lowercase().replaceFirstChar { it.uppercase() },
                         containerColor = when (user.role.uppercase()) {
@@ -274,7 +293,6 @@ fun AdminUserCard(
                         contentColor = MaterialTheme.colorScheme.onSecondaryContainer
                     )
 
-                    // Badge de estado da conta
                     ForgeMiniChip(
                         text = if (user.is_active)
                             appText(en = "Active", pt = "Ativo")
@@ -290,7 +308,6 @@ fun AdminUserCard(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                // Toggle para ativar/desativar - pede confirmação antes de agir
                 Switch(
                     checked = user.is_active,
                     onCheckedChange = { onToggleActive() }
@@ -300,7 +317,10 @@ fun AdminUserCard(
                     Text(
                         text = appText(en = "Edit", pt = "Editar"),
                         style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.primary
+                        color = if (isSystemInDarkTheme())
+                            MaterialTheme.colorScheme.secondary
+                        else
+                            MaterialTheme.colorScheme.primary
                     )
                 }
             }
