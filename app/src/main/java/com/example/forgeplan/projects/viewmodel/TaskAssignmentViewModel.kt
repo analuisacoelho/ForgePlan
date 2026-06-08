@@ -20,18 +20,15 @@ class TaskAssignmentViewModel : ViewModel() {
     val error: StateFlow<String?> = _error
 
     fun loadAssignments(taskId: Long) {
-
         _isLoading.value = true
         _error.value = null
 
         repository.getAssignmentsByTaskId(
             taskId = taskId,
-
             onSuccess = { assignmentList ->
                 _assignments.value = assignmentList
                 _isLoading.value = false
             },
-
             onError = { message ->
                 _error.value = message
                 _isLoading.value = false
@@ -42,9 +39,8 @@ class TaskAssignmentViewModel : ViewModel() {
     fun assignUserToTask(
         taskId: Long,
         userId: Long,
-        onSuccess: () -> Unit
+        onSuccess: () -> Unit = {}
     ) {
-
         _isLoading.value = true
         _error.value = null
 
@@ -56,17 +52,59 @@ class TaskAssignmentViewModel : ViewModel() {
 
         repository.assignUserToTask(
             assignment = assignment,
-
             onSuccess = {
                 loadAssignments(taskId)
                 _isLoading.value = false
                 onSuccess()
             },
-
             onError = { message ->
                 _error.value = message
                 _isLoading.value = false
             }
         )
+    }
+
+    fun removeUserFromTask(
+        taskId: Long,
+        userId: Long,
+        onSuccess: () -> Unit = {}
+    ) {
+        _isLoading.value = true
+        _error.value = null
+
+        repository.removeUserFromTask(
+            taskId = taskId,
+            userId = userId,
+            onSuccess = {
+                loadAssignments(taskId)
+                _isLoading.value = false
+                onSuccess()
+            },
+            onError = { message ->
+                _error.value = message
+                _isLoading.value = false
+            }
+        )
+    }
+
+    fun toggleUserAssignment(
+        taskId: Long,
+        userId: Long,
+        isCurrentlyAssigned: Boolean,
+        onSuccess: () -> Unit = {}
+    ) {
+        if (isCurrentlyAssigned) {
+            removeUserFromTask(
+                taskId = taskId,
+                userId = userId,
+                onSuccess = onSuccess
+            )
+        } else {
+            assignUserToTask(
+                taskId = taskId,
+                userId = userId,
+                onSuccess = onSuccess
+            )
+        }
     }
 }

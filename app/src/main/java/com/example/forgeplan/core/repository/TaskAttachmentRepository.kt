@@ -6,101 +6,26 @@ import android.provider.OpenableColumns
 import com.example.forgeplan.core.model.TaskAttachment
 import com.example.forgeplan.core.model.TaskAttachmentPayload
 import com.example.forgeplan.core.network.SupabaseApi
-import okhttp3.MediaType.Companion.toMediaTypeOrNull
-import okhttp3.RequestBody.Companion.toRequestBody
-import okhttp3.ResponseBody
 import retrofit2.Call
 import retrofit2.Callback
 import retrofit2.Response
 
 class TaskAttachmentRepository {
 
-    private val bucketName = "task-attachments"
-
     fun uploadAttachment(
         context: Context,
         taskId: Long,
         uri: Uri,
-        onSuccess: (TaskAttachment?) -> Unit,
+        onSuccess: () -> Unit,
         onError: (String) -> Unit
     ) {
         val fileName = getFileName(context, uri)
-        val mimeType = context.contentResolver.getType(uri) ?: "application/octet-stream"
 
-        val bytes = context.contentResolver.openInputStream(uri)?.use {
-            it.readBytes()
-        }
-
-        if (bytes == null) {
-            onError("Não foi possível ler o ficheiro.")
-            return
-        }
-
-        val safeName = fileName
-            .replace(" ", "_")
-            .replace("/", "_")
-            .replace("\\", "_")
-
-        val filePath = "tasks/$taskId/${System.currentTimeMillis()}_$safeName"
-
-        val requestBody = bytes.toRequestBody(mimeType.toMediaTypeOrNull())
-
-        SupabaseApi.storageService.uploadFile(
-            bucket = bucketName,
-            filePath = filePath,
-            contentType = mimeType,
-            file = requestBody
-        ).enqueue(object : Callback<ResponseBody> {
-            override fun onResponse(
-                call: Call<ResponseBody>,
-                response: Response<ResponseBody>
-            ) {
-                if (response.isSuccessful) {
-                    // Fechar o body para evitar leak
-                    response.body()?.close()
-
-                    val publicUrl = SupabaseApi.publicStorageUrl(
-                        bucket = bucketName,
-                        filePath = filePath
-                    )
-
-                    saveAttachmentMetadata(
-                        taskId = taskId,
-                        fileUrl = publicUrl,
-                        fileName = fileName,
-                        fileType = mimeType,
-                        onSuccess = onSuccess,
-                        onError = onError
-                    )
-                } else {
-                    val errorMsg = response.errorBody()?.string() ?: "código ${response.code()}"
-                    onError("Erro ao fazer upload do anexo: $errorMsg")
-                }
-            }
-
-            override fun onFailure(
-                call: Call<ResponseBody>,
-                t: Throwable
-            ) {
-                onError(t.message ?: "Erro desconhecido no upload.")
-            }
-        })
-    }
-
-    private fun saveAttachmentMetadata(
-        taskId: Long,
-        fileUrl: String,
-        fileName: String,
-        fileType: String,
-        onSuccess: (TaskAttachment?) -> Unit,
-        onError: (String) -> Unit
-    ) {
         val payload = TaskAttachmentPayload(
             task_id = taskId,
-            file_url = fileUrl,
             file_name = fileName,
-            file_type = fileType,
-            is_synced = true
+            file_url = uri.toString(),
+            file_type = getFileType(context, uri)
         )
 
         SupabaseApi.service.createTaskAttachment(payload)
@@ -110,9 +35,9 @@ class TaskAttachmentRepository {
                     response: Response<List<TaskAttachment>>
                 ) {
                     if (response.isSuccessful) {
-                        onSuccess(response.body()?.firstOrNull())
+                        onSuccess()
                     } else {
-                        onError("Erro ao guardar anexo na BD: ${response.code()}")
+                        onError("Erro ao guardar anexo: ${response.code()}")
                     }
                 }
 
@@ -125,11 +50,8 @@ class TaskAttachmentRepository {
             })
     }
 
-    private fun getFileName(
-        context: Context,
-        uri: Uri
-    ): String {
-        var fileName = "attachment"
+    private fun getFileName(context: Context, uri: Uri): String {
+        var fileName = "attachment_${System.currentTimeMillis()}"
 
         val cursor = context.contentResolver.query(
             uri,
@@ -148,5 +70,9 @@ class TaskAttachmentRepository {
         }
 
         return fileName
+    }
+
+    private fun getFileType(context: Context, uri: Uri): String {
+        return context.contentResolver.getType(uri) ?: "application/octet-stream"
     }
 }

@@ -59,15 +59,15 @@ fun AdminDashboardScreen(
     val taskRepository = remember { TaskRepository() }
     val projectUserRepository = remember { ProjectUserRepository() }
 
-    // Maps locais para guardar tarefas e utilizadores por projeto
     val projectTasks = remember { mutableStateMapOf<Long, List<Task>>() }
     val projectUsers = remember { mutableStateMapOf<Long, List<ProjectUser>>() }
 
     var searchText by remember { mutableStateOf("") }
 
-    LaunchedEffect(Unit) { viewModel.loadProjects() }
+    LaunchedEffect(Unit) {
+        viewModel.loadProjects()
+    }
 
-    // Carrega tarefas e utilizadores para cada projeto quando a lista muda
     LaunchedEffect(projects) {
         projects.forEach { project ->
             taskRepository.getTasksByProjectId(
@@ -75,6 +75,7 @@ fun AdminDashboardScreen(
                 onSuccess = { tasks -> projectTasks[project.id] = tasks },
                 onError = { projectTasks[project.id] = emptyList() }
             )
+
             projectUserRepository.getProjectUsersByProjectId(
                 projectId = project.id,
                 onSuccess = { users -> projectUsers[project.id] = users },
@@ -89,13 +90,11 @@ fun AdminDashboardScreen(
                 (project.description ?: "").contains(searchText, ignoreCase = true)
     }
 
-    // Projeto concluido = todas as tarefas com status DONE
     val completedProjects = projects.count { project ->
         val tasks = projectTasks[project.id] ?: emptyList()
         tasks.isNotEmpty() && tasks.all { it.status?.uppercase() == "DONE" }
     }
 
-    // Projeto ativo = tem pelo menos uma tarefa não concluida
     val activeProjects = projects.count { project ->
         val tasks = projectTasks[project.id] ?: emptyList()
         tasks.any { it.status?.uppercase() != "DONE" }
@@ -121,7 +120,10 @@ fun AdminDashboardScreen(
                 ForgeSearchBar(
                     value = searchText,
                     onValueChange = { searchText = it },
-                    placeholder = appText(en = "Search project", pt = "Pesquisar projeto")
+                    placeholder = appText(
+                        en = "Search project",
+                        pt = "Pesquisar projeto"
+                    )
                 )
 
                 Spacer(modifier = Modifier.height(if (isLandscape) 14.dp else 22.dp))
@@ -141,16 +143,21 @@ fun AdminDashboardScreen(
                     DashboardStatCard(
                         title = appText(en = "Total", pt = "Total"),
                         value = projects.size.toString(),
+                        icon = "☑",
                         modifier = Modifier.weight(1f)
                     )
+
                     DashboardStatCard(
                         title = appText(en = "Active", pt = "Ativos"),
                         value = activeProjects.toString(),
+                        icon = "↗",
                         modifier = Modifier.weight(1f)
                     )
+
                     DashboardStatCard(
-                        title = appText(en = "Done", pt = "Concluidos"),
+                        title = appText(en = "Done", pt = "Concluídos"),
                         value = completedProjects.toString(),
+                        icon = "✓",
                         modifier = Modifier.weight(1f)
                     )
                 }
@@ -158,20 +165,34 @@ fun AdminDashboardScreen(
                 Spacer(modifier = Modifier.height(if (isLandscape) 14.dp else 18.dp))
 
                 when {
-                    isLoading -> CircularProgressIndicator(
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                    error != null -> Text(
-                        text = error ?: "",
-                        color = MaterialTheme.colorScheme.error
-                    )
-                    visibleProjects.isEmpty() -> Text(
-                        text = appText(en = "No projects found.", pt = "Nenhum projeto encontrado."),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onBackground
-                    )
+                    isLoading -> {
+                        CircularProgressIndicator(
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
+
+                    error != null -> {
+                        Text(
+                            text = error ?: appText(
+                                en = "Unknown error",
+                                pt = "Erro desconhecido"
+                            ),
+                            color = MaterialTheme.colorScheme.error
+                        )
+                    }
+
+                    visibleProjects.isEmpty() -> {
+                        Text(
+                            text = appText(
+                                en = "No projects found.",
+                                pt = "Nenhum projeto encontrado."
+                            ),
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onBackground
+                        )
+                    }
+
                     else -> {
-                        // Landscape: 2 colunas - Portrait: 1 coluna
                         if (isLandscape) {
                             LazyColumn(
                                 verticalArrangement = Arrangement.spacedBy(14.dp),
@@ -191,7 +212,10 @@ fun AdminDashboardScreen(
                                                 onClick = { onProjectClick(project.id) }
                                             )
                                         }
-                                        if (rowProjects.size == 1) Spacer(modifier = Modifier.weight(1f))
+
+                                        if (rowProjects.size == 1) {
+                                            Spacer(modifier = Modifier.weight(1f))
+                                        }
                                     }
                                 }
                             }
@@ -215,7 +239,6 @@ fun AdminDashboardScreen(
                 }
             }
 
-            // Criar projeto
             FloatingActionButton(
                 onClick = onCreateProjectClick,
                 containerColor = MaterialTheme.colorScheme.primary,
@@ -225,7 +248,10 @@ fun AdminDashboardScreen(
                     .padding(end = 18.dp, bottom = 18.dp)
                     .size(56.dp)
             ) {
-                Text(text = "+", style = MaterialTheme.typography.headlineMedium)
+                Text(
+                    text = "+",
+                    style = MaterialTheme.typography.headlineMedium
+                )
             }
         }
     }

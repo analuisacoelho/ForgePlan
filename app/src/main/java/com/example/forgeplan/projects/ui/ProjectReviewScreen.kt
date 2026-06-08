@@ -92,7 +92,8 @@ fun ProjectReviewScreen(
         evaluationViewModel.loadEvaluations(projectId)
     }
 
-    val existingEvaluation = evaluations.firstOrNull()
+    val existingEvaluation = evaluations.firstOrNull { !it.comment.isNullOrBlank() }
+        ?: evaluations.firstOrNull()
 
     val assignedUserIds = projectUsers.map { it.user_id }
     val assignedUsers = users.filter { assignedUserIds.contains(it.id) }
@@ -119,7 +120,9 @@ fun ProjectReviewScreen(
             return
         }
 
-        val validRatings = ratings.values.filter { it in 1..5 }
+        val validRatings = reviewUsers.mapNotNull { user ->
+            ratings[user.id]?.takeIf { it in 1..5 }
+        }
 
         if (reviewUsers.isNotEmpty() && validRatings.size < reviewUsers.size) {
             message = appText(
@@ -129,33 +132,38 @@ fun ProjectReviewScreen(
             return
         }
 
-        val averageRating =
-            if (validRatings.isEmpty()) 5
-            else validRatings.average().toInt().coerceIn(1, 5)
+        val totalToSave = reviewUsers.size
+        var savedCount = 0
 
-        val combinedComment = reviewUsers.joinToString("\n") { user ->
-            val rating = ratings[user.id] ?: 0
-            val comment = comments[user.id].orEmpty().ifBlank {
-                appText(en = "No comment.", pt = "Sem comentário.")
-            }
-
-            "${user.name}: $rating/5 - $comment"
+        if (totalToSave == 0) {
+            message = appText(
+                en = "There are no team members to evaluate.",
+                pt = "Não existem membros da equipa para avaliar."
+            )
+            return
         }
 
-        evaluationViewModel.createEvaluation(
-            evaluation = ProjectEvaluationPayload(
-                project_id = projectId,
-                rating = averageRating,
-                comment = combinedComment.ifBlank { null }
-            ),
-            onSuccess = {
-                message = appText(
-                    en = "Evaluation saved successfully.",
-                    pt = "Avaliação guardada com sucesso."
-                )
-                onSaveClick()
-            }
-        )
+        reviewUsers.forEach { user ->
+            evaluationViewModel.createEvaluation(
+                evaluation = ProjectEvaluationPayload(
+                    project_id = projectId,
+                    user_id = user.id,
+                    rating = ratings[user.id] ?: 1,
+                    comment = comments[user.id].orEmpty().ifBlank { null }
+                ),
+                onSuccess = {
+                    savedCount++
+
+                    if (savedCount == totalToSave) {
+                        message = appText(
+                            en = "Evaluation saved successfully.",
+                            pt = "Avaliação guardada com sucesso."
+                        )
+                        onSaveClick()
+                    }
+                }
+            )
+        }
     }
 
     Column(
@@ -196,10 +204,11 @@ fun ProjectReviewScreen(
                     )
                 }
 
-                existingEvaluation != null -> {
+                evaluations.isNotEmpty() -> {
                     ProjectEvaluationReadOnlyScreen(
                         projectName = project!!.name,
-                        evaluation = existingEvaluation,
+                        evaluations = evaluations,
+                        users = users,
                         onBackClick = onBackClick
                     )
                 }
@@ -305,6 +314,7 @@ fun ProjectReviewScreen(
 
                     message?.let {
                         Spacer(modifier = Modifier.height(8.dp))
+
                         Text(
                             text = it,
                             color = if (isProjectCompleted) {
@@ -318,6 +328,7 @@ fun ProjectReviewScreen(
 
                     evaluationError?.let {
                         Spacer(modifier = Modifier.height(8.dp))
+
                         Text(
                             text = it,
                             color = MaterialTheme.colorScheme.error,
@@ -377,14 +388,12 @@ fun ProjectReviewScreen(
 @Composable
 fun ProjectEvaluationReadOnlyScreen(
     projectName: String,
-    evaluation: ProjectEvaluation,
+    evaluations: List<ProjectEvaluation>,
+    users: List<User>,
     onBackClick: () -> Unit
 ) {
     Text(
-        text = appText(
-            en = "Saved Evaluation",
-            pt = "Avaliação Guardada"
-        ),
+        text = appText(en = "Saved Evaluation", pt = "Avaliação Guardada"),
         style = MaterialTheme.typography.headlineSmall,
         fontWeight = FontWeight.Bold,
         color = MaterialTheme.colorScheme.onBackground
@@ -400,88 +409,79 @@ fun ProjectEvaluationReadOnlyScreen(
 
     Spacer(modifier = Modifier.height(18.dp))
 
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface
-        ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
-        border = BorderStroke(
-            width = 1.dp,
-            color = MaterialTheme.colorScheme.tertiary.copy(alpha = 0.4f)
-        )
-    ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Text(
-                text = appText(en = "Final rating", pt = "Classificação final"),
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onSurface
+    evaluations.forEach { evaluation ->
+        val user = users.firstOrNull { it.id == evaluation.user_id }
+
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surface
+            ),
+            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+            border = BorderStroke(
+                width = 1.dp,
+                color = MaterialTheme.colorScheme.tertiary.copy(alpha = 0.4f)
             )
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Text(
+                    text = user?.name ?: appText(en = "Team member", pt = "Membro da equipa"),
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
 
-            Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(8.dp))
 
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                repeat(5) { index ->
-                    val starValue = index + 1
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    repeat(5) { index ->
+                        val starValue = index + 1
 
-                    Text(
-                        text = if (starValue <= evaluation.rating) "★" else "☆",
-                        style = MaterialTheme.typography.headlineMedium,
-                        color = if (starValue <= evaluation.rating) {
-                            MaterialTheme.colorScheme.secondary
-                        } else {
-                            MaterialTheme.colorScheme.onSurface.copy(alpha = 0.45f)
-                        }
-                    )
+                        Text(
+                            text = if (starValue <= evaluation.rating) "★" else "☆",
+                            style = MaterialTheme.typography.headlineMedium,
+                            color = if (starValue <= evaluation.rating) {
+                                MaterialTheme.colorScheme.secondary
+                            } else {
+                                MaterialTheme.colorScheme.onSurface.copy(alpha = 0.45f)
+                            }
+                        )
+                    }
                 }
-            }
 
-            Spacer(modifier = Modifier.height(14.dp))
+                Spacer(modifier = Modifier.height(10.dp))
 
-            ForgeMiniChip(
-                text = "${evaluation.rating}/5",
-                containerColor = MaterialTheme.colorScheme.secondary,
-                contentColor = MaterialTheme.colorScheme.onSecondary
-            )
+                ForgeMiniChip(
+                    text = "${evaluation.rating}/5",
+                    containerColor = MaterialTheme.colorScheme.secondary,
+                    contentColor = MaterialTheme.colorScheme.onSecondary
+                )
 
-            Spacer(modifier = Modifier.height(18.dp))
-
-            Text(
-                text = appText(en = "Manager feedback", pt = "Feedback do gestor"),
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onSurface
-            )
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            Text(
-                text = evaluation.comment ?: appText(
-                    en = "No comments were added.",
-                    pt = "Não foram adicionados comentários."
-                ),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurface
-            )
-
-            evaluation.created_at?.let {
-                Spacer(modifier = Modifier.height(18.dp))
+                Spacer(modifier = Modifier.height(14.dp))
 
                 Text(
-                    text = appText(
-                        en = "Created at: $it",
-                        pt = "Criada em: $it"
+                    text = appText(en = "Manager feedback", pt = "Feedback do gestor"),
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Text(
+                    text = evaluation.comment ?: appText(
+                        en = "No comments were added.",
+                        pt = "Não foram adicionados comentários."
                     ),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurface
                 )
             }
         }
-    }
 
-    Spacer(modifier = Modifier.height(22.dp))
+        Spacer(modifier = Modifier.height(14.dp))
+    }
 
     Button(
         modifier = Modifier
@@ -622,7 +622,9 @@ fun UserEvaluationCard(
                 value = if (rating == 0) "" else rating.toString(),
                 onValueChange = { value ->
                     val number = value.toIntOrNull()
-                    if (number != null) onRatingChange(number.coerceIn(1, 5))
+                    if (number != null) {
+                        onRatingChange(number.coerceIn(1, 5))
+                    }
                 },
                 label = {
                     Text(appText(en = "Or enter rating (1-5)", pt = "Ou introduz avaliação (1-5)"))

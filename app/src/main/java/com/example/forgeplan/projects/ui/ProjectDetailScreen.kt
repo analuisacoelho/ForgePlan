@@ -4,6 +4,7 @@ import android.content.res.Configuration
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -17,7 +18,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -26,7 +26,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -41,6 +40,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.forgeplan.core.language.appText
 import com.example.forgeplan.core.model.Project
 import com.example.forgeplan.core.model.Task
+import com.example.forgeplan.core.model.TaskGroup
 import com.example.forgeplan.core.model.User
 import com.example.forgeplan.core.ui.components.ForgeCard
 import com.example.forgeplan.core.ui.components.ForgeMiniChip
@@ -53,56 +53,9 @@ import com.example.forgeplan.core.ui.components.UserAvatarChip
 import com.example.forgeplan.projects.viewmodel.ProjectDetailViewModel
 import com.example.forgeplan.projects.viewmodel.ProjectEvaluationViewModel
 import com.example.forgeplan.projects.viewmodel.ProjectUserViewModel
+import com.example.forgeplan.tasks.viewmodel.TaskGroupViewModel
 import com.example.forgeplan.tasks.viewmodel.TaskViewModel
 import com.example.forgeplan.tasks.viewmodel.UserViewModel
-
-@Composable
-fun AddUserDialog(
-    users: List<User>,
-    onDismiss: () -> Unit,
-    onAddUser: (User) -> Unit
-) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = {
-            Text(
-                text = appText(en = "Add users", pt = "Adicionar utilizadores")
-            )
-        },
-        text = {
-            Column {
-                users.forEach { user ->
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { onAddUser(user) }
-                            .padding(12.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Text(user.name)
-                        Text("+")
-                    }
-                }
-
-                if (users.isEmpty()) {
-                    Text(
-                        text = appText(
-                            en = "No users available",
-                            pt = "Não existem utilizadores disponíveis"
-                        )
-                    )
-                }
-            }
-        },
-        confirmButton = {},
-        dismissButton = {
-            Text(
-                text = appText(en = "Close", pt = "Fechar"),
-                modifier = Modifier.clickable { onDismiss() }
-            )
-        }
-    )
-}
 
 @Composable
 fun ProjectDetailScreen(
@@ -119,7 +72,8 @@ fun ProjectDetailScreen(
     evaluationViewModel: ProjectEvaluationViewModel = viewModel(),
     taskViewModel: TaskViewModel = viewModel(),
     userViewModel: UserViewModel = viewModel(),
-    projectUserViewModel: ProjectUserViewModel = viewModel()
+    projectUserViewModel: ProjectUserViewModel = viewModel(),
+    taskGroupViewModel: TaskGroupViewModel = viewModel()
 ) {
     val configuration = LocalConfiguration.current
     val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
@@ -134,13 +88,13 @@ fun ProjectDetailScreen(
     val projectUsers by projectUserViewModel.projectUsers.collectAsState()
     val projectUserError by projectUserViewModel.error.collectAsState()
 
+    val taskGroups by taskGroupViewModel.groups.collectAsState()
+    val taskGroupError by taskGroupViewModel.error.collectAsState()
+
     var searchText by remember { mutableStateOf("") }
-    var selectedFilter by remember { mutableStateOf("ALL") }
     var showAddUserDialog by remember { mutableStateOf(false) }
     var showCreateGroup by remember { mutableStateOf(false) }
     var newGroupName by remember { mutableStateOf("") }
-
-    val customGroups = remember { mutableStateListOf<String>() }
 
     LaunchedEffect(projectId) {
         viewModel.loadProject(projectId)
@@ -148,32 +102,20 @@ fun ProjectDetailScreen(
         userViewModel.loadUsers()
         projectUserViewModel.loadProjectUsers(projectId)
         evaluationViewModel.loadEvaluations(projectId)
+        taskGroupViewModel.loadGroups(projectId)
     }
 
     val assignedUserIds = projectUsers.map { it.user_id }
     val assignedUsers = users.filter { assignedUserIds.contains(it.id) }
     val availableUsers = users.filter { user -> !assignedUserIds.contains(user.id) }
 
-    val completedTasks = tasks.count { it.status?.uppercase() == "DONE" }
     val progress = calculateProjectDetailProgress(tasks)
 
     val filteredTasks = tasks.filter { task ->
-        val status = task.status?.uppercase()
-
-        val matchesSearch =
-            searchText.isBlank() ||
-                    task.title.contains(searchText, ignoreCase = true) ||
-                    (task.description ?: "").contains(searchText, ignoreCase = true)
-
-        val matchesFilter =
-            when (selectedFilter) {
-                "TODO" -> status != "DONE" && status != "IN_PROGRESS"
-                "ACTIVE" -> status == "IN_PROGRESS"
-                "DONE" -> status == "DONE"
-                else -> true
-            }
-
-        matchesSearch && matchesFilter
+        searchText.isBlank() ||
+                task.title.contains(searchText, ignoreCase = true) ||
+                (task.description ?: "").contains(searchText, ignoreCase = true) ||
+                (task.task_group ?: "").contains(searchText, ignoreCase = true)
     }
 
     Column(
@@ -211,7 +153,11 @@ fun ProjectDetailScreen(
 
                 else -> {
                     val currentProject = project!!
-                    val isCompleted = currentProject.status?.uppercase() == "DONE" || progress >= 100
+
+                    val isCompleted = tasks.isNotEmpty() && tasks.all {
+                        it.status?.uppercase() == "DONE"
+                    }
+
                     val hasReview = evaluations.isNotEmpty()
 
                     ProjectDetailHeader(
@@ -228,10 +174,20 @@ fun ProjectDetailScreen(
 
                     ProjectDetailActions(
                         onCreateTaskClick = onCreateTaskClick,
-                        onEditProjectClick = onEditProjectClick
+                        onAddGroupClick = { showCreateGroup = !showCreateGroup }
                     )
 
                     Spacer(modifier = Modifier.height(22.dp))
+
+                    taskGroupError?.let {
+                        Text(
+                            text = it,
+                            color = MaterialTheme.colorScheme.error,
+                            style = MaterialTheme.typography.bodySmall
+                        )
+
+                        Spacer(modifier = Modifier.height(10.dp))
+                    }
 
                     if (isLandscape) {
                         Row(
@@ -242,20 +198,24 @@ fun ProjectDetailScreen(
                                 ProjectDetailTasksArea(
                                     searchText = searchText,
                                     onSearchChange = { searchText = it },
-                                    selectedFilter = selectedFilter,
-                                    onFilterChange = { selectedFilter = it },
                                     tasks = filteredTasks,
                                     allTasks = tasks,
-                                    customGroups = customGroups,
+                                    taskGroups = taskGroups,
                                     showCreateGroup = showCreateGroup,
                                     newGroupName = newGroupName,
                                     onNewGroupNameChange = { newGroupName = it },
                                     onShowCreateGroupChange = { showCreateGroup = it },
                                     onCreateGroup = {
                                         if (newGroupName.isNotBlank()) {
-                                            customGroups.add(newGroupName.trim())
-                                            newGroupName = ""
-                                            showCreateGroup = false
+                                            taskGroupViewModel.createGroup(
+                                                projectId = projectId,
+                                                name = newGroupName.trim(),
+                                                onSuccess = {
+                                                    newGroupName = ""
+                                                    showCreateGroup = false
+                                                    taskGroupViewModel.loadGroups(projectId)
+                                                }
+                                            )
                                         }
                                     },
                                     onTaskClick = onTaskClick,
@@ -285,20 +245,24 @@ fun ProjectDetailScreen(
                         ProjectDetailTasksArea(
                             searchText = searchText,
                             onSearchChange = { searchText = it },
-                            selectedFilter = selectedFilter,
-                            onFilterChange = { selectedFilter = it },
                             tasks = filteredTasks,
                             allTasks = tasks,
-                            customGroups = customGroups,
+                            taskGroups = taskGroups,
                             showCreateGroup = showCreateGroup,
                             newGroupName = newGroupName,
                             onNewGroupNameChange = { newGroupName = it },
                             onShowCreateGroupChange = { showCreateGroup = it },
                             onCreateGroup = {
                                 if (newGroupName.isNotBlank()) {
-                                    customGroups.add(newGroupName.trim())
-                                    newGroupName = ""
-                                    showCreateGroup = false
+                                    taskGroupViewModel.createGroup(
+                                        projectId = projectId,
+                                        name = newGroupName.trim(),
+                                        onSuccess = {
+                                            newGroupName = ""
+                                            showCreateGroup = false
+                                            taskGroupViewModel.loadGroups(projectId)
+                                        }
+                                    )
                                 }
                             },
                             onTaskClick = onTaskClick,
@@ -356,6 +320,207 @@ fun ProjectDetailScreen(
 }
 
 @Composable
+fun ProjectDetailTasksArea(
+    searchText: String,
+    onSearchChange: (String) -> Unit,
+    tasks: List<Task>,
+    allTasks: List<Task>,
+    taskGroups: List<TaskGroup>,
+    showCreateGroup: Boolean,
+    newGroupName: String,
+    onNewGroupNameChange: (String) -> Unit,
+    onShowCreateGroupChange: (Boolean) -> Unit,
+    onCreateGroup: () -> Unit,
+    onTaskClick: (Long) -> Unit,
+    onCompleteTask: (Task) -> Unit
+) {
+    Text(
+        text = appText(en = "Tasks", pt = "Tarefas"),
+        style = MaterialTheme.typography.titleMedium,
+        fontWeight = FontWeight.Bold,
+        color = MaterialTheme.colorScheme.onBackground
+    )
+
+    Spacer(modifier = Modifier.height(10.dp))
+
+    if (showCreateGroup) {
+        ForgeCard(modifier = Modifier.fillMaxWidth()) {
+            Column(modifier = Modifier.padding(14.dp)) {
+                OutlinedTextField(
+                    modifier = Modifier.fillMaxWidth(),
+                    value = newGroupName,
+                    onValueChange = onNewGroupNameChange,
+                    label = {
+                        Text(appText(en = "Group name", pt = "Nome do grupo"))
+                    },
+                    placeholder = {
+                        Text(
+                            appText(
+                                en = "Example: Planning & Preparation",
+                                pt = "Exemplo: Planeamento e Preparação"
+                            )
+                        )
+                    },
+                    singleLine = true,
+                    shape = RoundedCornerShape(12.dp)
+                )
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    ForgeSecondaryButton(
+                        text = appText(en = "Cancel", pt = "Cancelar"),
+                        modifier = Modifier.weight(1f),
+                        onClick = { onShowCreateGroupChange(false) }
+                    )
+
+                    ForgePrimaryButton(
+                        text = appText(en = "Create group", pt = "Criar grupo"),
+                        modifier = Modifier.weight(1f),
+                        onClick = onCreateGroup
+                    )
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(14.dp))
+    }
+
+    ForgeSearchBar(
+        value = searchText,
+        onValueChange = onSearchChange,
+        placeholder = appText(en = "Search task", pt = "Pesquisar tarefa")
+    )
+
+    Spacer(modifier = Modifier.height(14.dp))
+
+    ProjectDetailTaskList(
+        tasks = tasks,
+        allTasks = allTasks,
+        taskGroups = taskGroups,
+        onTaskClick = onTaskClick,
+        onCompleteTask = onCompleteTask
+    )
+}
+
+@Composable
+fun ProjectDetailTaskList(
+    tasks: List<Task>,
+    allTasks: List<Task>,
+    taskGroups: List<TaskGroup>,
+    onTaskClick: (Long) -> Unit,
+    onCompleteTask: (Task) -> Unit
+) {
+    val groupedTasks = tasks.groupBy { task ->
+        task.task_group?.takeIf { it.isNotBlank() }
+            ?: appText(en = "No group", pt = "Sem grupo")
+    }
+
+    val savedGroupNames = taskGroups.map { it.name }
+    val existingGroupNames = groupedTasks.keys.toSet()
+
+    val emptySavedGroups = savedGroupNames
+        .filter { groupName -> groupName !in existingGroupNames }
+        .distinctBy { it.lowercase() }
+
+    if (groupedTasks.isEmpty() && emptySavedGroups.isEmpty()) {
+        ForgeCard(modifier = Modifier.fillMaxWidth()) {
+            Text(
+                text = appText(
+                    en = "There are no tasks in this project.",
+                    pt = "Ainda não existem tarefas neste projeto."
+                ),
+                modifier = Modifier.padding(14.dp),
+                color = MaterialTheme.colorScheme.onSurface
+            )
+        }
+    } else {
+        savedGroupNames.forEach { groupName ->
+            val groupTasks = groupedTasks[groupName].orEmpty()
+
+            if (groupTasks.isEmpty()) {
+                ProjectDetailCustomGroup(title = groupName)
+            } else {
+                ProjectDetailTaskGroup(
+                    title = groupName,
+                    tasks = groupTasks,
+                    onTaskClick = onTaskClick,
+                    onCompleteTask = onCompleteTask
+                )
+            }
+        }
+
+        groupedTasks
+            .filterKeys { it !in savedGroupNames }
+            .forEach { (groupName, groupTasks) ->
+                ProjectDetailTaskGroup(
+                    title = groupName,
+                    tasks = groupTasks,
+                    onTaskClick = onTaskClick,
+                    onCompleteTask = onCompleteTask
+                )
+            }
+    }
+
+    Spacer(modifier = Modifier.height(6.dp))
+
+    Text(
+        text = appText(
+            en = "${allTasks.size} tasks in this project",
+            pt = "${allTasks.size} tarefas neste projeto"
+        ),
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
+    )
+}
+
+@Composable
+fun AddUserDialog(
+    users: List<User>,
+    onDismiss: () -> Unit,
+    onAddUser: (User) -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(text = appText(en = "Add users", pt = "Adicionar utilizadores"))
+        },
+        text = {
+            Column {
+                users.forEach { user ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { onAddUser(user) }
+                            .padding(12.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(user.name)
+                        Text("+")
+                    }
+                }
+
+                if (users.isEmpty()) {
+                    Text(
+                        text = appText(
+                            en = "No users available",
+                            pt = "Não existem utilizadores disponíveis"
+                        )
+                    )
+                }
+            }
+        },
+        confirmButton = {},
+        dismissButton = {
+            Text(
+                text = appText(en = "Close", pt = "Fechar"),
+                modifier = Modifier.clickable { onDismiss() }
+            )
+        }
+    )
+}
+
+@Composable
 fun ProjectDetailHeader(
     project: Project,
     totalTasks: Int,
@@ -396,7 +561,7 @@ fun ProjectDetailHeader(
                     .fillMaxWidth()
                     .height(8.dp)
                     .clip(RoundedCornerShape(50)),
-                color = if (isCompleted) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.tertiary,
+                color = MaterialTheme.colorScheme.primary,
                 trackColor = MaterialTheme.colorScheme.secondaryContainer
             )
         }
@@ -404,16 +569,26 @@ fun ProjectDetailHeader(
         Spacer(modifier = Modifier.width(10.dp))
 
         if (isCompleted) {
-            ForgeMiniChip(
-                text = if (hasReview) {
-                    appText(en = "Review", pt = "Review")
-                } else {
-                    "⋯"
-                },
-                modifier = Modifier.clickable { onReviewProjectClick() },
-                containerColor = Color(0xFFB7EBC0),
-                contentColor = Color(0xFF14532D)
-            )
+            Box(
+                modifier = Modifier
+                    .height(30.dp)
+                    .clip(RoundedCornerShape(50))
+                    .background(Color(0xFFB7EBC0))
+                    .clickable { onReviewProjectClick() }
+                    .padding(horizontal = 14.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = if (hasReview) {
+                        appText(en = "Review", pt = "Review")
+                    } else {
+                        appText(en = "Evaluate", pt = "Avaliar")
+                    },
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFF14532D)
+                )
+            }
         } else if (project.priority?.uppercase() == "HIGH") {
             ForgeMiniChip(
                 text = appText(en = "Urgent", pt = "Urgente"),
@@ -427,7 +602,7 @@ fun ProjectDetailHeader(
 @Composable
 fun ProjectDetailActions(
     onCreateTaskClick: () -> Unit,
-    onEditProjectClick: () -> Unit
+    onAddGroupClick: () -> Unit
 ) {
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -440,188 +615,11 @@ fun ProjectDetailActions(
         )
 
         ForgeSecondaryButton(
-            text = appText(en = "Edit project", pt = "Editar projeto"),
+            text = appText(en = "Add group", pt = "Adicionar grupo"),
             modifier = Modifier.weight(1f),
-            onClick = onEditProjectClick
+            onClick = onAddGroupClick
         )
     }
-}
-
-@Composable
-fun ProjectDetailTasksArea(
-    searchText: String,
-    onSearchChange: (String) -> Unit,
-    selectedFilter: String,
-    onFilterChange: (String) -> Unit,
-    tasks: List<Task>,
-    allTasks: List<Task>,
-    customGroups: List<String>,
-    showCreateGroup: Boolean,
-    newGroupName: String,
-    onNewGroupNameChange: (String) -> Unit,
-    onShowCreateGroupChange: (Boolean) -> Unit,
-    onCreateGroup: () -> Unit,
-    onTaskClick: (Long) -> Unit,
-    onCompleteTask: (Task) -> Unit
-) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Text(
-            text = appText(en = "Tasks", pt = "Tarefas"),
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.onBackground,
-            modifier = Modifier.weight(1f)
-        )
-
-        ForgeMiniChip(
-            text = "+",
-            modifier = Modifier.clickable {
-                onShowCreateGroupChange(!showCreateGroup)
-            },
-            containerColor = MaterialTheme.colorScheme.primary,
-            contentColor = MaterialTheme.colorScheme.onPrimary
-        )
-    }
-
-    Spacer(modifier = Modifier.height(10.dp))
-
-    if (showCreateGroup) {
-        ForgeCard(modifier = Modifier.fillMaxWidth()) {
-            Column(modifier = Modifier.padding(14.dp)) {
-                OutlinedTextField(
-                    modifier = Modifier.fillMaxWidth(),
-                    value = newGroupName,
-                    onValueChange = onNewGroupNameChange,
-                    label = {
-                        Text(appText(en = "Group name", pt = "Nome do grupo"))
-                    },
-                    placeholder = {
-                        Text(appText(en = "Example: Planning", pt = "Exemplo: Planeamento"))
-                    },
-                    singleLine = true,
-                    shape = RoundedCornerShape(12.dp)
-                )
-
-                Spacer(modifier = Modifier.height(10.dp))
-
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    ForgeSecondaryButton(
-                        text = appText(en = "Cancel", pt = "Cancelar"),
-                        modifier = Modifier.weight(1f),
-                        onClick = { onShowCreateGroupChange(false) }
-                    )
-
-                    ForgePrimaryButton(
-                        text = appText(en = "Create group", pt = "Criar grupo"),
-                        modifier = Modifier.weight(1f),
-                        onClick = onCreateGroup
-                    )
-                }
-            }
-        }
-
-        Spacer(modifier = Modifier.height(14.dp))
-    }
-
-    ForgeSearchBar(
-        value = searchText,
-        onValueChange = onSearchChange,
-        placeholder = appText(en = "Search task", pt = "Pesquisar tarefa")
-    )
-
-    Spacer(modifier = Modifier.height(10.dp))
-
-    ProjectDetailTaskFilterRow(
-        selectedFilter = selectedFilter,
-        onFilterChange = onFilterChange
-    )
-
-    Spacer(modifier = Modifier.height(14.dp))
-
-    ProjectDetailTaskList(
-        tasks = tasks,
-        allTasks = allTasks,
-        selectedFilter = selectedFilter,
-        customGroups = customGroups,
-        onTaskClick = onTaskClick,
-        onCompleteTask = onCompleteTask
-    )
-}
-
-@Composable
-fun ProjectDetailTaskList(
-    tasks: List<Task>,
-    allTasks: List<Task>,
-    selectedFilter: String,
-    customGroups: List<String>,
-    onTaskClick: (Long) -> Unit,
-    onCompleteTask: (Task) -> Unit
-) {
-    if (tasks.isEmpty() && customGroups.isEmpty()) {
-        ForgeCard(modifier = Modifier.fillMaxWidth()) {
-            Text(
-                text = appText(
-                    en = "There are no tasks matching this filter.",
-                    pt = "Não existem tarefas para este filtro."
-                ),
-                modifier = Modifier.padding(14.dp),
-                color = MaterialTheme.colorScheme.onSurface
-            )
-        }
-    } else {
-        customGroups.forEach { groupName ->
-            ProjectDetailCustomGroup(
-                title = groupName
-            )
-        }
-
-        if (selectedFilter == "ALL") {
-            ProjectDetailTaskGroup(
-                title = appText(en = "To Do", pt = "Por Fazer"),
-                tasks = tasks.filter {
-                    val status = it.status?.uppercase()
-                    status != "DONE" && status != "IN_PROGRESS"
-                },
-                onTaskClick = onTaskClick,
-                onCompleteTask = onCompleteTask
-            )
-
-            ProjectDetailTaskGroup(
-                title = appText(en = "In Progress", pt = "Em Progresso"),
-                tasks = tasks.filter { it.status?.uppercase() == "IN_PROGRESS" },
-                onTaskClick = onTaskClick,
-                onCompleteTask = onCompleteTask
-            )
-
-            ProjectDetailTaskGroup(
-                title = appText(en = "Completed", pt = "Concluídas"),
-                tasks = tasks.filter { it.status?.uppercase() == "DONE" },
-                onTaskClick = onTaskClick,
-                onCompleteTask = onCompleteTask
-            )
-        } else {
-            ProjectDetailTaskGroup(
-                title = projectDetailFilterTitle(selectedFilter),
-                tasks = tasks,
-                onTaskClick = onTaskClick,
-                onCompleteTask = onCompleteTask
-            )
-        }
-    }
-
-    Spacer(modifier = Modifier.height(6.dp))
-
-    Text(
-        text = appText(
-            en = "${allTasks.size} tasks in this project",
-            pt = "${allTasks.size} tarefas neste projeto"
-        ),
-        style = MaterialTheme.typography.bodySmall,
-        color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
-    )
 }
 
 @Composable
@@ -660,12 +658,18 @@ fun ProjectDetailTaskGroup(
 ) {
     if (tasks.isEmpty()) return
 
-    Text(
-        text = "$title (${tasks.size})",
-        style = MaterialTheme.typography.titleSmall,
-        fontWeight = FontWeight.Bold,
-        color = MaterialTheme.colorScheme.onBackground
-    )
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = "$title (${tasks.size})",
+            style = MaterialTheme.typography.titleSmall,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onBackground,
+            modifier = Modifier.weight(1f)
+        )
+    }
 
     Spacer(modifier = Modifier.height(8.dp))
 
@@ -683,71 +687,13 @@ fun ProjectDetailTaskGroup(
 }
 
 @Composable
-fun ProjectDetailTaskFilterRow(
-    selectedFilter: String,
-    onFilterChange: (String) -> Unit
-) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        ProjectDetailFilterChip(
-            text = appText(en = "All", pt = "Todas"),
-            selected = selectedFilter == "ALL",
-            onClick = { onFilterChange("ALL") },
-            modifier = Modifier.weight(1f)
-        )
-
-        ProjectDetailFilterChip(
-            text = appText(en = "To do", pt = "Por fazer"),
-            selected = selectedFilter == "TODO",
-            onClick = { onFilterChange("TODO") },
-            modifier = Modifier.weight(1f)
-        )
-
-        ProjectDetailFilterChip(
-            text = appText(en = "Active", pt = "Ativas"),
-            selected = selectedFilter == "ACTIVE",
-            onClick = { onFilterChange("ACTIVE") },
-            modifier = Modifier.weight(1f)
-        )
-
-        ProjectDetailFilterChip(
-            text = appText(en = "Done", pt = "Feitas"),
-            selected = selectedFilter == "DONE",
-            onClick = { onFilterChange("DONE") },
-            modifier = Modifier.weight(1f)
-        )
-    }
-}
-
-@Composable
-fun ProjectDetailFilterChip(
-    text: String,
-    selected: Boolean,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    FilterChip(
-        modifier = modifier,
-        selected = selected,
-        onClick = onClick,
-        label = {
-            Text(
-                text = text,
-                style = MaterialTheme.typography.labelSmall
-            )
-        }
-    )
-}
-
-@Composable
 fun ProjectDetailTaskCard(
     task: Task,
     onClick: () -> Unit,
     onCompleteClick: () -> Unit
 ) {
     val isDone = task.status?.uppercase() == "DONE"
+    val isInProgress = task.status?.uppercase() == "IN_PROGRESS"
     val progress = task.completion_rate ?: 0
 
     ForgeCard(modifier = Modifier.fillMaxWidth()) {
@@ -774,19 +720,27 @@ fun ProjectDetailTaskCard(
                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.65f),
                         maxLines = 2
                     )
+
+                    Spacer(modifier = Modifier.height(6.dp))
+
+                    Text(
+                        text = projectDetailTaskDates(task),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.58f)
+                    )
                 }
 
                 ForgeMiniChip(
                     text = readableProjectDetailTaskStatus(task.status),
-                    containerColor = if (isDone) {
-                        Color(0xFFB7EBC0)
-                    } else {
-                        MaterialTheme.colorScheme.secondaryContainer
+                    containerColor = when {
+                        isDone -> Color(0xFFB7EBC0)
+                        isInProgress -> MaterialTheme.colorScheme.primary
+                        else -> MaterialTheme.colorScheme.secondaryContainer
                     },
-                    contentColor = if (isDone) {
-                        Color(0xFF14532D)
-                    } else {
-                        MaterialTheme.colorScheme.onSecondaryContainer
+                    contentColor = when {
+                        isDone -> Color(0xFF14532D)
+                        isInProgress -> MaterialTheme.colorScheme.onPrimary
+                        else -> MaterialTheme.colorScheme.onSecondaryContainer
                     }
                 )
             }
@@ -840,7 +794,8 @@ fun ProjectDetailTeamSection(
 ) {
     Row(
         modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
     ) {
         Text(
             text = appText(en = "Project Team", pt = "Equipa do Projeto"),
@@ -934,13 +889,10 @@ private fun readableProjectDetailTaskStatus(status: String?): String {
     }
 }
 
-private fun projectDetailFilterTitle(filter: String): String {
-    return when (filter) {
-        "TODO" -> appText(en = "To Do", pt = "Por Fazer")
-        "ACTIVE" -> appText(en = "In Progress", pt = "Em Progresso")
-        "DONE" -> appText(en = "Completed", pt = "Concluídas")
-        else -> appText(en = "Tasks", pt = "Tarefas")
-    }
+private fun projectDetailTaskDates(task: Task): String {
+    val start = task.start_date ?: appText(en = "No start date", pt = "Sem data inicial")
+    val end = task.end_date ?: appText(en = "No end date", pt = "Sem data final")
+    return "$start → $end"
 }
 
 private fun projectDetailUserInitials(user: User): String {
