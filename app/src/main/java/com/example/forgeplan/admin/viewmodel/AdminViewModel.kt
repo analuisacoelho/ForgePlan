@@ -5,7 +5,9 @@ import com.example.forgeplan.auth.repository.AuthRepository
 import com.example.forgeplan.core.model.ActivityLog
 import com.example.forgeplan.core.model.User
 import com.example.forgeplan.core.network.SupabaseApi
+import com.example.forgeplan.core.network.SupabaseService
 import com.example.forgeplan.core.repository.UserRepository
+import com.example.forgeplan.core.session.SessionManager
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import retrofit2.Call
@@ -69,6 +71,8 @@ class AdminViewModel : ViewModel() {
         userRepository.updateUser(
             user = updated,
             onSuccess = {
+                val action = if (updated.is_active) "USER_ACTIVATED" else "USER_DEACTIVATED"
+                logActivity(action, "user", user.id, "User: ${user.name}")
                 _successMessage.value = if (updated.is_active) "Conta ativada." else "Conta desativada."
                 loadUsers()
             },
@@ -86,6 +90,7 @@ class AdminViewModel : ViewModel() {
             password = hashedPassword,
             role = role,
             onSuccess = {
+                logActivity("USER_CREATED", "user", 0L, "Admin: ${SessionManager.currentUser?.name} criou o utilizador '$name' com role '$role'")
                 _successMessage.value = "Utilizador criado."
                 loadUsers()
             },
@@ -100,6 +105,7 @@ class AdminViewModel : ViewModel() {
         userRepository.updateUser(
             user = user,
             onSuccess = {
+                logActivity("USER_UPDATED", "user", user.id, "Admin: ${SessionManager.currentUser?.name} editou o utilizador '${user.name}'")
                 _successMessage.value = "Utilizador atualizado."
                 loadUsers()
             },
@@ -110,5 +116,21 @@ class AdminViewModel : ViewModel() {
     fun clearMessages() {
         _error.value = null
         _successMessage.value = null
+    }
+
+    // Regista uma ação no histórico de atividades
+    private fun logActivity(action: String, entityType: String, entityId: Long, details: String = "") {
+        val payload = SupabaseService.ActivityLogPayload(
+            user_id = SessionManager.userId,
+            action = action,
+            entity_type = entityType,
+            entity_id = entityId,
+            details = details
+        )
+        SupabaseApi.service.createActivityLog(payload)
+            .enqueue(object : retrofit2.Callback<Unit> {
+                override fun onResponse(call: retrofit2.Call<Unit>, response: retrofit2.Response<Unit>) {}
+                override fun onFailure(call: retrofit2.Call<Unit>, t: Throwable) {}
+            })
     }
 }

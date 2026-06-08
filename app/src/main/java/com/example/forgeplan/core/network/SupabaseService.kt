@@ -234,4 +234,19 @@ interface SupabaseService {
     @Headers("Prefer: return=representation")
     @POST("task_dependencies")
     fun createDependency(@Body dependency: TaskDependency): Call<List<TaskDependency>>
+
+    // ── ACTIVITY LOGS ────────────────────────────────────────────────────────
+
+    data class ActivityLogPayload(
+        val user_id: Long,
+        val action: String,
+        val entity_type: String,
+        val entity_id: Long,
+        val details: String = ""
+    )
+
+    @POST("activity_logs")
+    fun createActivityLog(
+        @Body log: ActivityLogPayload
+    ): Call<Unit>
 }

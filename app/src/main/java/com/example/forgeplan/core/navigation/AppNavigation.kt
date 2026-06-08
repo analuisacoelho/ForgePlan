@@ -104,7 +104,13 @@ fun AppNavigation() {
 
         composable("adminActivity") {
             AdminActivityScreen(
-                onBackClick = { navController.popBackStack() }
+                onBackClick = { navController.popBackStack() },
+                onProjectsClick = { navController.navigate("admin") {
+                    popUpTo("admin") { inclusive = true }
+                }},
+                onUsersClick = { navController.navigate("adminUsers") },
+                onProfileClick = { navController.navigate("profile") },
+                onLogout = { navController.navigate("login") { popUpTo(0) { inclusive = true } } }
             )
         }
 
