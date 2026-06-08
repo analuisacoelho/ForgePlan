@@ -52,13 +52,6 @@ interface SupabaseService {
         @Body user: User
     ): Call<List<User>>
 
-    // ── ACTIVITY LOGS ────────────────────────────────────────────────────────
-
-    @GET("activity_logs")
-    fun getActivityLogs(
-        @Query("order") order: String = "created_at.desc"
-    ): Call<List<ActivityLog>>
-
     // ── PROJECTS ─────────────────────────────────────────────────────────────
 
     @GET("projects")
@@ -265,7 +258,9 @@ interface SupabaseService {
 
     @Headers("Prefer: return=representation")
     @POST("task_dependencies")
-    fun createDependency(@Body dependency: TaskDependency): Call<List<TaskDependency>>
+    fun createDependency(
+        @Body dependency: TaskDependency
+    ): Call<List<TaskDependency>>
 
     // ── ACTIVITY LOGS ────────────────────────────────────────────────────────
 
@@ -281,9 +276,11 @@ interface SupabaseService {
     fun createActivityLog(
         @Body log: ActivityLogPayload
     ): Call<Unit>
-    fun createDependency(
-        @Body dependency: TaskDependency
-    ): Call<List<TaskDependency>>
+
+    @GET("activity_logs")
+    fun getActivityLogs(
+        @Query("order") order: String = "created_at.desc"
+    ): Call<List<ActivityLog>>
 
     // ── TASK GROUPS ──────────────────────────────────────────────────────────
 
