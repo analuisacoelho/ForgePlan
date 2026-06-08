@@ -20,11 +20,12 @@ import com.example.forgeplan.projects.ui.ManagerDashboardScreen
 import com.example.forgeplan.projects.ui.ProjectDetailScreen
 import com.example.forgeplan.projects.ui.ProjectReviewScreen
 import com.example.forgeplan.reports.ui.ReportsScreen
-import com.example.forgeplan.social.ui.UserPublicScreen
 import com.example.forgeplan.tasks.ui.CreateTaskScreen
 import com.example.forgeplan.tasks.ui.EditTaskScreen
 import com.example.forgeplan.tasks.ui.ProjectTasksScreen
 import com.example.forgeplan.tasks.ui.TaskDetailScreen
+import com.example.forgeplan.tasks.ui.TaskOwnerDetailScreen
+import com.example.forgeplan.tasks.ui.TaskPublicDetailScreen
 import com.example.forgeplan.tasks.ui.UserDashboardScreen
 import com.example.forgeplan.team.ui.TeamScreen
 import com.example.forgeplan.timeline.ui.TimelineScreen
@@ -280,17 +281,61 @@ fun AppNavigation() {
         }
 
         composable(
+            route = "taskOwner/{taskId}",
+            arguments = listOf(navArgument("taskId") { type = NavType.LongType })
+        ) { back ->
+            val taskId = back.arguments?.getLong("taskId") ?: 0L
+
+            TaskOwnerDetailScreen(
+                taskId = taskId,
+                onBack = { navController.popBackStack() },
+                onAddProgress = { id ->
+                    navController.navigate("userProgress/$id")
+                },
+                onProjectsClick = { navController.navigate("user") },
+                onTimelineClick = { navController.navigate("userTimeline") },
+                onProgressClick = { navController.navigate("userProgress") },
+                onTeamClick = { navController.navigate("userTeam") },
+                onProfileClick = { navController.navigate("profile") }
+            )
+        }
+
+        composable(
             route = "projectTasks/{projectId}",
             arguments = listOf(navArgument("projectId") { type = NavType.LongType })
         ) { back ->
             ProjectTasksScreen(
                 projectId = back.arguments?.getLong("projectId") ?: 0L,
                 onBack = { navController.popBackStack() },
-                onTaskClick = { navController.navigate("userProgress/$it") },
+
+                onMyTaskClick = { taskId ->
+                    navController.navigate("taskOwner/$taskId")
+                },
+
+                onOtherTaskClick = { taskId ->
+                    navController.navigate("taskPublic/$taskId")
+                },
+
                 onTimelineClick = { navController.navigate("userTimeline") },
                 onProgressClick = { navController.navigate("userProgress") },
                 onTeamClick = { navController.navigate("userTeam") },
                 onProfileClick = { navController.navigate("profile") }
+            )
+        }
+
+        composable(
+            route = "taskPublic/{taskId}",
+            arguments = listOf(navArgument("taskId") { type = NavType.LongType })
+        ) { back ->
+            val taskId = back.arguments?.getLong("taskId") ?: 0L
+
+            TaskPublicDetailScreen(
+                taskId = taskId,
+                onBack = { navController.popBackStack() },
+                onProjectsClick = { navController.navigate("user") },
+                onTimelineClick = { navController.navigate("userTimeline") },
+                onProgressClick = { navController.navigate("userProgress") },
+                onTeamClick = { navController.navigate("userTeam") }
             )
         }
 
@@ -327,14 +372,6 @@ fun AppNavigation() {
         composable("userProgress") {
             ProgressScreen(
                 taskId = 0L,
-                onProjectsClick = { navController.navigate("user") },
-                onTimelineClick = { navController.navigate("userTimeline") },
-                onTeamClick = { navController.navigate("userTeam") }
-            )
-        }
-
-        composable("userPublic") {
-            UserPublicScreen(
                 onProjectsClick = { navController.navigate("user") },
                 onTimelineClick = { navController.navigate("userTimeline") },
                 onTeamClick = { navController.navigate("userTeam") }
