@@ -130,7 +130,7 @@ private fun ActivityLogCard(
                 )
                 // Data formatada da ação
                 Text(
-                    text = log.created_at ?: "",
+                    text = formatLogDate(log.created_at),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                 )
@@ -142,5 +142,17 @@ private fun ActivityLogCard(
                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
             )
         }
+    }
+}
+
+private fun formatLogDate(dateString: String?): String {
+    if (dateString == null) return ""
+    return try {
+        val inputFormat = java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", java.util.Locale.getDefault())
+        val outputFormat = java.text.SimpleDateFormat("dd/MM/yyyy - HH:mm", java.util.Locale.getDefault())
+        val date = inputFormat.parse(dateString.substringBefore("."))
+        outputFormat.format(date ?: return dateString)
+    } catch (e: Exception) {
+        dateString
     }
 }

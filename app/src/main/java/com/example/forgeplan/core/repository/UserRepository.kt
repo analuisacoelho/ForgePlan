@@ -1,6 +1,7 @@
 package com.example.forgeplan.core.repository
 
 import com.example.forgeplan.core.model.User
+import com.example.forgeplan.core.model.UserPayload
 import com.example.forgeplan.core.network.SupabaseApi
 import retrofit2.Call
 import retrofit2.Callback
@@ -37,16 +38,13 @@ class UserRepository {
         onSuccess: () -> Unit,
         onError: (String) -> Unit
     ) {
-        val newUser = User(
-            id = 0L,
+        val newUser = UserPayload(
             name = name,
             username = username,
             email = email,
             password = password,
-            role = role,
-            is_active = true
+            role = role
         )
-
         SupabaseApi.service.createUser(newUser)
             .enqueue(object : Callback<List<User>> {
                 override fun onResponse(call: Call<List<User>>, response: Response<List<User>>) {

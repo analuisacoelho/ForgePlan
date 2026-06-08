@@ -19,6 +19,7 @@ import com.example.forgeplan.core.model.TaskLog
 import com.example.forgeplan.core.model.TaskPayload
 import com.example.forgeplan.core.model.TaskPhoto
 import com.example.forgeplan.core.model.User
+import com.example.forgeplan.core.model.UserPayload
 import retrofit2.Call
 import retrofit2.http.Body
 import retrofit2.http.DELETE
@@ -43,7 +44,9 @@ interface SupabaseService {
 
     @Headers("Prefer: return=representation")
     @POST("users")
-    fun createUser(@Body user: User): Call<List<User>>
+    fun createUser(
+        @Body user: UserPayload
+    ): Call<List<User>>
 
     @Headers("Prefer: return=representation")
     @PATCH("users")

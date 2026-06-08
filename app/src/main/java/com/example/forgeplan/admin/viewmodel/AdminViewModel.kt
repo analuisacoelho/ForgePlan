@@ -2,6 +2,7 @@ package com.example.forgeplan.admin.viewmodel
 
 import androidx.lifecycle.ViewModel
 import com.example.forgeplan.auth.repository.AuthRepository
+import com.example.forgeplan.core.language.AppLanguage
 import com.example.forgeplan.core.model.ActivityLog
 import com.example.forgeplan.core.model.User
 import com.example.forgeplan.core.network.SupabaseApi
@@ -60,8 +61,10 @@ class AdminViewModel : ViewModel() {
                     _isLoading.value = false
                 }
                 override fun onFailure(call: Call<List<ActivityLog>>, t: Throwable) {
-                    _error.value = t.message
-                    _isLoading.value = false
+                    _error.value = if (AppLanguage.isPortuguese())
+                        "Erro ao carregar atividades"
+                    else
+                        "Error loading activity logs"
                 }
             })
     }
@@ -72,8 +75,17 @@ class AdminViewModel : ViewModel() {
             user = updated,
             onSuccess = {
                 val action = if (updated.is_active) "USER_ACTIVATED" else "USER_DEACTIVATED"
-                logActivity(action, "user", user.id, "User: ${user.name}")
-                _successMessage.value = if (updated.is_active) "Conta ativada." else "Conta desativada."
+                logActivity(
+                    action = action,
+                    entityType = "user",
+                    entityId = user.id,
+                    detailsEn = "Admin: ${SessionManager.currentUser?.name} ${if (updated.is_active) "activated" else "deactivated"} the account of '${user.name}'",
+                    detailsPt = "Admin: ${SessionManager.currentUser?.name} ${if (updated.is_active) "ativou" else "desativou"} a conta de '${user.name}'"
+                )
+                _successMessage.value = if (AppLanguage.isPortuguese())
+                    if (updated.is_active) "Conta ativada." else "Conta desativada."
+                else
+                    if (updated.is_active) "Account activated." else "Account deactivated."
                 loadUsers()
             },
             onError = { message -> _error.value = message }
@@ -90,8 +102,17 @@ class AdminViewModel : ViewModel() {
             password = hashedPassword,
             role = role,
             onSuccess = {
-                logActivity("USER_CREATED", "user", 0L, "Admin: ${SessionManager.currentUser?.name} criou o utilizador '$name' com role '$role'")
-                _successMessage.value = "Utilizador criado."
+                logActivity(
+                    action = "USER_CREATED",
+                    entityType = "user",
+                    entityId = 0L,
+                    detailsEn = "Admin: ${SessionManager.currentUser?.name} created user '$name' with role '$role'",
+                    detailsPt = "Admin: ${SessionManager.currentUser?.name} criou o utilizador '$name' com role '$role'"
+                )
+                _successMessage.value = if (AppLanguage.isPortuguese())
+                    "Utilizador criado."
+                else
+                    "User created."
                 loadUsers()
             },
             onError = { message ->
@@ -105,8 +126,17 @@ class AdminViewModel : ViewModel() {
         userRepository.updateUser(
             user = user,
             onSuccess = {
-                logActivity("USER_UPDATED", "user", user.id, "Admin: ${SessionManager.currentUser?.name} editou o utilizador '${user.name}'")
-                _successMessage.value = "Utilizador atualizado."
+                logActivity(
+                    action = "USER_UPDATED",
+                    entityType = "user",
+                    entityId = user.id,
+                    detailsEn = "Admin: ${SessionManager.currentUser?.name} edited user '${user.name}'",
+                    detailsPt = "Admin: ${SessionManager.currentUser?.name} editou o utilizador '${user.name}'"
+                )
+                _successMessage.value = if (AppLanguage.isPortuguese())
+                    "Utilizador atualizado."
+                else
+                    "User updated."
                 loadUsers()
             },
             onError = { message -> _error.value = message }
@@ -118,8 +148,15 @@ class AdminViewModel : ViewModel() {
         _successMessage.value = null
     }
 
-    // Regista uma ação no histórico de atividades
-    private fun logActivity(action: String, entityType: String, entityId: Long, details: String = "") {
+    // Regista uma ação no histórico
+    private fun logActivity(
+        action: String,
+        entityType: String,
+        entityId: Long,
+        detailsEn: String,
+        detailsPt: String
+    ) {
+        val details = if (AppLanguage.isPortuguese()) detailsPt else detailsEn
         val payload = SupabaseService.ActivityLogPayload(
             user_id = SessionManager.userId,
             action = action,
