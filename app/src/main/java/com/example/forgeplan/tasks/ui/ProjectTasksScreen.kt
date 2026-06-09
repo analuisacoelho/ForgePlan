@@ -1,6 +1,7 @@
 package com.example.forgeplan.tasks.ui
 
 import android.content.res.Configuration
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -44,7 +45,8 @@ private object ProjectTasksStrings {
 fun ProjectTasksScreen(
     projectId: Long,
     onBack: () -> Unit,
-    onTaskClick: (Long) -> Unit = {},
+    onMyTaskClick: (Long) -> Unit = {},      // ← vai para ProgressScreen
+    onOtherTaskClick: (Long) -> Unit = {},   // ← vai para TaskPublicDetailScreen
     onTimelineClick: () -> Unit = {},
     onProgressClick: () -> Unit = {},
     onTeamClick: () -> Unit = {},
@@ -52,49 +54,56 @@ fun ProjectTasksScreen(
 ) {
     val vm: ProjectTasksViewModel = viewModel()
 
-    val tasks by vm.tasks.collectAsState()
+    val tasks     by vm.tasks.collectAsState()
     val isLoading by vm.isLoading.collectAsState()
-    val error by vm.error.collectAsState()
+    val error     by vm.error.collectAsState()
 
-    val isLandscape =
-        LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
+    // ── Carrega os IDs das tarefas atribuídas ao user actual ──
+    val myUserId = SessionManager.userId
+    var myTaskIds by remember { mutableStateOf<Set<Long>>(emptySet()) }
 
     LaunchedEffect(projectId) {
         vm.loadProjectTasks(projectId)
+        val repo = com.example.forgeplan.core.repository.TaskAssignmentRepository()
+        repo.getTaskIdsByUserId(
+            userId    = myUserId,
+            onSuccess = { myTaskIds = it.toSet() },
+            onError   = { myTaskIds = emptySet() }
+        )
     }
 
     Scaffold(
         topBar = {
             ForgePlanTopBar(
-                title = ProjectTasksStrings.title,
+                title    = ProjectTasksStrings.title,
                 initials = SessionManager.userInitials
             )
         },
         bottomBar = {
             ForgePlanBottomBar(
-                selectedItem = "Tasks",
+                selectedItem    = "Tasks",
                 onTimelineClick = onTimelineClick,
                 onProgressClick = onProgressClick,
-                onTeamClick = onTeamClick,
-                onProfileClick = onProfileClick
+                onTeamClick     = onTeamClick,
+                onProfileClick  = onProfileClick
             )
         }
     ) { padding ->
-
         TaskList(
-            padding = padding,
-            tasks = tasks,
+            padding   = padding,
+            tasks     = tasks,
             isLoading = isLoading,
-            error = error,
-            onTaskClick = onTaskClick,
+            error     = error,
+            onTaskClick = { task ->
+                if (task.id in myTaskIds) onMyTaskClick(task.id)
+                else                      onOtherTaskClick(task.id)
+            },
             onMarkDone = { task ->
-                vm.updateTask(
-                    task.copy(
-                        status = "DONE",
-                        completion_rate = 100
-                    )
-                )
-            }
+                if (task.id in myTaskIds) {
+                    vm.updateTask(task.copy(status = "DONE", completion_rate = 100))
+                }
+            },
+            myTaskIds = myTaskIds
         )
     }
 }
@@ -109,88 +118,45 @@ private fun TaskList(
     tasks: List<Task>,
     isLoading: Boolean,
     error: String?,
-    onTaskClick: (Long) -> Unit,
-    onMarkDone: (Task) -> Unit
+    onTaskClick: (Task) -> Unit,
+    onMarkDone: (Task) -> Unit,
+    myTaskIds: Set<Long>
 ) {
     var selectedTab by remember { mutableStateOf(0) }
 
-    val activeTasks = tasks.filter {
-        it.status?.uppercase() != "DONE"
-    }
+    val activeTasks    = tasks.filter { it.status?.uppercase() != "DONE" }
+    val completedTasks = tasks.filter { it.status?.uppercase() == "DONE" }
 
-    val completedTasks = tasks.filter {
-        it.status?.uppercase() == "DONE"
-    }
-
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(padding)
-    ) {
-
+    Column(Modifier.fillMaxSize().padding(padding)) {
         TabRow(selectedTabIndex = selectedTab) {
-
             Tab(
                 selected = selectedTab == 0,
-                onClick = { selectedTab = 0 },
-                text = {
-                    Text(
-                        appText(
-                            "Active (${activeTasks.size})",
-                            "Ativas (${activeTasks.size})"
-                        )
-                    )
-                }
+                onClick  = { selectedTab = 0 },
+                text     = { Text(appText("Active (${activeTasks.size})", "Ativas (${activeTasks.size})")) }
             )
-
             Tab(
                 selected = selectedTab == 1,
-                onClick = { selectedTab = 1 },
-                text = {
-                    Text(
-                        appText(
-                            "Completed (${completedTasks.size})",
-                            "Concluídas (${completedTasks.size})"
-                        )
-                    )
-                }
+                onClick  = { selectedTab = 1 },
+                text     = { Text(appText("Completed (${completedTasks.size})", "Concluídas (${completedTasks.size})")) }
             )
         }
 
         LazyColumn(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(16.dp),
+            modifier            = Modifier.fillMaxSize().padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
+            if (isLoading) item { LoadingBox() }
+            error?.let { item { ErrorBox(it) } }
 
-            if (isLoading) {
-                item { LoadingBox() }
-            }
-
-            error?.let {
-                item { ErrorBox(it) }
-            }
-
-            val displayedTasks =
-                if (selectedTab == 0)
-                    activeTasks
-                else
-                    completedTasks
+            val displayedTasks = if (selectedTab == 0) activeTasks else completedTasks
 
             if (!isLoading && displayedTasks.isEmpty()) {
                 item {
                     Text(
-                        text = if (selectedTab == 0)
-                            appText(
-                                "No active tasks",
-                                "Sem tarefas ativas"
-                            )
+                        text  = if (selectedTab == 0)
+                            appText("No active tasks", "Sem tarefas ativas")
                         else
-                            appText(
-                                "No completed tasks",
-                                "Sem tarefas concluídas"
-                            ),
+                            appText("No completed tasks", "Sem tarefas concluídas"),
                         style = MaterialTheme.typography.bodyLarge
                     )
                 }
@@ -198,18 +164,16 @@ private fun TaskList(
 
             items(displayedTasks) { task ->
                 TaskCard(
-                    task = task,
-                    onClick = {
-                        onTaskClick(task.id)
-                    },
-                    onMarkDone = {
-                        onMarkDone(task)
-                    }
+                    task       = task,
+                    isMine     = task.id in myTaskIds,
+                    onClick    = { onTaskClick(task) },
+                    onMarkDone = { onMarkDone(task) }
                 )
             }
         }
     }
 }
+
 // ─────────────────────────────────────────────
 // TASK CARD (MESMO ESTILO DOS PROJECTS)
 // ─────────────────────────────────────────────
@@ -217,38 +181,61 @@ private fun TaskList(
 @Composable
 fun TaskCard(
     task: Task,
+    isMine: Boolean,
     onClick: () -> Unit,
     onMarkDone: () -> Unit
 ) {
-    val isDone = task.status?.uppercase() == "DONE"
+    val isDone   = task.status?.uppercase() == "DONE"
     val progress = task.completion_rate ?: 0
 
-    val containerColor = if (isDone)
-        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
-    else
-        MaterialTheme.colorScheme.surface
+    val containerColor = when {
+        isDone  -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
+        !isMine -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)
+        else    -> MaterialTheme.colorScheme.surface
+    }
 
     Card(
         modifier = Modifier
             .fillMaxWidth()
             .clickable { onClick() },
-        shape = RoundedCornerShape(22.dp),
+        shape  = RoundedCornerShape(22.dp),
         colors = CardDefaults.cardColors(containerColor = containerColor)
     ) {
         Box(Modifier.padding(18.dp)) {
 
             Column {
 
-                Text(
-                    text = task.title,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold
-                )
+                // ── Título + badge "Outra pessoa" ──────────────────────
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text       = task.title,
+                        style      = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        modifier   = Modifier.weight(1f)
+                    )
+
+                    if (!isMine) {
+                        Spacer(Modifier.width(8.dp))
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(6.dp))
+                                .background(MaterialTheme.colorScheme.tertiary.copy(alpha = 0.25f))
+                                .padding(horizontal = 8.dp, vertical = 3.dp)
+                        ) {
+                            Text(
+                                text  = appText("Team", "Equipa"),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f),
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
+                    }
+                }
 
                 Spacer(Modifier.height(6.dp))
 
                 Text(
-                    text = if (isDone) ProjectTasksStrings.done else ProjectTasksStrings.pending,
+                    text  = if (isDone) ProjectTasksStrings.done else ProjectTasksStrings.pending,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                 )
@@ -256,7 +243,7 @@ fun TaskCard(
                 Spacer(Modifier.height(12.dp))
 
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier              = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Text(ProjectTasksStrings.progress)
@@ -274,23 +261,22 @@ fun TaskCard(
                 )
             }
 
-            // 🔥 BOTÃO QUICK DONE
-            if (!isDone) {
+            // 🔥 BOTÃO QUICK DONE — só aparece em tarefas tuas e não concluídas
+            if (isMine && !isDone) {
                 IconButton(
-                    onClick = onMarkDone,
+                    onClick  = onMarkDone,
                     modifier = Modifier.align(Alignment.TopEnd)
                 ) {
                     Icon(
-                        imageVector = Icons.Default.Check,
+                        imageVector        = Icons.Default.Check,
                         contentDescription = "Mark done",
-                        tint = MaterialTheme.colorScheme.primary
+                        tint               = MaterialTheme.colorScheme.primary
                     )
                 }
             }
         }
     }
 }
-
 // ─────────────────────────────────────────────
 // STATES
 // ─────────────────────────────────────────────

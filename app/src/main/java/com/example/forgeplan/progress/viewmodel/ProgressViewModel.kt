@@ -13,10 +13,12 @@ import com.example.forgeplan.core.network.SupabaseService.TaskPhotoPayload
 import com.example.forgeplan.core.repository.TaskLogRepository
 import com.example.forgeplan.core.repository.TaskRepository
 import com.example.forgeplan.core.session.SessionManager
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.RequestBody.Companion.toRequestBody
 import java.time.Instant
@@ -102,7 +104,6 @@ class ProgressViewModel : ViewModel() {
                 Log.d(TAG, "task_log inserted with id=$logId")
 
                 if (logId == -1L) {
-                    // Log falhou mas progresso foi guardado
                     _saveResult.value = successMsg
                     return@launch
                 }
@@ -141,9 +142,14 @@ class ProgressViewModel : ViewModel() {
         errorPrefix: String
     ) {
         try {
-            val bytes = context.contentResolver
-                .openInputStream(photoUri)
-                ?.use { it.readBytes() }
+            Log.d(TAG, "=== uploadPhoto START === taskId=$taskId logId=$logId")
+
+            // Leitura de bytes em IO
+            val bytes = withContext(Dispatchers.IO) {
+                context.contentResolver
+                    .openInputStream(photoUri)
+                    ?.use { it.readBytes() }
+            }
 
             if (bytes == null || bytes.isEmpty()) {
                 Log.w(TAG, "photo bytes are null or empty")
@@ -151,54 +157,63 @@ class ProgressViewModel : ViewModel() {
                 return
             }
 
+            Log.d(TAG, "bytes read: ${bytes.size}")
+
             val mimeType = context.contentResolver.getType(photoUri) ?: "image/jpeg"
-            // Sanitiza extensão: "image/jpeg" → "jpg", "image/png" → "png", etc.
             val ext = when (mimeType) {
                 "image/jpeg", "image/jpg" -> "jpg"
                 "image/png"               -> "png"
                 "image/gif"               -> "gif"
                 "image/webp"              -> "webp"
-                else                      -> mimeType.substringAfter("/").substringBefore(";").take(10)
+                else -> mimeType.substringAfter("/").substringBefore(";").take(10)
             }
             val filePath = "task_${taskId}/log_${logId}_${System.currentTimeMillis()}.$ext"
 
-            Log.d(TAG, "uploading photo: bucket=task-photos path=$filePath mimeType=$mimeType size=${bytes.size}")
+            Log.d(TAG, "mimeType=$mimeType filePath=$filePath")
 
             val body = bytes.toRequestBody(mimeType.toMediaTypeOrNull())
 
-            val response = SupabaseApi.storageService.uploadFile(
-                bucket      = "task-photos",
-                filePath    = filePath,
-                contentType = mimeType,
-                file        = body
-            ).execute()
+            // Upload em IO — corrige o NetworkOnMainThreadException
+            val response = withContext(Dispatchers.IO) {
+                SupabaseApi.storageService.uploadFile(
+                    bucket      = "task-photos",
+                    filePath    = filePath,
+                    contentType = mimeType,
+                    file        = body
+                ).execute()
+            }
+
+            Log.d(TAG, "upload response: code=${response.code()} success=${response.isSuccessful}")
 
             if (response.isSuccessful) {
-                Log.d(TAG, "upload successful, code=${response.code()}")
-                // Fechar o body para evitar leak
                 response.body()?.close()
 
                 val publicUrl = SupabaseApi.publicStorageUrl("task-photos", filePath)
+                Log.d(TAG, "publicUrl=$publicUrl")
 
-                taskLogRepo.insertTaskPhoto(
-                    SupabaseService.TaskPhotoPayload(
-                        task_log_id = logId,
-                        photo_url   = publicUrl,
-                        captured_at = nowIso,
-                        is_synced   = true
+                // Insert task_photo em IO
+                withContext(Dispatchers.IO) {
+                    taskLogRepo.insertTaskPhoto(
+                        TaskPhotoPayload(
+                            task_log_id = logId,
+                            photo_url   = publicUrl,
+                            captured_at = nowIso,
+                            is_synced   = true
+                        )
                     )
-                )
+                }
+
                 _saveResult.value = successMsg
+
             } else {
                 val errBody = response.errorBody()?.string() ?: "sem detalhe"
-                Log.e(TAG, "upload failed: code=${response.code()} body=$errBody")
-                // Progresso foi guardado mas foto falhou — informa o utilizador
+                Log.e(TAG, "upload FAILED: code=${response.code()} body=$errBody")
                 _saveResult.value = "$successMsg (⚠ foto: ${response.code()} $errBody)"
             }
 
         } catch (e: Exception) {
-            Log.e(TAG, "uploadPhoto exception", e)
-            _saveResult.value = "$successMsg (⚠ foto não carregada: ${e.message})"
+            Log.e(TAG, "uploadPhoto EXCEPTION: ${e::class.java.simpleName}: ${e.message}", e)
+            _saveResult.value = "$successMsg (⚠ foto não carregada: ${e::class.java.simpleName} - ${e.message})"
         }
     }
 }

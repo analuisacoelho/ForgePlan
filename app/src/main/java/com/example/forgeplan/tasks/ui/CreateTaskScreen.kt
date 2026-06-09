@@ -59,6 +59,7 @@ import com.example.forgeplan.core.repository.TaskAttachmentRepository
 import com.example.forgeplan.projects.viewmodel.ProjectViewModel
 import com.example.forgeplan.tasks.viewmodel.TaskAssignmentViewModel
 import com.example.forgeplan.tasks.viewmodel.TaskDependencyViewModel
+import com.example.forgeplan.tasks.viewmodel.TaskGroupViewModel
 import com.example.forgeplan.tasks.viewmodel.TaskViewModel
 import com.example.forgeplan.tasks.viewmodel.UserViewModel
 
@@ -70,7 +71,8 @@ fun CreateTaskScreen(
     projectViewModel: ProjectViewModel = viewModel(),
     userViewModel: UserViewModel = viewModel(),
     assignmentViewModel: TaskAssignmentViewModel = viewModel(),
-    dependencyViewModel: TaskDependencyViewModel = viewModel()
+    dependencyViewModel: TaskDependencyViewModel = viewModel(),
+    taskGroupViewModel: TaskGroupViewModel = viewModel()
 ) {
     val configuration = LocalConfiguration.current
     val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
@@ -81,9 +83,12 @@ fun CreateTaskScreen(
     val projects by projectViewModel.projects.collectAsState()
     val tasks by taskViewModel.tasks.collectAsState()
     val users by userViewModel.users.collectAsState()
+    val groups by taskGroupViewModel.groups.collectAsState()
+
     val taskError by taskViewModel.error.collectAsState()
     val assignmentError by assignmentViewModel.error.collectAsState()
     val dependencyError by dependencyViewModel.error.collectAsState()
+    val groupError by taskGroupViewModel.error.collectAsState()
 
     var selectedProject by remember { mutableStateOf<Project?>(null) }
     var title by remember { mutableStateOf("") }
@@ -104,13 +109,16 @@ fun CreateTaskScreen(
     var message by remember { mutableStateOf<String?>(null) }
     var isSaving by remember { mutableStateOf(false) }
 
-    val projectGroups =
-        remember(tasks) {
-            tasks
-                .mapNotNull { it.task_group }
-                .filter { it.isNotBlank() }
-                .distinct()
-        }
+    val projectGroups = remember(groups, tasks, taskGroup) {
+        (
+                groups.map { it.name.trim() } +
+                        tasks.mapNotNull { it.task_group?.trim() } +
+                        listOf(taskGroup.trim())
+                )
+            .filter { it.isNotBlank() }
+            .distinctBy { it.lowercase() }
+            .sortedBy { it.lowercase() }
+    }
 
     val saveTask: () -> Unit = {
         var hasError = false
@@ -128,6 +136,24 @@ fun CreateTaskScreen(
             titleError = appText(
                 en = "The title is required.",
                 pt = "O título é obrigatório."
+            )
+            hasError = true
+        }
+
+        val dateRegex = Regex("""^\d{4}-\d{2}-\d{2}$""")
+
+        if (startDate.isNotBlank() && !dateRegex.matches(startDate)) {
+            dateError = appText(
+                en = "The start date must be in YYYY-MM-DD format.",
+                pt = "A data de início deve estar no formato YYYY-MM-DD."
+            )
+            hasError = true
+        }
+
+        if (endDate.isNotBlank() && !dateRegex.matches(endDate)) {
+            dateError = appText(
+                en = "The end date must be in YYYY-MM-DD format.",
+                pt = "A data de fim deve estar no formato YYYY-MM-DD."
             )
             hasError = true
         }
@@ -254,7 +280,9 @@ fun CreateTaskScreen(
     LaunchedEffect(selectedProject?.id) {
         selectedProject?.let { project ->
             taskViewModel.loadTasks(project.id)
+            taskGroupViewModel.loadGroups(project.id)
             selectedDependency = null
+            taskGroup = ""
         }
     }
 
@@ -276,6 +304,16 @@ fun CreateTaskScreen(
                     vertical = if (isLandscape) 14.dp else 22.dp
                 )
         ) {
+            groupError?.let {
+                Text(
+                    text = it,
+                    color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.bodySmall
+                )
+
+                Spacer(modifier = Modifier.height(8.dp))
+            }
+
             if (isLandscape) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
