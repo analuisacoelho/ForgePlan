@@ -119,7 +119,7 @@ fun EditTaskScreen(
     var isSaving by remember { mutableStateOf(false) }
 
     val canRemoveExistingAttachments =
-        endDate.isBlank() || endDate >= EditTaskDateUtils.todayText()
+        status.uppercase() != "DONE"
 
     val documentPicker = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument()
@@ -512,8 +512,8 @@ fun EditTaskScreen(
                                     )
                                 } else {
                                     message = appText(
-                                        en = "You cannot remove attachments after the task deadline.",
-                                        pt = "Não podes remover anexos depois do prazo da tarefa."
+                                        en = "You cannot remove attachments from a completed task.",
+                                        pt = "Não podes remover anexos de uma tarefa concluída."
                                     )
                                 }
                             }
@@ -608,8 +608,8 @@ fun EditTaskScreen(
                             )
                         } else {
                             message = appText(
-                                en = "You cannot remove attachments after the task deadline.",
-                                pt = "Não podes remover anexos depois do prazo da tarefa."
+                                en = "You cannot remove attachments from a completed task.",
+                                pt = "Não podes remover anexos de uma tarefa concluída."
                             )
                         }
                     }
