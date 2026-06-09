@@ -123,7 +123,6 @@ fun AppNavigation() {
 
         composable("adminActivity") {
             AdminActivityScreen(
-                onBackClick = { navController.popBackStack() },
                 onProjectsClick = { navController.navigate("admin") {
                     popUpTo("admin") { inclusive = true }
                 }},

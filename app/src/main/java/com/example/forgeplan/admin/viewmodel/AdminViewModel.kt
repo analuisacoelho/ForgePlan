@@ -4,9 +4,11 @@ import androidx.lifecycle.ViewModel
 import com.example.forgeplan.auth.repository.AuthRepository
 import com.example.forgeplan.core.language.AppLanguage
 import com.example.forgeplan.core.model.ActivityLog
+import com.example.forgeplan.core.model.Project
 import com.example.forgeplan.core.model.User
 import com.example.forgeplan.core.network.SupabaseApi
 import com.example.forgeplan.core.network.SupabaseService
+import com.example.forgeplan.core.repository.ProjectRepository
 import com.example.forgeplan.core.repository.UserRepository
 import com.example.forgeplan.core.session.SessionManager
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -19,9 +21,13 @@ class AdminViewModel : ViewModel() {
 
     private val userRepository = UserRepository()
     private val authRepository = AuthRepository()
+    private val projectRepository = ProjectRepository()
 
     private val _users = MutableStateFlow<List<User>>(emptyList())
     val users: StateFlow<List<User>> = _users
+
+    private val _projects = MutableStateFlow<List<Project>>(emptyList())
+    val projects: StateFlow<List<Project>> = _projects
 
     private val _activityLogs = MutableStateFlow<List<ActivityLog>>(emptyList())
     val activityLogs: StateFlow<List<ActivityLog>> = _activityLogs
@@ -50,13 +56,30 @@ class AdminViewModel : ViewModel() {
         )
     }
 
-    // Carrega o histórico de atividades ordenado por data
+    fun loadProjects() {
+        _isLoading.value = true
+        _error.value = null
+        projectRepository.getProjects(
+            onSuccess = { projectList ->
+                _projects.value = projectList
+                _isLoading.value = false
+            },
+            onError = { message ->
+                _error.value = message
+                _isLoading.value = false
+            }
+        )
+    }
+
     fun loadActivityLogs() {
         _isLoading.value = true
         _error.value = null
         SupabaseApi.service.getActivityLogs()
             .enqueue(object : Callback<List<ActivityLog>> {
-                override fun onResponse(call: Call<List<ActivityLog>>, response: Response<List<ActivityLog>>) {
+                override fun onResponse(
+                    call: Call<List<ActivityLog>>,
+                    response: Response<List<ActivityLog>>
+                ) {
                     _activityLogs.value = response.body() ?: emptyList()
                     _isLoading.value = false
                 }
@@ -65,6 +88,7 @@ class AdminViewModel : ViewModel() {
                         "Erro ao carregar atividades"
                     else
                         "Error loading activity logs"
+                    _isLoading.value = false
                 }
             })
     }
@@ -109,10 +133,7 @@ class AdminViewModel : ViewModel() {
                     detailsEn = "Admin: ${SessionManager.currentUser?.name} created user '$name' with role '$role'",
                     detailsPt = "Admin: ${SessionManager.currentUser?.name} criou o utilizador '$name' com role '$role'"
                 )
-                _successMessage.value = if (AppLanguage.isPortuguese())
-                    "Utilizador criado."
-                else
-                    "User created."
+                _successMessage.value = if (AppLanguage.isPortuguese()) "Utilizador criado." else "User created."
                 loadUsers()
             },
             onError = { message ->
@@ -133,11 +154,30 @@ class AdminViewModel : ViewModel() {
                     detailsEn = "Admin: ${SessionManager.currentUser?.name} edited user '${user.name}'",
                     detailsPt = "Admin: ${SessionManager.currentUser?.name} editou o utilizador '${user.name}'"
                 )
-                _successMessage.value = if (AppLanguage.isPortuguese())
-                    "Utilizador atualizado."
-                else
-                    "User updated."
+                _successMessage.value = if (AppLanguage.isPortuguese()) "Utilizador atualizado." else "User updated."
                 loadUsers()
+            },
+            onError = { message -> _error.value = message }
+        )
+    }
+
+    fun resetUserPassword(user: User, newPassword: String) {
+        val hashedPassword = authRepository.hashPassword(newPassword)
+        val updated = user.copy(password = hashedPassword)
+        userRepository.updateUser(
+            user = updated,
+            onSuccess = {
+                logActivity(
+                    action = "USER_PASSWORD_RESET",
+                    entityType = "user",
+                    entityId = user.id,
+                    detailsEn = "Admin: ${SessionManager.currentUser?.name} reset the password of '${user.name}'",
+                    detailsPt = "Admin: ${SessionManager.currentUser?.name} repôs a password de '${user.name}'"
+                )
+                _successMessage.value = if (AppLanguage.isPortuguese())
+                    "Password reposta com sucesso."
+                else
+                    "Password reset successfully."
             },
             onError = { message -> _error.value = message }
         )
@@ -148,7 +188,6 @@ class AdminViewModel : ViewModel() {
         _successMessage.value = null
     }
 
-    // Regista uma ação no histórico
     private fun logActivity(
         action: String,
         entityType: String,
@@ -165,9 +204,9 @@ class AdminViewModel : ViewModel() {
             details = details
         )
         SupabaseApi.service.createActivityLog(payload)
-            .enqueue(object : retrofit2.Callback<Unit> {
-                override fun onResponse(call: retrofit2.Call<Unit>, response: retrofit2.Response<Unit>) {}
-                override fun onFailure(call: retrofit2.Call<Unit>, t: Throwable) {}
+            .enqueue(object : Callback<Unit> {
+                override fun onResponse(call: Call<Unit>, response: Response<Unit>) {}
+                override fun onFailure(call: Call<Unit>, t: Throwable) {}
             })
     }
 }

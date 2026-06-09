@@ -55,7 +55,7 @@ import java.util.Locale
 
 private val DATE_FMT = DateTimeFormatter.ISO_LOCAL_DATE
 
-private fun parseDate(s: String?): LocalDate? =
+fun parseDate(s: String?): LocalDate? =
     s?.takeIf { it.isNotBlank() }?.let {
         try {
             LocalDate.parse(it, DATE_FMT)

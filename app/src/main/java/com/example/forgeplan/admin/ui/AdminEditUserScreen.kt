@@ -1,6 +1,7 @@
 package com.example.forgeplan.admin.ui
 
 import android.content.res.Configuration
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -10,11 +11,23 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Visibility
+import androidx.compose.material.icons.outlined.VisibilityOff
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -23,7 +36,10 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.forgeplan.admin.viewmodel.AdminViewModel
@@ -54,12 +70,18 @@ fun AdminEditUserScreen(
     var usernameError by remember { mutableStateOf<String?>(null) }
     var emailError by remember { mutableStateOf<String?>(null) }
 
-    val roles = listOf("admin", "manager", "user")
+    var showResetDialog by remember { mutableStateOf(false) }
+    var newPassword by remember { mutableStateOf("") }
+    var confirmPassword by remember { mutableStateOf("") }
+    var showNewPassword by remember { mutableStateOf(false) }
+    var showConfirmPassword by remember { mutableStateOf(false) }
+    var resetPasswordError by remember { mutableStateOf<String?>(null) }
 
-    // Carrega lista para encontrar o utilizador a editar
+    val roles = listOf("admin", "manager", "user")
+    val errorRed = Color(0xFFB3261E)
+
     LaunchedEffect(Unit) { viewModel.loadUsers() }
 
-    // Preenche os campos quando os dados chegam do Supabase
     LaunchedEffect(users) {
         val user = users.firstOrNull { it.id == userId }
         if (user != null) {
@@ -70,10 +92,119 @@ fun AdminEditUserScreen(
         }
     }
 
-    // Navega para trás após atualização com sucesso
     if (successMessage != null) {
         onUserUpdated()
         viewModel.clearMessages()
+    }
+
+    if (showResetDialog) {
+        AlertDialog(
+            onDismissRequest = {
+                showResetDialog = false
+                newPassword = ""
+                confirmPassword = ""
+                resetPasswordError = null
+            },
+            title = {
+                Text(text = appText(en = "Reset Password", pt = "Repor Password"))
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text(
+                        text = appText(
+                            en = "Set a new password for this user.",
+                            pt = "Define uma nova password para este utilizador."
+                        ),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                    )
+                    OutlinedTextField(
+                        value = newPassword,
+                        onValueChange = { newPassword = it; resetPasswordError = null },
+                        label = { Text(appText(en = "New Password", pt = "Nova Password")) },
+                        singleLine = true,
+                        shape = RoundedCornerShape(12.dp),
+                        visualTransformation = if (showNewPassword) VisualTransformation.None else PasswordVisualTransformation(),
+                        trailingIcon = {
+                            IconButton(onClick = { showNewPassword = !showNewPassword }) {
+                                Icon(
+                                    imageVector = if (showNewPassword) Icons.Outlined.Visibility else Icons.Outlined.VisibilityOff,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(20.dp),
+                                    tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                                )
+                            }
+                        },
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = MaterialTheme.colorScheme.primary,
+                            unfocusedBorderColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.2f),
+                            focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                            unfocusedTextColor = MaterialTheme.colorScheme.onSurface
+                        )
+                    )
+                    OutlinedTextField(
+                        value = confirmPassword,
+                        onValueChange = { confirmPassword = it; resetPasswordError = null },
+                        label = { Text(appText(en = "Confirm Password", pt = "Confirmar Password")) },
+                        singleLine = true,
+                        shape = RoundedCornerShape(12.dp),
+                        visualTransformation = if (showConfirmPassword) VisualTransformation.None else PasswordVisualTransformation(),
+                        trailingIcon = {
+                            IconButton(onClick = { showConfirmPassword = !showConfirmPassword }) {
+                                Icon(
+                                    imageVector = if (showConfirmPassword) Icons.Outlined.Visibility else Icons.Outlined.VisibilityOff,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(20.dp),
+                                    tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                                )
+                            }
+                        },
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = MaterialTheme.colorScheme.primary,
+                            unfocusedBorderColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.2f),
+                            focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                            unfocusedTextColor = MaterialTheme.colorScheme.onSurface
+                        )
+                    )
+                    resetPasswordError?.let {
+                        Text(text = it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    when {
+                        newPassword.isBlank() || confirmPassword.isBlank() ->
+                            resetPasswordError = appText(en = "Fill in all fields.", pt = "Preenche todos os campos.")
+                        newPassword.length < 6 ->
+                            resetPasswordError = appText(en = "Password must be at least 6 characters.", pt = "A password deve ter pelo menos 6 caracteres.")
+                        newPassword != confirmPassword ->
+                            resetPasswordError = appText(en = "Passwords do not match.", pt = "As passwords não coincidem.")
+                        else -> {
+                            users.firstOrNull { it.id == userId }?.let { user ->
+                                viewModel.resetUserPassword(user, newPassword)
+                            }
+                            showResetDialog = false
+                            newPassword = ""
+                            confirmPassword = ""
+                            resetPasswordError = null
+                        }
+                    }
+                }) {
+                    Text(appText(en = "Confirm", pt = "Confirmar"))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    showResetDialog = false
+                    newPassword = ""
+                    confirmPassword = ""
+                    resetPasswordError = null
+                }) {
+                    Text(appText(en = "Cancel", pt = "Cancelar"))
+                }
+            }
+        )
     }
 
     Column(
@@ -85,7 +216,6 @@ fun AdminEditUserScreen(
             title = appText(en = "Edit User", pt = "Editar Utilizador")
         )
 
-        // Landscape: 2 colunas - Portrait: 1 coluna
         if (isLandscape) {
             Row(
                 modifier = Modifier
@@ -94,7 +224,6 @@ fun AdminEditUserScreen(
                     .padding(horizontal = 30.dp, vertical = 12.dp),
                 horizontalArrangement = Arrangement.spacedBy(24.dp)
             ) {
-                // Coluna esquerda: Name, Username, Email
                 Column(modifier = Modifier.weight(1f)) {
                     FormField(
                         label = appText(en = "Name", pt = "Nome"),
@@ -121,7 +250,6 @@ fun AdminEditUserScreen(
                     )
                 }
 
-                // Coluna direita: Role, botões
                 Column(modifier = Modifier.weight(1f)) {
                     RoleDropdown(
                         selectedRole = selectedRole,
@@ -132,9 +260,12 @@ fun AdminEditUserScreen(
                     )
                     Spacer(modifier = Modifier.height(24.dp))
                     error?.let {
-                        Text(text = it, color = MaterialTheme.colorScheme.error,
+                        Text(
+                            text = it,
+                            color = MaterialTheme.colorScheme.error,
                             style = MaterialTheme.typography.bodySmall,
-                            modifier = Modifier.padding(bottom = 8.dp))
+                            modifier = Modifier.padding(bottom = 8.dp)
+                        )
                     }
                     ForgePrimaryLargeButton(
                         text = appText(en = "Save Changes", pt = "Guardar Alteracoes"),
@@ -156,6 +287,19 @@ fun AdminEditUserScreen(
                             )
                         }
                     )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    OutlinedButton(
+                        onClick = { showResetDialog = true },
+                        modifier = Modifier.fillMaxWidth().height(42.dp),
+                        shape = RoundedCornerShape(14.dp),
+                        border = BorderStroke(width = 1.dp, color = errorRed)
+                    ) {
+                        Text(
+                            text = appText(en = "Reset Password", pt = "Repor Password"),
+                            style = MaterialTheme.typography.labelLarge,
+                            color = errorRed
+                        )
+                    }
                     Spacer(modifier = Modifier.height(12.dp))
                     ForgeSecondaryButton(
                         text = appText(en = "Cancel", pt = "Cancelar"),
@@ -205,9 +349,12 @@ fun AdminEditUserScreen(
                 )
                 Spacer(modifier = Modifier.height(32.dp))
                 error?.let {
-                    Text(text = it, color = MaterialTheme.colorScheme.error,
+                    Text(
+                        text = it,
+                        color = MaterialTheme.colorScheme.error,
                         style = MaterialTheme.typography.bodySmall,
-                        modifier = Modifier.padding(bottom = 8.dp))
+                        modifier = Modifier.padding(bottom = 8.dp)
+                    )
                 }
                 ForgePrimaryLargeButton(
                     text = appText(en = "Save Changes", pt = "Guardar Alteracoes"),
@@ -229,6 +376,19 @@ fun AdminEditUserScreen(
                         )
                     }
                 )
+                Spacer(modifier = Modifier.height(12.dp))
+                OutlinedButton(
+                    onClick = { showResetDialog = true },
+                    modifier = Modifier.fillMaxWidth().height(42.dp),
+                    shape = RoundedCornerShape(14.dp),
+                    border = BorderStroke(width = 1.dp, color = errorRed)
+                ) {
+                    Text(
+                        text = appText(en = "Reset Password", pt = "Repor Password"),
+                        style = MaterialTheme.typography.labelLarge,
+                        color = errorRed
+                    )
+                }
                 Spacer(modifier = Modifier.height(12.dp))
                 ForgeSecondaryButton(
                     text = appText(en = "Cancel", pt = "Cancelar"),

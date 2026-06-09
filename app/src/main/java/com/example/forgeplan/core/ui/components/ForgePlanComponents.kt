@@ -45,8 +45,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import coil.compose.AsyncImage
 import com.example.forgeplan.core.language.appText
 import com.example.forgeplan.core.session.SessionManager
 import kotlinx.coroutines.launch
@@ -55,7 +57,6 @@ import kotlinx.coroutines.launch
 fun ForgePlanTopBar(
     title: String = "ForgePlan",
     initials: String = "UN",
-    // Callback para abrir o side menu ao clicar nas iniciais
     onAvatarClick: () -> Unit = {}
 ) {
     Surface(
@@ -70,12 +71,25 @@ fun ForgePlanTopBar(
                 .padding(horizontal = 14.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Clicar nas iniciais abre o side menu
-            ForgeAvatar(
-                initials = initials,
-                size = 34,
-                modifier = Modifier.clickable { onAvatarClick() }
-            )
+            val photoUrl = SessionManager.currentUser?.photo
+
+            if (!photoUrl.isNullOrBlank()) {
+                AsyncImage(
+                    model = photoUrl,
+                    contentDescription = null,
+                    modifier = Modifier
+                        .size(34.dp)
+                        .clip(CircleShape)
+                        .clickable { onAvatarClick() },
+                    contentScale = ContentScale.Crop
+                )
+            } else {
+                ForgeAvatar(
+                    initials = initials,
+                    size = 34,
+                    modifier = Modifier.clickable { onAvatarClick() }
+                )
+            }
 
             Spacer(modifier = Modifier.width(10.dp))
 

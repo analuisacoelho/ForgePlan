@@ -1,5 +1,8 @@
 package com.example.forgeplan.core.session
 
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import com.example.forgeplan.core.model.User
 
 /**
@@ -9,7 +12,7 @@ import com.example.forgeplan.core.model.User
  */
 object SessionManager {
 
-    var currentUser: User? = null
+    var currentUser by mutableStateOf<User?>(null)
 
     val userId: Long
         get() = currentUser?.id ?: -1L
