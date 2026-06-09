@@ -218,18 +218,7 @@ fun ProjectDetailScreen(
                                             )
                                         }
                                     },
-                                    onTaskClick = onTaskClick,
-                                    onCompleteTask = { task ->
-                                        val updatedTask = task.copy(
-                                            status = "DONE",
-                                            completion_rate = 100
-                                        )
-
-                                        taskViewModel.updateTask(
-                                            task = updatedTask,
-                                            onSuccess = { taskViewModel.loadTasks(task.project_id) }
-                                        )
-                                    }
+                                    onTaskClick = onTaskClick
                                 )
                             }
 
@@ -265,18 +254,7 @@ fun ProjectDetailScreen(
                                     )
                                 }
                             },
-                            onTaskClick = onTaskClick,
-                            onCompleteTask = { task ->
-                                val updatedTask = task.copy(
-                                    status = "DONE",
-                                    completion_rate = 100
-                                )
-
-                                taskViewModel.updateTask(
-                                    task = updatedTask,
-                                    onSuccess = { taskViewModel.loadTasks(task.project_id) }
-                                )
-                            }
+                            onTaskClick = onTaskClick
                         )
 
                         Spacer(modifier = Modifier.height(22.dp))
@@ -331,8 +309,7 @@ fun ProjectDetailTasksArea(
     onNewGroupNameChange: (String) -> Unit,
     onShowCreateGroupChange: (Boolean) -> Unit,
     onCreateGroup: () -> Unit,
-    onTaskClick: (Long) -> Unit,
-    onCompleteTask: (Task) -> Unit
+    onTaskClick: (Long) -> Unit
 ) {
     Text(
         text = appText(en = "Tasks", pt = "Tarefas"),
@@ -398,8 +375,7 @@ fun ProjectDetailTasksArea(
         tasks = tasks,
         allTasks = allTasks,
         taskGroups = taskGroups,
-        onTaskClick = onTaskClick,
-        onCompleteTask = onCompleteTask
+        onTaskClick = onTaskClick
     )
 }
 
@@ -408,8 +384,7 @@ fun ProjectDetailTaskList(
     tasks: List<Task>,
     allTasks: List<Task>,
     taskGroups: List<TaskGroup>,
-    onTaskClick: (Long) -> Unit,
-    onCompleteTask: (Task) -> Unit
+    onTaskClick: (Long) -> Unit
 ) {
     val groupedTasks = tasks.groupBy { task ->
         task.task_group?.takeIf { it.isNotBlank() }
@@ -444,8 +419,7 @@ fun ProjectDetailTaskList(
                 ProjectDetailTaskGroup(
                     title = groupName,
                     tasks = groupTasks,
-                    onTaskClick = onTaskClick,
-                    onCompleteTask = onCompleteTask
+                    onTaskClick = onTaskClick
                 )
             }
         }
@@ -456,8 +430,7 @@ fun ProjectDetailTaskList(
                 ProjectDetailTaskGroup(
                     title = groupName,
                     tasks = groupTasks,
-                    onTaskClick = onTaskClick,
-                    onCompleteTask = onCompleteTask
+                    onTaskClick = onTaskClick
                 )
             }
     }
@@ -653,8 +626,7 @@ fun ProjectDetailCustomGroup(
 fun ProjectDetailTaskGroup(
     title: String,
     tasks: List<Task>,
-    onTaskClick: (Long) -> Unit,
-    onCompleteTask: (Task) -> Unit
+    onTaskClick: (Long) -> Unit
 ) {
     if (tasks.isEmpty()) return
 
@@ -676,8 +648,7 @@ fun ProjectDetailTaskGroup(
     tasks.forEach { task ->
         ProjectDetailTaskCard(
             task = task,
-            onClick = { onTaskClick(task.id) },
-            onCompleteClick = { onCompleteTask(task) }
+            onClick = { onTaskClick(task.id) }
         )
 
         Spacer(modifier = Modifier.height(10.dp))
@@ -689,8 +660,7 @@ fun ProjectDetailTaskGroup(
 @Composable
 fun ProjectDetailTaskCard(
     task: Task,
-    onClick: () -> Unit,
-    onCompleteClick: () -> Unit
+    onClick: () -> Unit
 ) {
     val isDone = task.status?.uppercase() == "DONE"
     val isInProgress = task.status?.uppercase() == "IN_PROGRESS"
@@ -767,21 +737,11 @@ fun ProjectDetailTaskCard(
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                ForgeSecondaryButton(
-                    text = appText(en = "Details", pt = "Detalhes"),
-                    modifier = Modifier.weight(1f),
-                    onClick = onClick
-                )
-
-                if (!isDone) {
-                    ForgePrimaryButton(
-                        text = appText(en = "Complete", pt = "Concluir"),
-                        modifier = Modifier.weight(1f),
-                        onClick = onCompleteClick
-                    )
-                }
-            }
+            ForgeSecondaryButton(
+                text = appText(en = "Details", pt = "Detalhes"),
+                modifier = Modifier.fillMaxWidth(),
+                onClick = onClick
+            )
         }
     }
 }
