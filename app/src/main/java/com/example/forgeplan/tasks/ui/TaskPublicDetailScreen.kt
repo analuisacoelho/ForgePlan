@@ -1,5 +1,8 @@
 package com.example.forgeplan.tasks.ui
 
+import android.R.attr.fontWeight
+import android.R.attr.text
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -17,6 +20,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.core.graphics.plus
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.forgeplan.core.language.appText
 import com.example.forgeplan.core.model.Comment
@@ -25,7 +29,7 @@ import com.example.forgeplan.core.session.SessionManager
 import com.example.forgeplan.core.ui.components.ForgePlanBottomBar
 import com.example.forgeplan.core.ui.components.ForgePlanTopBar
 import com.example.forgeplan.tasks.viewmodel.TaskPublicDetailViewModel
-
+import com.example.forgeplan.core.model.Task
 @Composable
 fun TaskPublicDetailScreen(
     taskId: Long,
@@ -124,23 +128,86 @@ fun TaskPublicDetailScreen(
 
             Spacer(Modifier.height(20.dp))
 
-            // ── Logs de progresso ─────────────────────────────────────
-            Text(
-                text       = appText("Progress History", "Histórico de Progresso"),
-                style      = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.Bold,
-                color      = MaterialTheme.colorScheme.onBackground
-            )
-            Spacer(Modifier.height(8.dp))
+            // ── Detalhes da tarefa ──────────────────────────────────
+                       Text(
+                               text       = appText("Task Details", "Detalhes da tarefa"),
+                               style      = MaterialTheme.typography.titleSmall,
+                               fontWeight = FontWeight.Bold,
+                               color      = MaterialTheme.colorScheme.onBackground
+                                   )
+                       Spacer(Modifier.height(8.dp))
 
-            if (logs.isEmpty()) {
-                Text(
-                    text  = appText("No progress logs yet.", "Ainda não há registos de progresso."),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f)
-                )
-            } else {
-                logs.forEach { LogRow(it); Spacer(Modifier.height(8.dp)) }
+                       TaskInfoDetailsCard(task = t)
+
+                       Spacer(Modifier.height(20.dp))
+
+            // ── Histórico de Progresso (Dropdown) ─────────────────────────────
+
+            var isLogsExpanded by remember { mutableStateOf(false) }
+
+            Surface(
+                shape = RoundedCornerShape(10.dp),
+                color = MaterialTheme.colorScheme.surface,
+                border = BorderStroke(
+                    1.dp,
+                    MaterialTheme.colorScheme.tertiary.copy(alpha = 0.35f)
+                ),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { isLogsExpanded = !isLogsExpanded }
+                        .padding(12.dp)
+                ) {
+
+                    // Header clicável
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+
+                        Text(
+                            text = appText("Progress History", "Histórico de Progresso"),
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            modifier = Modifier.weight(1f)
+                        )
+
+                        Text(
+                            text = if (isLogsExpanded) "▲" else "▼",
+                            style = MaterialTheme.typography.titleSmall,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                        )
+                    }
+
+                    // Conteúdo expansível
+                    AnimatedVisibility(visible = isLogsExpanded) {
+
+                        Column(
+                            modifier = Modifier.padding(top = 12.dp)
+                        ) {
+
+                            if (logs.isEmpty()) {
+                                Text(
+                                    text = appText(
+                                        "No progress logs yet.",
+                                        "Ainda não há registos de progresso."
+                                    ),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f)
+                                )
+                            } else {
+                                logs.forEach {
+                                    LogRow(it)
+                                    Spacer(Modifier.height(8.dp))
+                                }
+                            }
+                        }
+                    }
+                }
             }
 
             Spacer(Modifier.height(20.dp))
@@ -225,39 +292,87 @@ fun TaskPublicDetailScreen(
 @Composable
 private fun LogRow(log: TaskLog) {
     Surface(
-        shape    = RoundedCornerShape(8.dp),
-        color    = MaterialTheme.colorScheme.surface,
-        border   = BorderStroke(1.dp, MaterialTheme.colorScheme.tertiary.copy(alpha = 0.35f)),
+        shape = RoundedCornerShape(8.dp),
+        color = MaterialTheme.colorScheme.surface,
+        border = BorderStroke(
+            1.dp,
+            MaterialTheme.colorScheme.tertiary.copy(alpha = 0.35f)
+        ),
         modifier = Modifier.fillMaxWidth()
     ) {
-        Column(Modifier.padding(10.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
+        Column(
+            modifier = Modifier.padding(10.dp)
+        ) {
+
+            Row(
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+
+                // Badge de percentagem
                 Box(
                     modifier = Modifier
                         .clip(RoundedCornerShape(4.dp))
                         .background(MaterialTheme.colorScheme.primary)
                         .padding(horizontal = 8.dp, vertical = 3.dp)
                 ) {
-                    Text("${log.completion_rate ?: 0}%",
+                    Text(
+                        text = "${log.completion_rate ?: 0}%",
                         color = MaterialTheme.colorScheme.onPrimary,
                         style = MaterialTheme.typography.labelMedium,
-                        fontWeight = FontWeight.Bold)
+                        fontWeight = FontWeight.Bold
+                    )
                 }
+
                 Spacer(Modifier.width(8.dp))
-                Text(log.log_date ?: "—",
+
+                // Data
+                Text(
+                    text = log.log_date ?: "—",
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
-                    modifier = Modifier.weight(1f))
-                log.location?.takeIf { it.isNotBlank() }?.let {
-                    Text("📍 $it",
+                    modifier = Modifier.weight(1f)
+                )
+
+                // Tempo gasto
+                log.minutes_spent?.let { mins ->
+
+                    val h = mins / 60
+                    val m = mins % 60
+
+                    val label = if (h > 0) {
+                        "${h}h${if (m > 0) " ${m}min" else ""}"
+                    } else {
+                        "${m}min"
+                    }
+
+                    Text(
+                        text = "⏱ $label",
                         style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                    )
+                }
+
+                // Localização
+                log.location?.takeIf { it.isNotBlank() }?.let {
+                    Spacer(Modifier.width(6.dp))
+
+                    Text(
+                        text = "📍 $it",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                    )
                 }
             }
+
+            // Notas
             log.notes?.takeIf { it.isNotBlank() }?.let {
                 Spacer(Modifier.height(6.dp))
-                Text(it, style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurface)
+
+                Text(
+                    text = it,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
             }
         }
     }
@@ -412,3 +527,43 @@ private fun AvatarCircle(initials: String) {
         )
     }
 }
+
+@Composable
+fun TaskInfoDetailsCard(task: Task) {
+        Surface(
+                shape  = RoundedCornerShape(8.dp),
+                color  = MaterialTheme.colorScheme.surface,
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.tertiary.copy(alpha = 0.35f)),
+                modifier = Modifier.fillMaxWidth()
+                    ) {
+                Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        TaskInfoRow("Status",    readableStatus(task.status))
+                        TaskInfoRow("Prioridade", task.priority ?: "—")
+                        TaskInfoRow("Grupo",      task.task_group ?: "—")
+                        TaskInfoRow("Início",     task.start_date ?: "—")
+                        TaskInfoRow("Fim",        task.end_date ?: "—")
+                    }
+            }
+    }
+
+@Composable
+private fun TaskInfoRow(label: String, value: String) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                Text(label,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                            )
+                Text(value,
+                        style = MaterialTheme.typography.bodySmall,
+                        fontWeight = FontWeight.Medium,
+                        color = MaterialTheme.colorScheme.onSurface
+                            )
+            }
+    }
+
+private fun readableStatus(status: String?): String = when (status?.uppercase()) {
+        "DONE"        -> "Feita"
+        "IN_PROGRESS"  -> "Em progresso"
+        "PENDING"      -> "Por fazer"
+        else           -> "Por fazer"
+    }
