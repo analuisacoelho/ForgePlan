@@ -299,4 +299,10 @@ interface SupabaseService {
     fun createTaskGroup(
         @Body group: TaskGroupPayload
     ): Call<List<TaskGroup>>
+
+    //───────────────────────────────────────────────────────────────────────
+    @DELETE("task_attachments")
+    fun deleteTaskAttachment(
+        @Query("id") id: String
+    ): Call<Void>
 }

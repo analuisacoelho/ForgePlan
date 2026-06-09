@@ -1,6 +1,8 @@
 package com.example.forgeplan.tasks.ui
 
+import android.app.DatePickerDialog
 import android.content.Context
+import android.content.Intent
 import android.content.res.Configuration
 import android.net.Uri
 import android.provider.OpenableColumns
@@ -26,6 +28,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
@@ -55,12 +59,13 @@ import com.example.forgeplan.core.repository.TaskAttachmentRepository
 import com.example.forgeplan.projects.viewmodel.ProjectViewModel
 import com.example.forgeplan.tasks.viewmodel.TaskAssignmentViewModel
 import com.example.forgeplan.tasks.viewmodel.TaskDependencyViewModel
-import com.example.forgeplan.tasks.viewmodel.TaskGroupViewModel
 import com.example.forgeplan.tasks.viewmodel.TaskViewModel
 import com.example.forgeplan.tasks.viewmodel.UserViewModel
 import retrofit2.Call
 import retrofit2.Callback
 import retrofit2.Response
+import java.time.LocalDate
+import java.time.ZoneId
 
 @Composable
 fun EditTaskScreen(
@@ -70,8 +75,7 @@ fun EditTaskScreen(
     projectViewModel: ProjectViewModel = viewModel(),
     userViewModel: UserViewModel = viewModel(),
     assignmentViewModel: TaskAssignmentViewModel = viewModel(),
-    dependencyViewModel: TaskDependencyViewModel = viewModel(),
-    taskGroupViewModel: TaskGroupViewModel = viewModel()
+    dependencyViewModel: TaskDependencyViewModel = viewModel()
 ) {
     val configuration = LocalConfiguration.current
     val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
@@ -86,18 +90,16 @@ fun EditTaskScreen(
     val users by userViewModel.users.collectAsState()
     val assignments by assignmentViewModel.assignments.collectAsState()
     val dependencies by dependencyViewModel.dependencies.collectAsState()
-    val groups by taskGroupViewModel.groups.collectAsState()
 
     val taskError by taskViewModel.error.collectAsState()
     val assignmentError by assignmentViewModel.error.collectAsState()
     val dependencyError by dependencyViewModel.error.collectAsState()
 
     var selectedProject by remember { mutableStateOf<Project?>(null) }
-    var currentTask by remember { mutableStateOf<Task?>(null) }
+    var selectedTaskForDropdown by remember { mutableStateOf<Task?>(null) }
 
     var title by remember { mutableStateOf("") }
     var description by remember { mutableStateOf("") }
-    var taskGroup by remember { mutableStateOf("") }
     var priority by remember { mutableStateOf("MEDIUM") }
     var startDate by remember { mutableStateOf("") }
     var endDate by remember { mutableStateOf("") }
@@ -116,32 +118,70 @@ fun EditTaskScreen(
     var dateError by remember { mutableStateOf<String?>(null) }
     var isSaving by remember { mutableStateOf(false) }
 
-    val projectGroups = remember(groups, tasks, taskGroup) {
-        (
-                groups.map { it.name.trim() } +
-                        tasks.mapNotNull { it.task_group?.trim() } +
-                        listOf(taskGroup.trim())
-                )
-            .filter { it.isNotBlank() }
-            .distinctBy { it.lowercase() }
-            .sortedBy { it.lowercase() }
-    }
+    val canRemoveExistingAttachments =
+        endDate.isBlank() || endDate >= EditTaskDateUtils.todayText()
 
     val documentPicker = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.GetContent()
+        contract = ActivityResultContracts.OpenDocument()
     ) { uri ->
-        uri?.let {
-            newAttachments.add(it)
-            message = null
+        uri?.let { selectedUri ->
+            try {
+                context.contentResolver.takePersistableUriPermission(
+                    selectedUri,
+                    Intent.FLAG_GRANT_READ_URI_PERMISSION
+                )
+            } catch (_: Exception) {
+            }
+
+            val fileName = editGetFileNameFromUri(context, selectedUri)
+            val alreadyExists = editAttachmentAlreadyExists(
+                fileName = fileName,
+                existingAttachments = existingAttachments,
+                newAttachments = newAttachments,
+                context = context
+            )
+
+            if (alreadyExists) {
+                message = appText(
+                    en = "This file is already attached.",
+                    pt = "Este ficheiro já está anexado."
+                )
+            } else {
+                newAttachments.add(selectedUri)
+                message = null
+            }
         }
     }
 
     val imagePicker = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.GetContent()
+        contract = ActivityResultContracts.OpenDocument()
     ) { uri ->
-        uri?.let {
-            newAttachments.add(it)
-            message = null
+        uri?.let { selectedUri ->
+            try {
+                context.contentResolver.takePersistableUriPermission(
+                    selectedUri,
+                    Intent.FLAG_GRANT_READ_URI_PERMISSION
+                )
+            } catch (_: Exception) {
+            }
+
+            val fileName = editGetFileNameFromUri(context, selectedUri)
+            val alreadyExists = editAttachmentAlreadyExists(
+                fileName = fileName,
+                existingAttachments = existingAttachments,
+                newAttachments = newAttachments,
+                context = context
+            )
+
+            if (alreadyExists) {
+                message = appText(
+                    en = "This file is already attached.",
+                    pt = "Este ficheiro já está anexado."
+                )
+            } else {
+                newAttachments.add(selectedUri)
+                message = null
+            }
         }
     }
 
@@ -163,10 +203,9 @@ fun EditTaskScreen(
 
     LaunchedEffect(selectedTask) {
         selectedTask?.let { task ->
-            currentTask = task
+            selectedTaskForDropdown = task
             title = task.title
             description = task.description ?: ""
-            taskGroup = task.task_group ?: ""
             priority = task.priority ?: "MEDIUM"
             startDate = task.start_date ?: ""
             endDate = task.end_date ?: ""
@@ -174,7 +213,6 @@ fun EditTaskScreen(
             status = task.status ?: "PENDING"
 
             taskViewModel.loadTasks(task.project_id)
-            taskGroupViewModel.loadGroups(task.project_id)
             selectedProject = projects.firstOrNull { it.id == task.project_id }
         }
     }
@@ -201,7 +239,7 @@ fun EditTaskScreen(
     }
 
     val saveChanges: () -> Unit = {
-        val task = currentTask
+        val task = selectedTaskForDropdown
         val project = selectedProject
         var hasError = false
 
@@ -214,6 +252,7 @@ fun EditTaskScreen(
         }
 
         val dateRegex = Regex("""^\d{4}-\d{2}-\d{2}$""")
+        val today = EditTaskDateUtils.todayText()
 
         if (startDate.isNotBlank() && !dateRegex.matches(startDate)) {
             dateError = appText(
@@ -227,6 +266,30 @@ fun EditTaskScreen(
             dateError = appText(
                 en = "The end date must be in YYYY-MM-DD format.",
                 pt = "A data de fim deve estar no formato YYYY-MM-DD."
+            )
+            hasError = true
+        }
+
+        if (
+            startDate.isNotBlank() &&
+            dateRegex.matches(startDate) &&
+            startDate < today
+        ) {
+            dateError = appText(
+                en = "The start date cannot be earlier than today.",
+                pt = "A data de início não pode ser anterior ao dia de hoje."
+            )
+            hasError = true
+        }
+
+        if (
+            endDate.isNotBlank() &&
+            dateRegex.matches(endDate) &&
+            endDate < today
+        ) {
+            dateError = appText(
+                en = "The end date cannot be earlier than today.",
+                pt = "A data de fim não pode ser anterior ao dia de hoje."
             )
             hasError = true
         }
@@ -275,7 +338,7 @@ fun EditTaskScreen(
                 completion_rate = completionRate,
                 start_date = startDate.trim().ifBlank { null },
                 end_date = endDate.trim().ifBlank { null },
-                task_group = taskGroup.trim().ifBlank { null }
+                task_group = task.task_group
             )
 
             taskViewModel.updateTask(
@@ -370,27 +433,44 @@ fun EditTaskScreen(
                     Column(modifier = Modifier.weight(1f)) {
                         EditTaskMainFields(
                             selectedProject = selectedProject,
-                            task = currentTask,
+                            projects = projects,
+                            selectedTaskForDropdown = selectedTaskForDropdown,
+                            tasks = tasks,
                             title = title,
                             titleError = titleError,
                             description = description,
-                            taskGroup = taskGroup,
-                            projectGroups = projectGroups,
                             startDate = startDate,
                             endDate = endDate,
                             dateError = dateError,
+                            onProjectSelected = {
+                                selectedProject = it
+                                taskViewModel.loadTasks(it.id)
+                                message = null
+                            },
+                            onTaskSelected = { task ->
+                                selectedTaskForDropdown = task
+                                taskViewModel.loadTaskById(task.id)
+                                assignmentViewModel.loadAssignments(task.id)
+                                dependencyViewModel.loadDependencies(task.id)
+                                loadEditTaskAttachments(
+                                    taskId = task.id,
+                                    onSuccess = {
+                                        existingAttachments.clear()
+                                        existingAttachments.addAll(it)
+                                    }
+                                )
+                            },
                             onTitleChange = {
                                 title = it
                                 titleError = null
                                 message = null
                             },
                             onDescriptionChange = { description = it },
-                            onTaskGroupChange = {
-                                taskGroup = it
-                                message = null
-                            },
                             onStartDateChange = {
                                 startDate = it
+                                if (endDate.isNotBlank() && endDate < it) {
+                                    endDate = ""
+                                }
                                 dateError = null
                             },
                             onEndDateChange = {
@@ -408,6 +488,7 @@ fun EditTaskScreen(
                             selectedUsers = selectedUsers,
                             existingAttachments = existingAttachments,
                             newAttachments = newAttachments,
+                            canRemoveExistingAttachments = canRemoveExistingAttachments,
                             context = context,
                             taskError = taskError,
                             assignmentError = assignmentError,
@@ -415,8 +496,27 @@ fun EditTaskScreen(
                             message = message,
                             onPriorityChange = { priority = it },
                             onUserSearchChange = { userSearch = it },
-                            onDocumentClick = { documentPicker.launch("*/*") },
-                            onImageClick = { imagePicker.launch("image/*") }
+                            onDocumentClick = { documentPicker.launch(arrayOf("*/*")) },
+                            onImageClick = { imagePicker.launch(arrayOf("image/*")) },
+                            onRemoveExistingAttachment = { attachment ->
+                                if (canRemoveExistingAttachments) {
+                                    deleteEditTaskAttachment(
+                                        attachmentId = attachment.id,
+                                        onSuccess = {
+                                            existingAttachments.remove(attachment)
+                                            message = null
+                                        },
+                                        onError = { errorMessage ->
+                                            message = errorMessage
+                                        }
+                                    )
+                                } else {
+                                    message = appText(
+                                        en = "You cannot remove attachments after the task deadline.",
+                                        pt = "Não podes remover anexos depois do prazo da tarefa."
+                                    )
+                                }
+                            }
                         )
 
                         Spacer(modifier = Modifier.height(20.dp))
@@ -431,27 +531,44 @@ fun EditTaskScreen(
             } else {
                 EditTaskMainFields(
                     selectedProject = selectedProject,
-                    task = currentTask,
+                    projects = projects,
+                    selectedTaskForDropdown = selectedTaskForDropdown,
+                    tasks = tasks,
                     title = title,
                     titleError = titleError,
                     description = description,
-                    taskGroup = taskGroup,
-                    projectGroups = projectGroups,
                     startDate = startDate,
                     endDate = endDate,
                     dateError = dateError,
+                    onProjectSelected = {
+                        selectedProject = it
+                        taskViewModel.loadTasks(it.id)
+                        message = null
+                    },
+                    onTaskSelected = { task ->
+                        selectedTaskForDropdown = task
+                        taskViewModel.loadTaskById(task.id)
+                        assignmentViewModel.loadAssignments(task.id)
+                        dependencyViewModel.loadDependencies(task.id)
+                        loadEditTaskAttachments(
+                            taskId = task.id,
+                            onSuccess = {
+                                existingAttachments.clear()
+                                existingAttachments.addAll(it)
+                            }
+                        )
+                    },
                     onTitleChange = {
                         title = it
                         titleError = null
                         message = null
                     },
                     onDescriptionChange = { description = it },
-                    onTaskGroupChange = {
-                        taskGroup = it
-                        message = null
-                    },
                     onStartDateChange = {
                         startDate = it
+                        if (endDate.isNotBlank() && endDate < it) {
+                            endDate = ""
+                        }
                         dateError = null
                     },
                     onEndDateChange = {
@@ -467,6 +584,7 @@ fun EditTaskScreen(
                     selectedUsers = selectedUsers,
                     existingAttachments = existingAttachments,
                     newAttachments = newAttachments,
+                    canRemoveExistingAttachments = canRemoveExistingAttachments,
                     context = context,
                     taskError = taskError,
                     assignmentError = assignmentError,
@@ -474,8 +592,27 @@ fun EditTaskScreen(
                     message = message,
                     onPriorityChange = { priority = it },
                     onUserSearchChange = { userSearch = it },
-                    onDocumentClick = { documentPicker.launch("*/*") },
-                    onImageClick = { imagePicker.launch("image/*") }
+                    onDocumentClick = { documentPicker.launch(arrayOf("*/*")) },
+                    onImageClick = { imagePicker.launch(arrayOf("image/*")) },
+                    onRemoveExistingAttachment = { attachment ->
+                        if (canRemoveExistingAttachments) {
+                            deleteEditTaskAttachment(
+                                attachmentId = attachment.id,
+                                onSuccess = {
+                                    existingAttachments.remove(attachment)
+                                    message = null
+                                },
+                                onError = { errorMessage ->
+                                    message = errorMessage
+                                }
+                            )
+                        } else {
+                            message = appText(
+                                en = "You cannot remove attachments after the task deadline.",
+                                pt = "Não podes remover anexos depois do prazo da tarefa."
+                            )
+                        }
+                    }
                 )
 
                 Spacer(modifier = Modifier.height(26.dp))
@@ -495,18 +632,19 @@ fun EditTaskScreen(
 @Composable
 fun EditTaskMainFields(
     selectedProject: Project?,
-    task: Task?,
+    projects: List<Project>,
+    selectedTaskForDropdown: Task?,
+    tasks: List<Task>,
     title: String,
     titleError: String?,
     description: String,
-    taskGroup: String,
-    projectGroups: List<String>,
     startDate: String,
     endDate: String,
     dateError: String?,
+    onProjectSelected: (Project) -> Unit,
+    onTaskSelected: (Task) -> Unit,
     onTitleChange: (String) -> Unit,
     onDescriptionChange: (String) -> Unit,
-    onTaskGroupChange: (String) -> Unit,
     onStartDateChange: (String) -> Unit,
     onEndDateChange: (String) -> Unit
 ) {
@@ -518,36 +656,11 @@ fun EditTaskMainFields(
 
     Spacer(modifier = Modifier.height(8.dp))
 
-    Surface(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(48.dp),
-        shape = RoundedCornerShape(8.dp),
-        color = MaterialTheme.colorScheme.surface,
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.tertiary)
-    ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 12.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                text = "□",
-                style = MaterialTheme.typography.titleLarge,
-                color = MaterialTheme.colorScheme.onSurface
-            )
-
-            Spacer(modifier = Modifier.width(10.dp))
-
-            Text(
-                text = selectedProject?.name ?: appText(
-                    en = "Loading project...",
-                    pt = "A carregar projeto..."
-                ),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurface
-            )
-        }
-    }
+    ProjectDropdown(
+        selectedProject = selectedProject,
+        projects = projects,
+        onProjectSelected = onProjectSelected
+    )
 
     Spacer(modifier = Modifier.height(18.dp))
 
@@ -559,51 +672,10 @@ fun EditTaskMainFields(
 
     Spacer(modifier = Modifier.height(8.dp))
 
-    Surface(
-        modifier = Modifier
-            .fillMaxWidth()
-            .height(48.dp),
-        shape = RoundedCornerShape(8.dp),
-        color = MaterialTheme.colorScheme.surface,
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.tertiary)
-    ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 12.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                text = "☑",
-                style = MaterialTheme.typography.titleLarge,
-                color = MaterialTheme.colorScheme.onSurface
-            )
-
-            Spacer(modifier = Modifier.width(10.dp))
-
-            Text(
-                text = task?.title ?: appText(
-                    en = "Loading task...",
-                    pt = "A carregar tarefa..."
-                ),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurface
-            )
-        }
-    }
-
-    Spacer(modifier = Modifier.height(18.dp))
-
-    Text(
-        text = appText(en = "Task group", pt = "Grupo da tarefa"),
-        style = MaterialTheme.typography.titleMedium,
-        color = MaterialTheme.colorScheme.onBackground
-    )
-
-    Spacer(modifier = Modifier.height(8.dp))
-
-    TaskGroupField(
-        value = taskGroup,
-        groups = projectGroups,
-        onValueChange = onTaskGroupChange
+    EditTaskDropdown(
+        selectedTask = selectedTaskForDropdown,
+        tasks = tasks,
+        onTaskSelected = onTaskSelected
     )
 
     Spacer(modifier = Modifier.height(18.dp))
@@ -668,11 +740,12 @@ fun EditTaskMainFields(
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            TaskTextField(
+            EditTaskDatePickerField(
                 value = startDate,
-                onValueChange = onStartDateChange,
-                placeholder = "YYYY-MM-DD",
-                height = 48.dp
+                onDateSelected = onStartDateChange,
+                minDate = LocalDate.now(),
+                placeholder = appText(en = "Select date", pt = "Selecionar data"),
+                isError = dateError != null
             )
         }
 
@@ -685,11 +758,14 @@ fun EditTaskMainFields(
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            TaskTextField(
+            EditTaskDatePickerField(
                 value = endDate,
-                onValueChange = onEndDateChange,
-                placeholder = "YYYY-MM-DD",
-                height = 48.dp,
+                onDateSelected = onEndDateChange,
+                minDate = maxOf(
+                    LocalDate.now(),
+                    EditTaskDateUtils.parse(startDate) ?: LocalDate.now()
+                ),
+                placeholder = appText(en = "Select date", pt = "Selecionar data"),
                 isError = dateError != null
             )
         }
@@ -715,6 +791,7 @@ fun EditTaskSideFields(
     selectedUsers: MutableList<User>,
     existingAttachments: MutableList<TaskAttachment>,
     newAttachments: MutableList<Uri>,
+    canRemoveExistingAttachments: Boolean,
     context: Context,
     taskError: String?,
     assignmentError: String?,
@@ -723,13 +800,26 @@ fun EditTaskSideFields(
     onPriorityChange: (String) -> Unit,
     onUserSearchChange: (String) -> Unit,
     onDocumentClick: () -> Unit,
-    onImageClick: () -> Unit
+    onImageClick: () -> Unit,
+    onRemoveExistingAttachment: (TaskAttachment) -> Unit
 ) {
-    Text(
-        text = appText(en = "Priority", pt = "Prioridade"),
-        style = MaterialTheme.typography.titleMedium,
-        color = MaterialTheme.colorScheme.onBackground
-    )
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = appText(en = "Priority", pt = "Prioridade"),
+            style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.onBackground,
+            modifier = Modifier.weight(1f)
+        )
+
+        Text(
+            text = appText(en = "+ Add", pt = "+ Adicionar"),
+            style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.primary
+        )
+    }
 
     Spacer(modifier = Modifier.height(10.dp))
 
@@ -859,7 +949,9 @@ fun EditTaskSideFields(
 
         existingAttachments.forEach { attachment ->
             ExistingAttachmentRow(
-                fileName = attachment.file_name ?: appText(en = "Attachment", pt = "Anexo")
+                fileName = attachment.file_name ?: appText(en = "Attachment", pt = "Anexo"),
+                canRemove = canRemoveExistingAttachments,
+                onRemove = { onRemoveExistingAttachment(attachment) }
             )
 
             Spacer(modifier = Modifier.height(8.dp))
@@ -1018,8 +1110,80 @@ fun EditTaskTopBar(
 }
 
 @Composable
+fun EditTaskDropdown(
+    selectedTask: Task?,
+    tasks: List<Task>,
+    onTaskSelected: (Task) -> Unit
+) {
+    var expanded by remember { mutableStateOf(false) }
+
+    Box {
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(48.dp)
+                .clickable { expanded = true },
+            shape = RoundedCornerShape(8.dp),
+            color = MaterialTheme.colorScheme.surface,
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.tertiary)
+        ) {
+            Row(
+                modifier = Modifier.padding(horizontal = 12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "☑",
+                    style = MaterialTheme.typography.titleLarge,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+
+                Spacer(modifier = Modifier.width(10.dp))
+
+                Text(
+                    text = selectedTask?.title ?: appText(
+                        en = "Select your task",
+                        pt = "Selecionar tarefa"
+                    ),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.weight(1f)
+                )
+
+                Text(
+                    text = "⌄",
+                    style = MaterialTheme.typography.titleSmall,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+            }
+        }
+
+        DropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false }
+        ) {
+            tasks.forEach { task ->
+                DropdownMenuItem(
+                    text = {
+                        Text(
+                            text = task.title,
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                    },
+                    onClick = {
+                        onTaskSelected(task)
+                        expanded = false
+                    }
+                )
+            }
+        }
+    }
+}
+
+@Composable
 fun ExistingAttachmentRow(
-    fileName: String
+    fileName: String,
+    canRemove: Boolean,
+    onRemove: () -> Unit
 ) {
     Surface(
         modifier = Modifier
@@ -1058,9 +1222,112 @@ fun ExistingAttachmentRow(
                 modifier = Modifier.weight(1f),
                 maxLines = 1
             )
+
+            if (canRemove) {
+                Text(
+                    text = "⌫",
+                    color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.titleLarge,
+                    modifier = Modifier.clickable { onRemove() }
+                )
+            } else {
+                Text(
+                    text = appText(en = "Locked", pt = "Bloqueado"),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.55f)
+                )
+            }
         }
     }
 }
+
+
+private object EditTaskDateUtils {
+    fun todayText(): String = LocalDate.now().toString()
+
+    fun parse(value: String): LocalDate? {
+        return try {
+            value.takeIf { it.isNotBlank() }?.let { LocalDate.parse(it) }
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    fun toMillis(date: LocalDate): Long {
+        return date
+            .atStartOfDay(ZoneId.systemDefault())
+            .toInstant()
+            .toEpochMilli()
+    }
+}
+
+@Composable
+fun EditTaskDatePickerField(
+    value: String,
+    onDateSelected: (String) -> Unit,
+    minDate: LocalDate,
+    placeholder: String,
+    isError: Boolean = false
+) {
+    val context = LocalContext.current
+    val initialDate = EditTaskDateUtils.parse(value)
+        ?: minDate
+
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(48.dp)
+            .clickable {
+                DatePickerDialog(
+                    context,
+                    { _, year, month, dayOfMonth ->
+                        val selectedDate = LocalDate.of(year, month + 1, dayOfMonth)
+                        onDateSelected(selectedDate.toString())
+                    },
+                    initialDate.year,
+                    initialDate.monthValue - 1,
+                    initialDate.dayOfMonth
+                ).apply {
+                    datePicker.minDate = EditTaskDateUtils.toMillis(minDate)
+                }.show()
+            },
+        shape = RoundedCornerShape(8.dp),
+        color = MaterialTheme.colorScheme.surface,
+        border = BorderStroke(
+            width = 1.dp,
+            color = if (isError) {
+                MaterialTheme.colorScheme.error
+            } else {
+                MaterialTheme.colorScheme.tertiary
+            }
+        )
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "📅",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.75f)
+            )
+
+            Spacer(modifier = Modifier.width(10.dp))
+
+            Text(
+                text = value.ifBlank { placeholder },
+                style = MaterialTheme.typography.bodyMedium,
+                color = if (value.isBlank()) {
+                    MaterialTheme.colorScheme.onSurface.copy(alpha = 0.55f)
+                } else {
+                    MaterialTheme.colorScheme.onSurface
+                },
+                modifier = Modifier.weight(1f)
+            )
+        }
+    }
+}
+
 
 private fun loadEditTaskAttachments(
     taskId: Long,
@@ -1122,6 +1389,51 @@ private fun uploadEditTaskAttachmentsSequentially(
             )
         }
     )
+}
+
+
+private fun editAttachmentAlreadyExists(
+    fileName: String,
+    existingAttachments: List<TaskAttachment>,
+    newAttachments: List<Uri>,
+    context: Context
+): Boolean {
+    return existingAttachments.any { attachment ->
+        attachment.file_name.equals(fileName, ignoreCase = true)
+    } || newAttachments.any { uri ->
+        editGetFileNameFromUri(context, uri).equals(fileName, ignoreCase = true)
+    }
+}
+
+private fun deleteEditTaskAttachment(
+    attachmentId: Long,
+    onSuccess: () -> Unit,
+    onError: (String) -> Unit
+) {
+    SupabaseApi.service.deleteTaskAttachment("eq.$attachmentId")
+        .enqueue(object : Callback<Void> {
+            override fun onResponse(call: Call<Void>, response: Response<Void>) {
+                if (response.isSuccessful) {
+                    onSuccess()
+                } else {
+                    onError(
+                        appText(
+                            en = "Error removing attachment: ${response.code()}",
+                            pt = "Erro ao remover anexo: ${response.code()}"
+                        )
+                    )
+                }
+            }
+
+            override fun onFailure(call: Call<Void>, t: Throwable) {
+                onError(
+                    t.message ?: appText(
+                        en = "Unknown error removing attachment.",
+                        pt = "Erro desconhecido ao remover anexo."
+                    )
+                )
+            }
+        })
 }
 
 private fun editGetFileNameFromUri(

@@ -1,5 +1,10 @@
 package com.example.forgeplan.tasks.ui
 
+import android.content.ActivityNotFoundException
+import android.content.Context
+import android.content.Intent
+import android.net.Uri
+import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -42,6 +47,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -909,6 +915,8 @@ fun TaskLogObservationRow(
 fun TaskEvidenceCard(
     attachments: List<TaskAttachment>
 ) {
+    val context = LocalContext.current
+
     Surface(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(12.dp),
@@ -967,7 +975,13 @@ fun TaskEvidenceCard(
             } else {
                 attachments.forEach { attachment ->
                     TaskEvidenceFileRow(
-                        fileName = attachment.file_name ?: appText(en = "Attachment", pt = "Anexo")
+                        fileName = attachment.file_name ?: appText(en = "Attachment", pt = "Anexo"),
+                        onClick = {
+                            openTaskAttachment(
+                                context = context,
+                                attachment = attachment
+                            )
+                        }
                     )
 
                     Spacer(modifier = Modifier.height(8.dp))
@@ -979,10 +993,13 @@ fun TaskEvidenceCard(
 
 @Composable
 fun TaskEvidenceFileRow(
-    fileName: String
+    fileName: String,
+    onClick: () -> Unit
 ) {
     Surface(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onClick() },
         shape = RoundedCornerShape(8.dp),
         color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.65f)
     ) {
@@ -1004,6 +1021,13 @@ fun TaskEvidenceFileRow(
                 color = MaterialTheme.colorScheme.onSecondaryContainer,
                 modifier = Modifier.weight(1f),
                 maxLines = 1
+            )
+
+            Text(
+                text = appText(en = "Open", pt = "Abrir"),
+                style = MaterialTheme.typography.bodySmall,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary
             )
         }
     }
@@ -1034,6 +1058,50 @@ private fun formatLogDate(value: String?): String {
         ?.substringBefore(".")
         ?.take(16)
         ?: ""
+}
+
+private fun openTaskAttachment(
+    context: Context,
+    attachment: TaskAttachment
+) {
+    val fileUrl = attachment.file_url
+
+    if (fileUrl.isNullOrBlank()) {
+        Toast.makeText(
+            context,
+            "Ficheiro indisponível.",
+            Toast.LENGTH_SHORT
+        ).show()
+        return
+    }
+
+    try {
+        val uri = Uri.parse(fileUrl)
+
+        val intent = Intent(Intent.ACTION_VIEW).apply {
+            setDataAndType(uri, attachment.file_type ?: "*/*")
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+
+        context.startActivity(
+            Intent.createChooser(
+                intent,
+                "Open attachment"
+            )
+        )
+    } catch (e: ActivityNotFoundException) {
+        Toast.makeText(
+            context,
+            "Não existe nenhuma app para abrir este ficheiro.",
+            Toast.LENGTH_SHORT
+        ).show()
+    } catch (e: Exception) {
+        Toast.makeText(
+            context,
+            "Não foi possível abrir o ficheiro.",
+            Toast.LENGTH_SHORT
+        ).show()
+    }
 }
 
 private fun loadTaskDetailAttachments(
