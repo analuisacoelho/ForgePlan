@@ -16,15 +16,21 @@ class TaskLogRepository {
      * Devolve o ID gerado pelo Supabase (usado para associar as fotos).
      */
     suspend fun insertTaskLog(payload: TaskLogPayload): Long {
-        val result = SupabaseApi.service.insertTaskLog(payload)
-        return result.firstOrNull()?.id ?: -1L
+        return try {
+            val result = SupabaseApi.service.insertTaskLog(payload)
+            result.firstOrNull()?.id ?: -1L
+        } catch (e: Exception) {
+            -1L
+        }
     }
 
-    /**
-     * Insere uma entrada em task_photos associada ao task_log_id.
-     */
-    suspend fun insertTaskPhoto(payload: TaskPhotoPayload) {
-        SupabaseApi.service.insertTaskPhoto(payload)
+    suspend fun insertTaskPhoto(payload: TaskPhotoPayload): Long {
+        return try {
+            val result = SupabaseApi.service.insertTaskPhoto(payload)
+            result.firstOrNull()?.id ?: -1L
+        } catch (e: Exception) {
+            -1L
+        }
     }
 
     /**

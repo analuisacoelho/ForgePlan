@@ -18,10 +18,12 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.core.graphics.plus
 import androidx.lifecycle.viewmodel.compose.viewModel
+import coil.compose.AsyncImage
 import com.example.forgeplan.core.language.appText
 import com.example.forgeplan.core.model.Comment
 import com.example.forgeplan.core.model.TaskLog
@@ -48,6 +50,8 @@ fun TaskPublicDetailScreen(
     val isSending   by viewModel.isSending.collectAsState()
     val result      by viewModel.commentResult.collectAsState()
     val userNames by viewModel.userNames.collectAsState()
+    val logPhotos by viewModel.logPhotos.collectAsState()
+
 
 
     var commentText by remember { mutableStateOf("") }
@@ -187,7 +191,11 @@ fun TaskPublicDetailScreen(
                     AnimatedVisibility(visible = isLogsExpanded) {
 
                         Column(
-                            modifier = Modifier.padding(top = 12.dp)
+                            modifier = Modifier
+                                .padding(top = 12.dp)
+                                .heightIn(max = 340.dp)
+                                .verticalScroll(rememberScrollState())
+
                         ) {
 
                             if (logs.isEmpty()) {
@@ -201,7 +209,7 @@ fun TaskPublicDetailScreen(
                                 )
                             } else {
                                 logs.forEach {
-                                    LogRow(it)
+                                    LogRow(log = it, photoUrl = logPhotos[it.id])
                                     Spacer(Modifier.height(8.dp))
                                 }
                             }
@@ -290,25 +298,43 @@ fun TaskPublicDetailScreen(
 }
 
 @Composable
-private fun LogRow(log: TaskLog) {
+private fun LogRow(log: TaskLog, photoUrl: String?) {
+
+    var showPhotoDialog by remember { mutableStateOf(false) }
+
+    // Fullscreen photo dialog
+    if (showPhotoDialog && photoUrl != null) {
+        AlertDialog(
+            onDismissRequest = { showPhotoDialog = false },
+            confirmButton = {
+                TextButton(onClick = { showPhotoDialog = false }) {
+                    Text(appText("Close", "Fechar"))
+                }
+            },
+            text = {
+                AsyncImage(
+                    model             = photoUrl,
+                    contentDescription = appText("Progress photo", "Foto do progresso"),
+                    modifier          = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(8.dp)),
+                    contentScale      = ContentScale.FillWidth
+                )
+            }
+        )
+    }
+
     Surface(
-        shape = RoundedCornerShape(8.dp),
-        color = MaterialTheme.colorScheme.surface,
-        border = BorderStroke(
-            1.dp,
-            MaterialTheme.colorScheme.tertiary.copy(alpha = 0.35f)
-        ),
+        shape    = RoundedCornerShape(8.dp),
+        color    = MaterialTheme.colorScheme.surface,
+        border   = BorderStroke(1.dp, MaterialTheme.colorScheme.tertiary.copy(alpha = 0.35f)),
         modifier = Modifier.fillMaxWidth()
     ) {
-        Column(
-            modifier = Modifier.padding(10.dp)
-        ) {
+        Column(modifier = Modifier.padding(10.dp)) {
 
-            Row(
-                verticalAlignment = Alignment.CenterVertically
-            ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
 
-                // Badge de percentagem
+                // Badge percentagem
                 Box(
                     modifier = Modifier
                         .clip(RoundedCornerShape(4.dp))
@@ -316,9 +342,9 @@ private fun LogRow(log: TaskLog) {
                         .padding(horizontal = 8.dp, vertical = 3.dp)
                 ) {
                     Text(
-                        text = "${log.completion_rate ?: 0}%",
-                        color = MaterialTheme.colorScheme.onPrimary,
-                        style = MaterialTheme.typography.labelMedium,
+                        text       = "${log.completion_rate ?: 0}%",
+                        color      = MaterialTheme.colorScheme.onPrimary,
+                        style      = MaterialTheme.typography.labelMedium,
                         fontWeight = FontWeight.Bold
                     )
                 }
@@ -327,26 +353,19 @@ private fun LogRow(log: TaskLog) {
 
                 // Data
                 Text(
-                    text = log.log_date ?: "—",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+                    text     = log.log_date ?: "—",
+                    style    = MaterialTheme.typography.labelSmall,
+                    color    = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
                     modifier = Modifier.weight(1f)
                 )
 
                 // Tempo gasto
                 log.minutes_spent?.let { mins ->
-
                     val h = mins / 60
                     val m = mins % 60
-
-                    val label = if (h > 0) {
-                        "${h}h${if (m > 0) " ${m}min" else ""}"
-                    } else {
-                        "${m}min"
-                    }
-
+                    val label = if (h > 0) "${h}h${if (m > 0) " ${m}min" else ""}" else "${m}min"
                     Text(
-                        text = "⏱ $label",
+                        text  = "⏱ $label",
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                     )
@@ -355,9 +374,8 @@ private fun LogRow(log: TaskLog) {
                 // Localização
                 log.location?.takeIf { it.isNotBlank() }?.let {
                     Spacer(Modifier.width(6.dp))
-
                     Text(
-                        text = "📍 $it",
+                        text  = "📍 $it",
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                     )
@@ -367,11 +385,31 @@ private fun LogRow(log: TaskLog) {
             // Notas
             log.notes?.takeIf { it.isNotBlank() }?.let {
                 Spacer(Modifier.height(6.dp))
-
                 Text(
-                    text = it,
+                    text  = it,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurface
+                )
+            }
+
+            // Foto (se existir)
+            if (photoUrl != null) {
+                Spacer(Modifier.height(8.dp))
+                AsyncImage(
+                    model              = photoUrl,
+                    contentDescription = appText("Progress photo", "Foto do progresso"),
+                    modifier           = Modifier
+                        .fillMaxWidth()
+                        .height(160.dp)
+                        .clip(RoundedCornerShape(6.dp))
+                        .clickable { showPhotoDialog = true },
+                    contentScale       = ContentScale.Crop
+                )
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    text  = appText("Tap to expand", "Toca para expandir"),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)
                 )
             }
         }

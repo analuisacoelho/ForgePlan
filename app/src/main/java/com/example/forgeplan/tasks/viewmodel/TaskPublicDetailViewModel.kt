@@ -1,10 +1,13 @@
 package com.example.forgeplan.tasks.viewmodel
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.forgeplan.core.model.Comment
 import com.example.forgeplan.core.model.Task
 import com.example.forgeplan.core.model.TaskLog
+import com.example.forgeplan.core.model.TaskPhoto
+import com.example.forgeplan.core.network.SupabaseApi
 import com.example.forgeplan.core.repository.CommentRepository
 import com.example.forgeplan.core.repository.TaskLogRepository
 import com.example.forgeplan.core.repository.TaskRepository
@@ -15,10 +18,14 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlin.coroutines.resume
 import com.example.forgeplan.core.repository.UserRepository
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 class TaskPublicDetailViewModel : ViewModel() {
 
 
+    private val _logPhotos = MutableStateFlow<Map<Long, String>>(emptyMap())
+    val logPhotos: StateFlow<Map<Long, String>> = _logPhotos
     private val taskRepo    = TaskRepository()
     private val taskLogRepo = TaskLogRepository()
     private val commentRepo = CommentRepository()
@@ -59,6 +66,7 @@ class TaskPublicDetailViewModel : ViewModel() {
                         onSuccess = { cont.resume(it) },
                         onError = { cont.resume(null) }
                     )
+
                 }
 
                 _task.value = t
@@ -69,17 +77,56 @@ class TaskPublicDetailViewModel : ViewModel() {
                 // NOVO
                 loadUsers()
 
-            } finally {
+
+            } catch (e: Exception) {
+                Log.e("TaskPublicDetailVM", "load error", e)
+            }
+            finally {
                 _isLoading.value = false
             }
         }
     }
 
+    private suspend fun loadPhotosForLogs(logs: List<TaskLog>) {
+        val photoMap = mutableMapOf<Long, String>()
+        logs.forEach { log ->
+            try {
+                val photos = withContext(Dispatchers.IO) {
+                    suspendCancellableCoroutine { cont ->
+                        SupabaseApi.service.getTaskPhotosByLogId(
+                            taskLogId = "eq.${log.id}"
+                        ).enqueue(object : retrofit2.Callback<List<TaskPhoto>> {
+                            override fun onResponse(call: retrofit2.Call<List<TaskPhoto>>, response: retrofit2.Response<List<TaskPhoto>>) {
+                                cont.resume(response.body() ?: emptyList())
+                            }
+                            override fun onFailure(call: retrofit2.Call<List<TaskPhoto>>, t: Throwable) {
+                                cont.resume(emptyList())
+                            }
+                        })
+                    }
+                }
+                photos.firstOrNull()?.photo_url?.let { url ->
+                    photoMap[log.id] = url
+                }
+            } catch (e: Exception) {
+                Log.e("TaskPublicDetailVM", "photo load error for log ${log.id}", e)
+            }
+        }
+        _logPhotos.value = photoMap
+    }
     private fun loadLogs(taskId: Long) {
         taskLogRepo.getLogsByTaskId(
-            taskId    = taskId,
-            onSuccess = { _logs.value = it },
-            onError   = { _logs.value = emptyList() }
+            taskId = taskId,
+            onSuccess = {
+                _logs.value = it
+
+                viewModelScope.launch {
+                    loadPhotosForLogs(it)
+                }
+            },
+            onError = {
+                _logs.value = emptyList()
+            }
         )
     }
 
