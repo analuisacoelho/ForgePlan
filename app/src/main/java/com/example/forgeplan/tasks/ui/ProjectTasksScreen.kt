@@ -24,6 +24,8 @@ import com.example.forgeplan.core.ui.components.ForgePlanTopBar
 import com.example.forgeplan.tasks.viewmodel.ProjectTasksViewModel
 import androidx.compose.ui.Alignment
 import com.example.forgeplan.core.ui.components.ForgePlanBottomBar
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 
 // ─────────────────────────────────────────────
 // STRINGS (PT / EN)
@@ -122,12 +124,15 @@ private fun TaskList(
     onMarkDone: (Task) -> Unit,
     myTaskIds: Set<Long>
 ) {
-    var selectedTab by remember { mutableStateOf(0) }
+    var selectedTab    by remember { mutableStateOf(0) }
+    var selectedFilter by remember { mutableStateOf(0) } // 0=Todas 1=Minhas 2=Equipa
 
     val activeTasks    = tasks.filter { it.status?.uppercase() != "DONE" }
     val completedTasks = tasks.filter { it.status?.uppercase() == "DONE" }
 
     Column(Modifier.fillMaxSize().padding(padding)) {
+
+        // ── Tab Ativas / Concluídas ──────────────────────────────
         TabRow(selectedTabIndex = selectedTab) {
             Tab(
                 selected = selectedTab == 0,
@@ -141,22 +146,58 @@ private fun TaskList(
             )
         }
 
+        // ── Filtro Todas / Minhas / Equipa ───────────────────────
+        val filterLabels = listOf(
+            appText("All", "Todas"),
+            appText("Mine", "Minhas"),
+            appText("Team", "Equipa")
+        )
+
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 10.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            filterLabels.forEachIndexed { index, label ->
+                val isSelected = selectedFilter == index
+                FilterChip(
+                    selected = isSelected,
+                    onClick  = { selectedFilter = index },
+                    label    = { Text(label, style = MaterialTheme.typography.labelMedium) },
+                    colors   = FilterChipDefaults.filterChipColors(
+                        selectedContainerColor    = MaterialTheme.colorScheme.primary,
+                        selectedLabelColor        = MaterialTheme.colorScheme.onPrimary
+                    )
+                )
+            }
+        }
+
         LazyColumn(
-            modifier            = Modifier.fillMaxSize().padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+            modifier            = Modifier.fillMaxSize().padding(horizontal = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+            contentPadding      = PaddingValues(bottom = 16.dp)
         ) {
             if (isLoading) item { LoadingBox() }
             error?.let { item { ErrorBox(it) } }
 
-            val displayedTasks = if (selectedTab == 0) activeTasks else completedTasks
+            val byTab = if (selectedTab == 0) activeTasks else completedTasks
+
+            val displayedTasks = when (selectedFilter) {
+                1    -> byTab.filter { it.id in myTaskIds }
+                2    -> byTab.filter { it.id !in myTaskIds }
+                else -> byTab
+            }
 
             if (!isLoading && displayedTasks.isEmpty()) {
                 item {
                     Text(
-                        text  = if (selectedTab == 0)
-                            appText("No active tasks", "Sem tarefas ativas")
-                        else
-                            appText("No completed tasks", "Sem tarefas concluídas"),
+                        text = when {
+                            selectedFilter == 1 -> appText("No tasks assigned to you", "Sem tarefas atribuídas a ti")
+                            selectedFilter == 2 -> appText("No team tasks", "Sem tarefas da equipa")
+                            selectedTab == 0    -> appText("No active tasks", "Sem tarefas ativas")
+                            else                -> appText("No completed tasks", "Sem tarefas concluídas")
+                        },
                         style = MaterialTheme.typography.bodyLarge
                     )
                 }
