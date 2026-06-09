@@ -1,6 +1,8 @@
 package com.example.forgeplan.tasks.ui
 
+import android.app.DatePickerDialog
 import android.content.Context
+import android.content.Intent
 import android.content.res.Configuration
 import android.net.Uri
 import android.provider.OpenableColumns
@@ -62,6 +64,8 @@ import com.example.forgeplan.tasks.viewmodel.TaskDependencyViewModel
 import com.example.forgeplan.tasks.viewmodel.TaskGroupViewModel
 import com.example.forgeplan.tasks.viewmodel.TaskViewModel
 import com.example.forgeplan.tasks.viewmodel.UserViewModel
+import java.time.LocalDate
+import java.time.ZoneId
 
 @Composable
 fun CreateTaskScreen(
@@ -141,6 +145,7 @@ fun CreateTaskScreen(
         }
 
         val dateRegex = Regex("""^\d{4}-\d{2}-\d{2}$""")
+        val today = LocalDate.now().toString()
 
         if (startDate.isNotBlank() && !dateRegex.matches(startDate)) {
             dateError = appText(
@@ -154,6 +159,30 @@ fun CreateTaskScreen(
             dateError = appText(
                 en = "The end date must be in YYYY-MM-DD format.",
                 pt = "A data de fim deve estar no formato YYYY-MM-DD."
+            )
+            hasError = true
+        }
+
+        if (
+            startDate.isNotBlank() &&
+            dateRegex.matches(startDate) &&
+            startDate < today
+        ) {
+            dateError = appText(
+                en = "The start date cannot be earlier than today.",
+                pt = "A data de início não pode ser anterior ao dia de hoje."
+            )
+            hasError = true
+        }
+
+        if (
+            endDate.isNotBlank() &&
+            dateRegex.matches(endDate) &&
+            endDate < today
+        ) {
+            dateError = appText(
+                en = "The end date cannot be earlier than today.",
+                pt = "A data de fim não pode ser anterior ao dia de hoje."
             )
             hasError = true
         }
@@ -249,18 +278,28 @@ fun CreateTaskScreen(
     }
 
     val documentPicker = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.GetContent()
+        contract = ActivityResultContracts.OpenDocument()
     ) { uri ->
         uri?.let {
+            context.contentResolver.takePersistableUriPermission(
+                it,
+                Intent.FLAG_GRANT_READ_URI_PERMISSION
+            )
+
             attachments.add(it)
             message = null
         }
     }
 
     val imagePicker = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.GetContent()
+        contract = ActivityResultContracts.OpenDocument()
     ) { uri ->
         uri?.let {
+            context.contentResolver.takePersistableUriPermission(
+                it,
+                Intent.FLAG_GRANT_READ_URI_PERMISSION
+            )
+
             attachments.add(it)
             message = null
         }
@@ -352,6 +391,9 @@ fun CreateTaskScreen(
                             },
                             onStartDateChange = {
                                 startDate = it
+                                if (endDate.isNotBlank() && endDate < it) {
+                                    endDate = ""
+                                }
                                 dateError = null
                             },
                             onEndDateChange = {
@@ -378,8 +420,8 @@ fun CreateTaskScreen(
                             assignmentError = assignmentError,
                             dependencyError = dependencyError,
                             onUserSearchChange = { userSearch = it },
-                            onDocumentClick = { documentPicker.launch("*/*") },
-                            onImageClick = { imagePicker.launch("image/*") },
+                            onDocumentClick = { documentPicker.launch(arrayOf("*/*")) },
+                            onImageClick = { imagePicker.launch(arrayOf("image/*")) },
                             onMessageColorIsError = {
                                 it.contains("Erro", ignoreCase = true) ||
                                         it.contains("Error", ignoreCase = true)
@@ -428,6 +470,9 @@ fun CreateTaskScreen(
                     },
                     onStartDateChange = {
                         startDate = it
+                        if (endDate.isNotBlank() && endDate < it) {
+                            endDate = ""
+                        }
                         dateError = null
                     },
                     onEndDateChange = {
@@ -452,8 +497,8 @@ fun CreateTaskScreen(
                     assignmentError = assignmentError,
                     dependencyError = dependencyError,
                     onUserSearchChange = { userSearch = it },
-                    onDocumentClick = { documentPicker.launch("*/*") },
-                    onImageClick = { imagePicker.launch("image/*") },
+                    onDocumentClick = { documentPicker.launch(arrayOf("*/*")) },
+                    onImageClick = { imagePicker.launch(arrayOf("image/*")) },
                     onMessageColorIsError = {
                         it.contains("Erro", ignoreCase = true) ||
                                 it.contains("Error", ignoreCase = true)
@@ -600,11 +645,15 @@ fun CreateTaskMainFields(
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            TaskTextField(
+            CreateTaskDatePickerField(
                 value = startDate,
-                onValueChange = onStartDateChange,
-                placeholder = "yyyy-mm-dd",
-                height = 48.dp
+                onDateSelected = onStartDateChange,
+                minDate = LocalDate.now(),
+                placeholder = appText(
+                    en = "Select date",
+                    pt = "Selecionar data"
+                ),
+                isError = dateError != null
             )
         }
 
@@ -617,11 +666,17 @@ fun CreateTaskMainFields(
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            TaskTextField(
+            CreateTaskDatePickerField(
                 value = endDate,
-                onValueChange = onEndDateChange,
-                placeholder = "yyyy-mm-dd",
-                height = 48.dp,
+                onDateSelected = onEndDateChange,
+                minDate = maxOf(
+                    LocalDate.now(),
+                    CreateTaskDateUtils.parse(startDate) ?: LocalDate.now()
+                ),
+                placeholder = appText(
+                    en = "Select date",
+                    pt = "Selecionar data"
+                ),
                 isError = dateError != null
             )
         }
@@ -1561,6 +1616,89 @@ fun AttachmentSelectedRow(
                 color = MaterialTheme.colorScheme.error,
                 style = MaterialTheme.typography.titleLarge,
                 modifier = Modifier.clickable { onRemove() }
+            )
+        }
+    }
+}
+
+private object CreateTaskDateUtils {
+    fun parse(value: String): LocalDate? {
+        return try {
+            value.takeIf { it.isNotBlank() }?.let { LocalDate.parse(it) }
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    fun toMillis(date: LocalDate): Long {
+        return date
+            .atStartOfDay(ZoneId.systemDefault())
+            .toInstant()
+            .toEpochMilli()
+    }
+}
+
+@Composable
+fun CreateTaskDatePickerField(
+    value: String,
+    onDateSelected: (String) -> Unit,
+    minDate: LocalDate,
+    placeholder: String,
+    isError: Boolean = false
+) {
+    val context = LocalContext.current
+    val initialDate = CreateTaskDateUtils.parse(value) ?: minDate
+
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(48.dp)
+            .clickable {
+                DatePickerDialog(
+                    context,
+                    { _, year, month, dayOfMonth ->
+                        val selectedDate = LocalDate.of(year, month + 1, dayOfMonth)
+                        onDateSelected(selectedDate.toString())
+                    },
+                    initialDate.year,
+                    initialDate.monthValue - 1,
+                    initialDate.dayOfMonth
+                ).apply {
+                    datePicker.minDate = CreateTaskDateUtils.toMillis(minDate)
+                }.show()
+            },
+        shape = RoundedCornerShape(8.dp),
+        color = MaterialTheme.colorScheme.surface,
+        border = BorderStroke(
+            width = 1.dp,
+            color = if (isError) {
+                MaterialTheme.colorScheme.error
+            } else {
+                MaterialTheme.colorScheme.tertiary
+            }
+        )
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "📅",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.75f)
+            )
+
+            Spacer(modifier = Modifier.width(10.dp))
+
+            Text(
+                text = value.ifBlank { placeholder },
+                style = MaterialTheme.typography.bodyMedium,
+                color = if (value.isBlank()) {
+                    MaterialTheme.colorScheme.onSurface.copy(alpha = 0.55f)
+                } else {
+                    MaterialTheme.colorScheme.onSurface
+                },
+                modifier = Modifier.weight(1f)
             )
         }
     }
