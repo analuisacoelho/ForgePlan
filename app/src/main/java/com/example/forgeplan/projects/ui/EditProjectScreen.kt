@@ -1,5 +1,6 @@
 package com.example.forgeplan.projects.ui
 
+import android.app.DatePickerDialog
 import android.content.res.Configuration
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -14,10 +15,14 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CalendarToday
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -31,6 +36,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -40,6 +46,7 @@ import com.example.forgeplan.core.ui.components.ForgeCard
 import com.example.forgeplan.core.ui.components.ForgePlanBottomBar
 import com.example.forgeplan.core.ui.components.ForgePlanTopBar
 import com.example.forgeplan.projects.viewmodel.ProjectViewModel
+import java.util.Calendar
 
 @Composable
 fun EditProjectScreen(
@@ -57,7 +64,6 @@ fun EditProjectScreen(
     var name by remember { mutableStateOf("") }
     var description by remember { mutableStateOf("") }
     var priority by remember { mutableStateOf("MEDIUM") }
-    var status by remember { mutableStateOf("IN_PROGRESS") }
     var startDate by remember { mutableStateOf("") }
     var endDate by remember { mutableStateOf("") }
 
@@ -73,7 +79,6 @@ fun EditProjectScreen(
             name = it.name
             description = it.description ?: ""
             priority = it.priority ?: "MEDIUM"
-            status = it.status ?: "IN_PROGRESS"
             startDate = it.start_date ?: ""
             endDate = it.end_date ?: ""
         }
@@ -126,7 +131,7 @@ fun EditProjectScreen(
                 name = name.trim(),
                 description = description.trim().ifBlank { null },
                 priority = priority,
-                status = status,
+                status = project?.status ?: "IN_PROGRESS",
                 start_date = startDate.trim().ifBlank { null },
                 end_date = endDate.trim().ifBlank { null }
             )
@@ -189,12 +194,11 @@ fun EditProjectScreen(
                         }
 
                         Column(modifier = Modifier.weight(1f)) {
-                            EditProjectDatePriorityStatusFields(
+                            EditProjectDatePriorityFields(
                                 startDate = startDate,
                                 endDate = endDate,
                                 dateError = dateError,
                                 priority = priority,
-                                status = status,
                                 onStartDateChange = {
                                     startDate = it
                                     dateError = null
@@ -203,8 +207,7 @@ fun EditProjectScreen(
                                     endDate = it
                                     dateError = null
                                 },
-                                onPriorityChange = { priority = it },
-                                onStatusChange = { status = it }
+                                onPriorityChange = { priority = it }
                             )
 
                             EditProjectErrorMessage(error = error)
@@ -237,12 +240,11 @@ fun EditProjectScreen(
 
                             Spacer(modifier = Modifier.height(16.dp))
 
-                            EditProjectDatePriorityStatusFields(
+                            EditProjectDatePriorityFields(
                                 startDate = startDate,
                                 endDate = endDate,
                                 dateError = dateError,
                                 priority = priority,
-                                status = status,
                                 onStartDateChange = {
                                     startDate = it
                                     dateError = null
@@ -251,8 +253,7 @@ fun EditProjectScreen(
                                     endDate = it
                                     dateError = null
                                 },
-                                onPriorityChange = { priority = it },
-                                onStatusChange = { status = it }
+                                onPriorityChange = { priority = it }
                             )
 
                             EditProjectErrorMessage(error = error)
@@ -321,17 +322,34 @@ fun EditProjectMainFields(
 }
 
 @Composable
-fun EditProjectDatePriorityStatusFields(
+fun EditProjectDatePriorityFields(
     startDate: String,
     endDate: String,
     dateError: String?,
     priority: String,
-    status: String,
     onStartDateChange: (String) -> Unit,
     onEndDateChange: (String) -> Unit,
-    onPriorityChange: (String) -> Unit,
-    onStatusChange: (String) -> Unit
+    onPriorityChange: (String) -> Unit
 ) {
+    val context = LocalContext.current
+
+    fun parseDateParts(date: String): Triple<Int, Int, Int> {
+        val cal = Calendar.getInstance()
+        return if (date.matches(Regex("""\d{4}-\d{2}-\d{2}"""))) {
+            val parts = date.split("-")
+            Triple(parts[0].toInt(), parts[1].toInt() - 1, parts[2].toInt())
+        } else {
+            Triple(cal.get(Calendar.YEAR), cal.get(Calendar.MONTH), cal.get(Calendar.DAY_OF_MONTH))
+        }
+    }
+
+    fun showDatePicker(currentDate: String, onDateSelected: (String) -> Unit) {
+        val (year, month, day) = parseDateParts(currentDate)
+        DatePickerDialog(context, { _, y, m, d ->
+            onDateSelected("%04d-%02d-%02d".format(y, m + 1, d))
+        }, year, month, day).show()
+    }
+
     Text(
         text = appText(en = "Dates", pt = "Datas"),
         style = MaterialTheme.typography.titleSmall,
@@ -348,26 +366,40 @@ fun EditProjectDatePriorityStatusFields(
             modifier = Modifier.weight(1f),
             value = startDate,
             onValueChange = onStartDateChange,
-            label = {
-                Text(appText(en = "Start", pt = "Início"))
-            },
+            label = { Text(appText(en = "Start", pt = "Início")) },
             placeholder = { Text("YYYY-MM-DD") },
-            shape = RoundedCornerShape(14.dp)
+            shape = RoundedCornerShape(14.dp),
+            readOnly = true,
+            trailingIcon = {
+                IconButton(onClick = { showDatePicker(startDate) { onStartDateChange(it) } }) {
+                    Icon(
+                        imageVector = Icons.Default.CalendarToday,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                }
+            }
         )
 
         OutlinedTextField(
             modifier = Modifier.weight(1f),
             value = endDate,
             onValueChange = onEndDateChange,
-            label = {
-                Text(appText(en = "End", pt = "Fim"))
-            },
+            label = { Text(appText(en = "End", pt = "Fim")) },
             placeholder = { Text("YYYY-MM-DD") },
             isError = dateError != null,
-            supportingText = {
-                dateError?.let { Text(it) }
-            },
-            shape = RoundedCornerShape(14.dp)
+            supportingText = { dateError?.let { Text(it) } },
+            shape = RoundedCornerShape(14.dp),
+            readOnly = true,
+            trailingIcon = {
+                IconButton(onClick = { showDatePicker(endDate) { onEndDateChange(it) } }) {
+                    Icon(
+                        imageVector = Icons.Default.CalendarToday,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                }
+            }
         )
     }
 
@@ -385,50 +417,18 @@ fun EditProjectDatePriorityStatusFields(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        ProjectEditChip(
-            text = appText(en = "LOW", pt = "BAIXA"),
-            selected = priority == "LOW",
-            onClick = { onPriorityChange("LOW") }
-        )
-
-        ProjectEditChip(
-            text = appText(en = "MEDIUM", pt = "MÉDIA"),
-            selected = priority == "MEDIUM",
-            onClick = { onPriorityChange("MEDIUM") }
-        )
-
-        ProjectEditChip(
-            text = appText(en = "HIGH", pt = "ALTA"),
-            selected = priority == "HIGH",
-            onClick = { onPriorityChange("HIGH") }
-        )
-    }
-
-    Spacer(modifier = Modifier.height(16.dp))
-
-    Text(
-        text = appText(en = "Status", pt = "Estado"),
-        style = MaterialTheme.typography.titleSmall,
-        color = MaterialTheme.colorScheme.onBackground
-    )
-
-    Spacer(modifier = Modifier.height(8.dp))
-
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        ProjectEditChip(
-            text = appText(en = "IN PROGRESS", pt = "EM CURSO"),
-            selected = status == "IN_PROGRESS",
-            onClick = { onStatusChange("IN_PROGRESS") }
-        )
-
-        ProjectEditChip(
-            text = appText(en = "DONE", pt = "CONCLUÍDO"),
-            selected = status == "DONE",
-            onClick = { onStatusChange("DONE") }
-        )
+        listOf(
+            "LOW" to appText(en = "LOW", pt = "BAIXA"),
+            "MEDIUM" to appText(en = "MEDIUM", pt = "MÉDIA"),
+            "HIGH" to appText(en = "HIGH", pt = "ALTA")
+        ).forEach { (value, label) ->
+            ProjectEditChip(
+                modifier = Modifier.weight(1f),
+                text = label,
+                selected = priority == value,
+                onClick = { onPriorityChange(value) }
+            )
+        }
     }
 }
 
@@ -438,7 +438,6 @@ fun EditProjectErrorMessage(
 ) {
     error?.let {
         Spacer(modifier = Modifier.height(12.dp))
-
         Text(
             text = it,
             color = MaterialTheme.colorScheme.error,
@@ -497,16 +496,23 @@ fun EditProjectButtons(
 fun ProjectEditChip(
     text: String,
     selected: Boolean,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
     FilterChip(
+        modifier = modifier,
         selected = selected,
         onClick = onClick,
         label = {
-            Text(
-                text = text,
-                style = MaterialTheme.typography.labelSmall
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.Center
+            ) {
+                Text(
+                    text = text,
+                    style = MaterialTheme.typography.labelSmall
+                )
+            }
         }
     )
 }

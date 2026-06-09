@@ -10,9 +10,12 @@ import com.example.forgeplan.admin.ui.AdminActivityScreen
 import com.example.forgeplan.admin.ui.AdminCreateUserScreen
 import com.example.forgeplan.admin.ui.AdminDashboardScreen
 import com.example.forgeplan.admin.ui.AdminEditUserScreen
+import com.example.forgeplan.admin.ui.AdminProjectDetailScreen
 import com.example.forgeplan.admin.ui.AdminUsersScreen
 import com.example.forgeplan.auth.ui.LoginScreen
-import com.example.forgeplan.profile.ProfileScreen
+import com.example.forgeplan.profile.ChangePasswordScreen
+import com.example.forgeplan.profile.EditProfileScreen
+import com.example.forgeplan.profile.ui.ProfileScreen
 import com.example.forgeplan.progress.ui.ProgressScreen
 import com.example.forgeplan.projects.ui.CreateProjectScreen
 import com.example.forgeplan.projects.ui.EditProjectScreen
@@ -140,17 +143,25 @@ fun AppNavigation() {
             arguments = listOf(navArgument("projectId") { type = NavType.LongType })
         ) { back ->
             val projectId = back.arguments?.getLong("projectId") ?: 0L
-
-            ProjectDetailScreen(
+            AdminProjectDetailScreen(
                 projectId = projectId,
-                onCreateTaskClick = { navController.navigate("createTask/$projectId") },
-                onEditProjectClick = { navController.navigate("editProject/$projectId") },
-                onTaskClick = { taskId -> navController.navigate("taskDetail/$taskId") },
-                onReviewProjectClick = { navController.navigate("projectReview/$projectId") },
-                onProjectsClick = { navController.navigate("admin") },
-                onTimelineClick = { navController.navigate("timeline") },
-                onProgressClick = { navController.navigate("reports") },
-                onTeamClick = { navController.navigate("team") }
+                onBackClick = { navController.navigate("admin") },
+                onEditProjectClick = { navController.navigate("adminEditProject/$projectId") },
+                onUsersClick = { navController.navigate("adminUsers") },
+                onActivityClick = { navController.navigate("adminActivity") },
+                onProfileClick = { navController.navigate("profile") },
+                onLogout = { navController.navigate("login") { popUpTo(0) { inclusive = true } } }
+            )
+        }
+
+        composable(
+            route = "adminEditProject/{projectId}",
+            arguments = listOf(navArgument("projectId") { type = NavType.LongType })
+        ) { back ->
+            val projectId = back.arguments?.getLong("projectId") ?: 0L
+            EditProjectScreen(
+                projectId = projectId,
+                onProjectUpdated = { navController.popBackStack() }
             )
         }
 
@@ -351,11 +362,31 @@ fun AppNavigation() {
 
         composable("profile") {
             ProfileScreen(
+                onEditProfile = { navController.navigate("editProfile") },
+                onChangePassword = { navController.navigate("changePassword") },
                 onLogout = {
                     navController.navigate("login") {
                         popUpTo(0) { inclusive = true }
                     }
-                }
+                },
+                onProjectsClick = { navController.navigateUp() },
+                onUsersClick = { navController.navigate("adminUsers") },
+                onActivityClick = { navController.navigate("adminActivity") },
+                onTimelineClick = { navController.navigate("timeline") },
+                onProgressClick = { navController.navigate("reports") },
+                onTeamClick = { navController.navigate("team") }
+            )
+        }
+
+        composable("editProfile") {
+            EditProfileScreen(
+                onBack = { navController.popBackStack() }
+            )
+        }
+
+        composable("changePassword") {
+            ChangePasswordScreen(
+                onBack = { navController.popBackStack() }
             )
         }
     }
