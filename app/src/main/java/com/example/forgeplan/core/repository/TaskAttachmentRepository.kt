@@ -20,55 +20,48 @@ class TaskAttachmentRepository {
         onError: (String) -> Unit
     ) {
         val fileName = getFileName(context, uri)
-
         val payload = TaskAttachmentPayload(
             task_id = taskId,
             file_name = fileName,
             file_url = uri.toString(),
             file_type = getFileType(context, uri)
         )
-
         SupabaseApi.service.createTaskAttachment(payload)
             .enqueue(object : Callback<List<TaskAttachment>> {
-                override fun onResponse(
-                    call: Call<List<TaskAttachment>>,
-                    response: Response<List<TaskAttachment>>
-                ) {
-                    if (response.isSuccessful) {
-                        onSuccess()
-                    } else {
-                        onError("Erro ao guardar anexo: ${response.code()}")
-                    }
+                override fun onResponse(call: Call<List<TaskAttachment>>, response: Response<List<TaskAttachment>>) {
+                    if (response.isSuccessful) onSuccess()
+                    else onError("Erro ao guardar anexo: ${response.code()}")
                 }
-
-                override fun onFailure(
-                    call: Call<List<TaskAttachment>>,
-                    t: Throwable
-                ) {
+                override fun onFailure(call: Call<List<TaskAttachment>>, t: Throwable) {
                     onError(t.message ?: "Erro desconhecido ao guardar anexo.")
+                }
+            })
+    }
+
+    fun getAttachmentsByTaskId(
+        taskId: Long,
+        onSuccess: (List<TaskAttachment>) -> Unit,
+        onError: (String) -> Unit
+    ) {
+        SupabaseApi.service.getTaskAttachmentsByTaskId("eq.$taskId")
+            .enqueue(object : Callback<List<TaskAttachment>> {
+                override fun onResponse(call: Call<List<TaskAttachment>>, response: Response<List<TaskAttachment>>) {
+                    if (response.isSuccessful) onSuccess(response.body() ?: emptyList())
+                    else onError("Erro ao carregar anexos: ${response.code()}")
+                }
+                override fun onFailure(call: Call<List<TaskAttachment>>, t: Throwable) {
+                    onError(t.message ?: "Erro desconhecido")
                 }
             })
     }
 
     private fun getFileName(context: Context, uri: Uri): String {
         var fileName = "attachment_${System.currentTimeMillis()}"
-
-        val cursor = context.contentResolver.query(
-            uri,
-            null,
-            null,
-            null,
-            null
-        )
-
+        val cursor = context.contentResolver.query(uri, null, null, null, null)
         cursor?.use {
             val nameIndex = it.getColumnIndex(OpenableColumns.DISPLAY_NAME)
-
-            if (it.moveToFirst() && nameIndex >= 0) {
-                fileName = it.getString(nameIndex)
-            }
+            if (it.moveToFirst() && nameIndex >= 0) fileName = it.getString(nameIndex)
         }
-
         return fileName
     }
 
