@@ -156,7 +156,7 @@ fun AdminActivityScreen(
 }
 
 // ─────────────────────────────────────────────────────────
-// Tab 0 – Logs (igual ao AdminActivityScreen original)
+// Tab 0 – Logs
 // ─────────────────────────────────────────────────────────
 
 @Composable
@@ -258,7 +258,7 @@ private fun formatLogDate(dateString: String?): String {
 }
 
 // ─────────────────────────────────────────────────────────
-// Tab 1 – Timeline
+// Tab 1 – Timeline (reutiliza exatamente os composables do TimelineScreen)
 // ─────────────────────────────────────────────────────────
 
 @Composable
@@ -347,7 +347,7 @@ private fun TimelineTab(
 }
 
 // ─────────────────────────────────────────────────────────
-// Tab 2 – Reports
+// Tab 2 – Reports (reutiliza exatamente o ReportsScreen existente)
 // ─────────────────────────────────────────────────────────
 
 @Composable
@@ -356,8 +356,8 @@ private fun ReportsTab(
     userViewModel: UserViewModel
 ) {
     // O ReportsScreen já tem toda a lógica. Passamos os ViewModels para não recriar estado.
-    // As lambdas de navegação ficam vazias porque estamos dentro do AdminScaffold.
     ReportsScreen(
+        showScaffold = false,
         onProjectsClick = {},
         onTimelineClick = {},
         onTeamClick = {},
