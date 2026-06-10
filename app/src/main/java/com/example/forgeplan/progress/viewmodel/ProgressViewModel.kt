@@ -7,9 +7,9 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.forgeplan.core.model.Task
 import com.example.forgeplan.core.network.SupabaseApi
-import com.example.forgeplan.core.network.SupabaseService
 import com.example.forgeplan.core.network.SupabaseService.TaskLogPayload
 import com.example.forgeplan.core.network.SupabaseService.TaskPhotoPayload
+import com.example.forgeplan.core.notifications.NotificationHelper
 import com.example.forgeplan.core.repository.TaskLogRepository
 import com.example.forgeplan.core.repository.TaskRepository
 import com.example.forgeplan.core.session.SessionManager
@@ -59,20 +59,26 @@ class ProgressViewModel : ViewModel() {
             return
         }
 
+        // Guarda os valores anteriores ANTES de atualizar, para comparar
+        val oldCompletionRate = task.completion_rate ?: 0
+        val oldStatus         = task.status ?: "PENDING"
+
         viewModelScope.launch {
             _isSaving.value = true
             try {
-                // 1. Atualiza a task
+                // 1. Determina novo estado
                 val newStatus = when {
                     completionRate >= 100 -> "Done"
                     completionRate > 0    -> "IN_PROGRESS"
                     else                  -> "PENDING"
                 }
+
                 val updatedTask = task.copy(
                     completion_rate = completionRate,
                     status          = newStatus,
                     start_date      = logDate.ifBlank { task.start_date }
                 )
+
                 val taskOk = suspendCancellableCoroutine { cont ->
                     taskRepo.updateTask(
                         task      = updatedTask,
@@ -102,6 +108,28 @@ class ProgressViewModel : ViewModel() {
                 )
                 val logId = taskLogRepo.insertTaskLog(logPayload)
                 Log.d(TAG, "task_log inserted with id=$logId")
+
+                // ── NOTIFICAÇÕES ─────────────────────────────────────────────
+                // Só notifica se algo mudou de facto
+                if (completionRate != oldCompletionRate) {
+                    NotificationHelper.onCompletionRateUpdated(
+                        taskId          = task.id,
+                        projectId       = task.project_id,
+                        taskTitle       = task.title,
+                        newRate         = completionRate,
+                        changedByUserId = userId
+                    )
+                }
+                if (newStatus != oldStatus) {
+                    NotificationHelper.onTaskStatusChanged(
+                        taskId          = task.id,
+                        projectId       = task.project_id,
+                        taskTitle       = task.title,
+                        newStatus       = newStatus,
+                        changedByUserId = userId
+                    )
+                }
+                // ─────────────────────────────────────────────────────────────
 
                 if (logId == -1L) {
                     _saveResult.value = successMsg
@@ -144,7 +172,6 @@ class ProgressViewModel : ViewModel() {
         try {
             Log.d(TAG, "=== uploadPhoto START === taskId=$taskId logId=$logId")
 
-            // Leitura de bytes em IO
             val bytes = withContext(Dispatchers.IO) {
                 context.contentResolver
                     .openInputStream(photoUri)
@@ -169,11 +196,8 @@ class ProgressViewModel : ViewModel() {
             }
             val filePath = "task_${taskId}/log_${logId}_${System.currentTimeMillis()}.$ext"
 
-            Log.d(TAG, "mimeType=$mimeType filePath=$filePath")
-
             val body = bytes.toRequestBody(mimeType.toMediaTypeOrNull())
 
-            // Upload em IO — corrige o NetworkOnMainThreadException
             val response = withContext(Dispatchers.IO) {
                 SupabaseApi.storageService.uploadFile(
                     bucket      = "task-photos",
@@ -187,11 +211,9 @@ class ProgressViewModel : ViewModel() {
 
             if (response.isSuccessful) {
                 response.body()?.close()
-
                 val publicUrl = SupabaseApi.publicStorageUrl("task-photos", filePath)
                 Log.d(TAG, "publicUrl=$publicUrl")
 
-                // Insert task_photo em IO
                 withContext(Dispatchers.IO) {
                     taskLogRepo.insertTaskPhoto(
                         TaskPhotoPayload(
@@ -202,9 +224,7 @@ class ProgressViewModel : ViewModel() {
                         )
                     )
                 }
-
                 _saveResult.value = successMsg
-
             } else {
                 val errBody = response.errorBody()?.string() ?: "sem detalhe"
                 Log.e(TAG, "upload FAILED: code=${response.code()} body=$errBody")

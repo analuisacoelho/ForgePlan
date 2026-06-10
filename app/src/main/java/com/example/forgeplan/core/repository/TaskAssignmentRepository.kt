@@ -2,6 +2,8 @@ package com.example.forgeplan.core.repository
 
 import com.example.forgeplan.core.model.TaskAssignment
 import com.example.forgeplan.core.network.SupabaseApi
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import retrofit2.Call
 import retrofit2.Callback
 import retrofit2.Response
@@ -123,4 +125,20 @@ class TaskAssignmentRepository {
             }
         })
     }
+
+    /**
+     * Devolve os user_id de todos os utilizadores atribuídos a uma tarefa.
+     * Usado pelo NotificationHelper para saber quem notificar.
+     */
+    suspend fun getUserIdsForTask(taskId: Long): List<Long> =
+        withContext(Dispatchers.IO) {
+            try {
+                val response = SupabaseApi.service
+                    .getTaskAssignmentsByTaskId("eq.$taskId")
+                    .execute()
+                response.body()?.map { it.user_id } ?: emptyList()
+            } catch (e: Exception) {
+                emptyList()
+            }
+        }
 }

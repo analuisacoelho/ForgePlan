@@ -44,10 +44,12 @@ import com.example.forgeplan.core.model.ProjectUser
 import com.example.forgeplan.core.model.Task
 import com.example.forgeplan.core.repository.ProjectUserRepository
 import com.example.forgeplan.core.repository.TaskRepository
+import com.example.forgeplan.core.session.SessionManager
 import com.example.forgeplan.core.ui.components.ForgeMiniChip
 import com.example.forgeplan.core.ui.components.ForgePlanBottomBar
 import com.example.forgeplan.core.ui.components.ForgePlanTopBar
 import com.example.forgeplan.core.ui.components.ForgeSearchBar
+import com.example.forgeplan.notifications.viewmodel.NotificationViewModel
 import com.example.forgeplan.projects.viewmodel.ProjectViewModel
 
 @Composable
@@ -58,6 +60,7 @@ fun ManagerDashboardScreen(
     onTimelineClick: () -> Unit,
     onProgressClick: () -> Unit,
     onTeamClick: () -> Unit,
+    onNotificationClick: () -> Unit = {},          // ← NOVO parâmetro
     viewModel: ProjectViewModel = viewModel()
 ) {
     val configuration = LocalConfiguration.current
@@ -66,6 +69,11 @@ fun ManagerDashboardScreen(
     val projects by viewModel.projects.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
     val error by viewModel.error.collectAsState()
+
+    // ── NotificationViewModel para badge do sino ──────────────────────────────
+    val notifVm: NotificationViewModel = viewModel()
+    val unreadCount by notifVm.unreadCount.collectAsState()
+    // ─────────────────────────────────────────────────────────────────────────
 
     val taskRepository = remember { TaskRepository() }
     val projectUserRepository = remember { ProjectUserRepository() }
@@ -77,6 +85,7 @@ fun ManagerDashboardScreen(
 
     LaunchedEffect(Unit) {
         viewModel.loadProjects()
+        notifVm.load()                             // ← carrega contagem de não lidas
     }
 
     LaunchedEffect(projects) {
@@ -116,7 +125,9 @@ fun ManagerDashboardScreen(
         Column(modifier = Modifier.fillMaxSize()) {
             ForgePlanTopBar(
                 title = "ForgePlan",
-                initials = "FP"
+                initials = SessionManager.userInitials,
+                onNotificationClick = onNotificationClick,   // ← LIGADO
+                unreadCount = unreadCount                    // ← LIGADO
             )
 
             LazyColumn(

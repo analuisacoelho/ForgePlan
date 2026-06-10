@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -21,6 +22,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.KeyboardArrowDown
 import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.material.icons.outlined.Search
+import androidx.compose.material3.Badge
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -48,6 +50,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.example.forgeplan.core.language.appText
 import com.example.forgeplan.core.session.SessionManager
@@ -57,7 +60,9 @@ import kotlinx.coroutines.launch
 fun ForgePlanTopBar(
     title: String = "ForgePlan",
     initials: String = "UN",
-    onAvatarClick: () -> Unit = {}
+    onAvatarClick: () -> Unit = {},
+    onNotificationClick: () -> Unit = {},   // ← NOVO
+    unreadCount: Int = 0                    // ← NOVO
 ) {
     Surface(
         color = MaterialTheme.colorScheme.primary,
@@ -100,12 +105,36 @@ fun ForgePlanTopBar(
                 modifier = Modifier.weight(1f)
             )
 
-            Icon(
-                imageVector = Icons.Outlined.Notifications,
-                contentDescription = appText(en = "Notifications", pt = "Notificações"),
-                tint = MaterialTheme.colorScheme.onPrimary,
-                modifier = Modifier.size(21.dp)
-            )
+            // ── Sino com badge ────────────────────────────────────────────────
+            Box(
+                modifier = Modifier
+                    .size(36.dp)
+                    .clickable { onNotificationClick() },
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Outlined.Notifications,
+                    contentDescription = appText("Notifications", "Notificações"),
+                    tint = MaterialTheme.colorScheme.onPrimary,
+                    modifier = Modifier.size(24.dp)
+                )
+                // Badge vermelho — só aparece se houver notificações não lidas
+                if (unreadCount > 0) {
+                    Badge(
+                        containerColor = MaterialTheme.colorScheme.error,
+                        contentColor = MaterialTheme.colorScheme.onError,
+                        modifier = Modifier
+                            .align(Alignment.TopEnd)
+                            .offset(x = 2.dp, y = (-2).dp)
+                    ) {
+                        Text(
+                            text = if (unreadCount > 99) "99+" else unreadCount.toString(),
+                            style = MaterialTheme.typography.labelSmall,
+                            fontSize = 9.sp
+                        )
+                    }
+                }
+            }
         }
     }
 }

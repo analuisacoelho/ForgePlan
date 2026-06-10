@@ -13,6 +13,7 @@ import com.example.forgeplan.admin.ui.AdminEditUserScreen
 import com.example.forgeplan.admin.ui.AdminProjectDetailScreen
 import com.example.forgeplan.admin.ui.AdminUsersScreen
 import com.example.forgeplan.auth.ui.LoginScreen
+import com.example.forgeplan.notifications.ui.NotificationScreen
 import com.example.forgeplan.profile.ChangePasswordScreen
 import com.example.forgeplan.profile.EditProfileScreen
 import com.example.forgeplan.profile.ui.ProfileScreen
@@ -103,6 +104,12 @@ fun AppNavigation() {
             )
         }
 
+        composable("notifications") {
+            NotificationScreen(
+                onBack = { navController.popBackStack() }
+            )
+        }
+
         composable("adminCreateUser") {
             AdminCreateUserScreen(
                 onUserCreated = { navController.popBackStack() },
@@ -165,6 +172,7 @@ fun AppNavigation() {
             )
         }
 
+        // ── MANAGER ───────────────────────────────────────────────────────────
         composable("manager") {
             ManagerDashboardScreen(
                 onProjectClick = { navController.navigate("projectDetail/$it") },
@@ -172,7 +180,8 @@ fun AppNavigation() {
                 onEditTaskClick = { navController.navigate("editTask/$it") },
                 onTimelineClick = { navController.navigate("timeline") },
                 onProgressClick = { navController.navigate("reports") },
-                onTeamClick = { navController.navigate("team") }
+                onTeamClick = { navController.navigate("team") },
+                onNotificationClick = { navController.navigate("notifications") }  // ← LIGADO
             )
         }
 
@@ -290,6 +299,7 @@ fun AppNavigation() {
             )
         }
 
+        // ── TASK OWNER (utilizador) ────────────────────────────────────────────
         composable(
             route = "taskOwner/{taskId}",
             arguments = listOf(navArgument("taskId") { type = NavType.LongType })
@@ -306,7 +316,8 @@ fun AppNavigation() {
                 onTimelineClick = { navController.navigate("userTimeline") },
                 onProgressClick = { navController.navigate("userProgress") },
                 onTeamClick = { navController.navigate("userTeam") },
-                onProfileClick = { navController.navigate("profile") }
+                onProfileClick = { navController.navigate("profile") },
+                onNotificationClick = { navController.navigate("notifications") }  // ← LIGADO
             )
         }
 
@@ -355,7 +366,8 @@ fun AppNavigation() {
                 onTimelineClick = { navController.navigate("userTimeline") },
                 onProgressClick = { navController.navigate("userProgress") },
                 onTeamClick = { navController.navigate("userTeam") },
-                onProfileClick = { navController.navigate("profile") }
+                onProfileClick = { navController.navigate("profile") },
+                onNotificationClick = { navController.navigate("notifications") }
             )
         }
 

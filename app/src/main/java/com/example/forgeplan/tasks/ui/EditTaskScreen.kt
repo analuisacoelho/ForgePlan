@@ -343,6 +343,7 @@ fun EditTaskScreen(
 
             taskViewModel.updateTask(
                 task = updatedTask,
+                previousTask = task,
                 onSuccess = {
                     val alreadyAssignedIds = assignments.map { it.user_id }
 
@@ -352,6 +353,9 @@ fun EditTaskScreen(
                             assignmentViewModel.assignUserToTask(
                                 taskId = task.id,
                                 userId = user.id,
+                                taskTitle = title.trim(),
+                                projectId = project.id,
+                                priority  = priority,
                                 onSuccess = {}
                             )
                         }

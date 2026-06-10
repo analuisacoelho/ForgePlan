@@ -28,6 +28,7 @@ import com.example.forgeplan.core.model.Project
 import com.example.forgeplan.core.model.Task
 import com.example.forgeplan.core.session.SessionManager
 import com.example.forgeplan.core.ui.components.*
+import com.example.forgeplan.notifications.viewmodel.NotificationViewModel
 import com.example.forgeplan.tasks.viewmodel.UserDashboardViewModel
 
 // ── TEXTOS ───────────────────────────────────────────────────────────────
@@ -57,10 +58,19 @@ fun UserDashboardScreen(
     onProgressClick: () -> Unit = {},
     onTeamClick: () -> Unit = {},
     onProfileClick: () -> Unit = {},
-    onProjectClick: (Long) -> Unit = {}
+    onProjectClick: (Long) -> Unit = {},
+    onNotificationClick: () -> Unit = {}
 ) {
     val vm: UserDashboardViewModel = viewModel()
+    val notifVm: NotificationViewModel = viewModel()
 
+    // Carregar contagem de não lidas ao entrar no ecrã
+    LaunchedEffect(Unit) {
+        vm.loadDashboard()
+        notifVm.load()
+    }
+
+    val unreadCount by notifVm.unreadCount.collectAsState()
     val projectsWithTasks by vm.projectsWithTasks.collectAsState()
     val isLoading by vm.isLoading.collectAsState()
     val error by vm.error.collectAsState()
@@ -104,7 +114,9 @@ fun UserDashboardScreen(
         topBar = {
             ForgePlanTopBar(
                 title = "ForgePlan",
-                initials = SessionManager.userInitials
+                initials = SessionManager.userInitials,
+                onNotificationClick = onNotificationClick,
+                unreadCount = unreadCount
             )
         },
         bottomBar = {

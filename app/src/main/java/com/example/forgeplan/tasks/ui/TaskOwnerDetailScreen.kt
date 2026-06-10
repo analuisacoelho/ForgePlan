@@ -25,6 +25,7 @@ import com.example.forgeplan.core.model.Comment
 import com.example.forgeplan.core.session.SessionManager
 import com.example.forgeplan.core.ui.components.ForgePlanBottomBar
 import com.example.forgeplan.core.ui.components.ForgePlanTopBar
+import com.example.forgeplan.notifications.viewmodel.NotificationViewModel
 import com.example.forgeplan.tasks.viewmodel.TaskPublicDetailViewModel
 import com.example.forgeplan.core.model.TaskLog
 
@@ -38,6 +39,7 @@ fun TaskOwnerDetailScreen(
     onProgressClick: () -> Unit,
     onTeamClick: () -> Unit,
     onProfileClick: () -> Unit,
+    onNotificationClick: () -> Unit = {},          // ← NOVO parâmetro
     viewModel: TaskPublicDetailViewModel = viewModel()
 ) {
 
@@ -48,17 +50,25 @@ fun TaskOwnerDetailScreen(
     val userNames by viewModel.userNames.collectAsState()
     val logPhotos by viewModel.logPhotos.collectAsState()
 
+    // ── NotificationViewModel para badge do sino ──────────────────────────────
+    val notifVm: NotificationViewModel = viewModel()
+    val unreadCount by notifVm.unreadCount.collectAsState()
+    // ─────────────────────────────────────────────────────────────────────────
+
     var commentText by remember { mutableStateOf("") }
 
     LaunchedEffect(taskId) {
         viewModel.load(taskId)
+        notifVm.load()                             // ← carrega contagem de não lidas
     }
 
     Scaffold(
         topBar = {
             ForgePlanTopBar(
                 title = "Minha Task",
-                initials = SessionManager.userInitials
+                initials = SessionManager.userInitials,
+                onNotificationClick = onNotificationClick,   // ← LIGADO
+                unreadCount = unreadCount                    // ← LIGADO
             )
         },
         bottomBar = {

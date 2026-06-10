@@ -1,10 +1,14 @@
 package com.example.forgeplan.tasks.viewmodel
 
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
 import com.example.forgeplan.core.model.Task
+import com.example.forgeplan.core.notifications.NotificationHelper
 import com.example.forgeplan.core.repository.TaskRepository
+import com.example.forgeplan.core.session.SessionManager
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.launch
 
 class TaskViewModel : ViewModel() {
 
@@ -102,9 +106,17 @@ class TaskViewModel : ViewModel() {
         )
     }
 
+    /**
+     * Atualiza a tarefa e dispara notificações de estado/progresso
+     * se o status ou completion_rate mudarem.
+     *
+     * @param previousTask  tarefa com os valores ANTES da edição (para comparar).
+     *                      Se null, não dispara notificações de mudança.
+     */
     fun updateTask(
         task: Task,
-        onSuccess: () -> Unit
+        onSuccess: () -> Unit,
+        previousTask: Task? = null
     ) {
         _isLoading.value = true
         _error.value = null
@@ -114,6 +126,40 @@ class TaskViewModel : ViewModel() {
             onSuccess = {
                 _isLoading.value = false
                 loadTasks(task.project_id)
+
+                // ── NOTIFICAÇÕES ─────────────────────────────────────────────
+                if (previousTask != null) {
+                    val userId = SessionManager.userId
+                    viewModelScope.launch {
+                        // Mudança de estado
+                        val oldStatus = previousTask.status?.uppercase() ?: "PENDING"
+                        val newStatus = task.status?.uppercase() ?: "PENDING"
+                        if (oldStatus != newStatus) {
+                            NotificationHelper.onTaskStatusChanged(
+                                taskId          = task.id,
+                                projectId       = task.project_id,
+                                taskTitle       = task.title,
+                                newStatus       = newStatus,
+                                changedByUserId = userId
+                            )
+                        }
+
+                        // Mudança de taxa de conclusão
+                        val oldRate = previousTask.completion_rate ?: 0
+                        val newRate = task.completion_rate ?: 0
+                        if (oldRate != newRate) {
+                            NotificationHelper.onCompletionRateUpdated(
+                                taskId          = task.id,
+                                projectId       = task.project_id,
+                                taskTitle       = task.title,
+                                newRate         = newRate,
+                                changedByUserId = userId
+                            )
+                        }
+                    }
+                }
+                // ─────────────────────────────────────────────────────────────
+
                 onSuccess()
             },
             onError = { message ->
@@ -142,10 +188,10 @@ class TaskViewModel : ViewModel() {
             status = "DONE",
             completion_rate = 100
         )
-
         updateTask(
             task = updatedTask,
-            onSuccess = onSuccess
+            onSuccess = onSuccess,
+            previousTask = task  // passa a tarefa original para comparar
         )
     }
 }

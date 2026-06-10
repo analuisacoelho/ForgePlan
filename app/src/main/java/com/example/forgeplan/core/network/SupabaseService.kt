@@ -2,6 +2,7 @@ package com.example.forgeplan.core.network
 
 import com.example.forgeplan.core.model.ActivityLog
 import com.example.forgeplan.core.model.Comment
+import com.example.forgeplan.core.model.NotificationPayload
 import com.example.forgeplan.core.model.Project
 import com.example.forgeplan.core.model.ProjectEvaluation
 import com.example.forgeplan.core.model.ProjectEvaluationPayload
@@ -28,6 +29,7 @@ import retrofit2.http.Headers
 import retrofit2.http.PATCH
 import retrofit2.http.POST
 import retrofit2.http.Query
+import com.example.forgeplan.core.model.Notification
 
 interface SupabaseService {
 
@@ -305,4 +307,35 @@ interface SupabaseService {
     fun deleteTaskAttachment(
         @Query("id") id: String
     ): Call<Void>
+
+    /** Notificações de um utilizador */
+    @GET("notifications")
+    fun getNotificationsByUserId(
+        @Query("user_id") userId: String,
+        @Query("order") order: String = "created_at.desc",
+        @Query("is_read") isRead: String? = null   // ex. "eq.false" para não lidas
+    ): Call<List<Notification>>
+
+    /** Cria uma nova notificação */
+    @Headers("Prefer: return=representation")
+    @POST("notifications")
+    fun createNotification(
+        @Body notification: NotificationPayload
+    ): Call<List<Notification>>
+
+    /** Marca uma notificação como lida */
+    @Headers("Prefer: return=representation")
+    @PATCH("notifications")
+    fun markNotificationRead(
+        @Query("id") id: String,
+        @Body body: Map<String, Boolean>
+    ): Call<List<Notification>>
+
+    /** Marca TODAS as notificações de um utilizador como lidas */
+    @Headers("Prefer: return=representation")
+    @PATCH("notifications")
+    fun markAllNotificationsRead(
+        @Query("user_id") userId: String,
+        @Body body: Map<String, Boolean>
+    ): Call<List<Notification>>
 }
