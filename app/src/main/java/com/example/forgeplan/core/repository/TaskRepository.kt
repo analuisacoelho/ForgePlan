@@ -123,6 +123,22 @@ class TaskRepository {
         })
     }
 
+    /**
+     * Versão suspend de [getTaskById] para uso dentro de coroutines
+     * (ex: CommentRepository ao buscar o project_id real antes de notificar).
+     */
+    suspend fun getTaskByIdSuspend(taskId: Long): Task? =
+        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            try {
+                val response = SupabaseApi.service
+                    .getTaskById("eq.$taskId")
+                    .execute()
+                response.body()?.firstOrNull()
+            } catch (e: Exception) {
+                null
+            }
+        }
+
     private fun Task.toPayload(): TaskPayload {
         return TaskPayload(
             project_id = project_id,

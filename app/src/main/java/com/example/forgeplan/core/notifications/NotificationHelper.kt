@@ -29,36 +29,44 @@ object NotificationHelper {
     // ── Novo comentário ───────────────────────────────────────────────────────
 
     /**
-     * Notifica todos os utilizadores atribuídos à tarefa (exceto o autor)
-     * que foi adicionado um novo comentário.
+     * Notifica todos os utilizadores atribuídos à tarefa **e o criador da tarefa**
+     * (exceto o autor do comentário) que foi adicionado um novo comentário.
+     *
+     * @param taskCreatorId  O [created_by_id] da tarefa, ou null se desconhecido.
+     *                       Quando fornecido, garante que o dono da tarefa também
+     *                       recebe a notificação, mesmo que não esteja em [task_assignments].
      */
     suspend fun onCommentAdded(
         taskId: Long,
         projectId: Long,
         authorUserId: Long,
         authorName: String,
-        commentText: String
+        commentText: String,
+        taskCreatorId: Long? = null
     ) {
         val assignedUsers = assignmentRepo.getUserIdsForTask(taskId)
         val isPt = AppLanguage.isPortuguese()
 
-        assignedUsers
+        // União de assignees + criador da tarefa, excluindo o próprio autor
+        val recipients = (assignedUsers + listOfNotNull(taskCreatorId))
+            .distinct()
             .filter { it != authorUserId }
-            .forEach { userId ->
-                repo.createNotification(
-                    NotificationPayload(
-                        user_id   = userId,
-                        task_id   = taskId,
-                        project_id = projectId,
-                        type      = "comment",
-                        title     = if (isPt)
-                            "$authorName mencionou-te num comentário"
-                        else
-                            "$authorName mentioned you in a comment",
-                        message   = commentText.take(120)
-                    )
+
+        recipients.forEach { userId ->
+            repo.createNotification(
+                NotificationPayload(
+                    user_id    = userId,
+                    task_id    = taskId,
+                    project_id = projectId,
+                    type       = "comment",
+                    title      = if (isPt)
+                        "$authorName comentou numa tarefa"
+                    else
+                        "$authorName commented on a task",
+                    message    = commentText.take(120)
                 )
-            }
+            )
+        }
     }
 
     // ── Mudança de estado ─────────────────────────────────────────────────────

@@ -11,9 +11,11 @@ import retrofit2.Response
 
 class CommentRepository {
 
+    private val taskRepo = TaskRepository()
+
     /**
      * Insere um comentário e, em caso de sucesso, notifica todos os
-     * utilizadores atribuídos à tarefa (excepto o autor).
+     * utilizadores atribuídos à tarefa e o criador da tarefa (exceto o autor).
      */
     suspend fun insertComment(taskId: Long, userId: Long, content: String): Comment? {
         val result = SupabaseApi.service.insertComment(
@@ -24,15 +26,19 @@ class CommentRepository {
         // ── NOTIFICAÇÃO ──────────────────────────────────────────────────────
         if (inserted != null) {
             val authorName = SessionManager.currentUser?.name ?: "Alguém"
-            // projectId = 0 pois o Comment não tem project_id; a notificação
-            // usa task_id para navegar, por isso project_id não é crítico aqui.
-            // Se quiseres, faz uma query extra para obter o project_id da task.
+
+            // Vai buscar o project_id e created_by_id reais da tarefa
+            val task = taskRepo.getTaskByIdSuspend(taskId)
+            val realProjectId = task?.project_id ?: 0L
+            val taskCreatorId = task?.created_by_id
+
             NotificationHelper.onCommentAdded(
-                taskId       = taskId,
-                projectId    = 0L,
-                authorUserId = userId,
-                authorName   = authorName,
-                commentText  = content
+                taskId        = taskId,
+                projectId     = realProjectId,
+                authorUserId  = userId,
+                authorName    = authorName,
+                commentText   = content,
+                taskCreatorId = taskCreatorId
             )
         }
         // ─────────────────────────────────────────────────────────────────────
