@@ -192,16 +192,6 @@ private fun ProfileContent(
             )
         )
 
-        Spacer(modifier = Modifier.height(12.dp))
-
-        ProfileSection(
-            title = appText(en = "Support", pt = "Suporte"),
-            items = listOf(
-                appText(en = "Help Center", pt = "Centro de Ajuda") to onHelpCenter,
-                appText(en = "About ForgePlan", pt = "Sobre o ForgePlan") to onAbout
-            )
-        )
-
         Spacer(modifier = Modifier.height(24.dp))
 
         ForgeSecondaryButton(

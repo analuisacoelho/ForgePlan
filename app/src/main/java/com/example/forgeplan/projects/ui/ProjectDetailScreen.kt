@@ -470,6 +470,7 @@ fun AddUserDialog(
                     ) {
                         Text(user.name)
                         Text("+")
+
                     }
                 }
 
@@ -487,6 +488,7 @@ fun AddUserDialog(
         dismissButton = {
             Text(
                 text = appText(en = "Close", pt = "Fechar"),
+                color = MaterialTheme.colorScheme.onSurface,
                 modifier = Modifier.clickable { onDismiss() }
             )
         }

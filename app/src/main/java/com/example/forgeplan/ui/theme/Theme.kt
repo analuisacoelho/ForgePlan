@@ -56,7 +56,6 @@ fun ForgePlanTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
     content: @Composable () -> Unit
 ) {
-
     val colorScheme =
         if (darkTheme) DarkColorScheme
         else LightColorScheme

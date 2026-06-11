@@ -37,6 +37,7 @@ import androidx.compose.material3.ModalNavigationDrawer
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.rememberDrawerState
@@ -55,6 +56,7 @@ import coil.compose.AsyncImage
 import com.example.forgeplan.core.language.appText
 import com.example.forgeplan.core.session.SessionManager
 import kotlinx.coroutines.launch
+import androidx.compose.material3.AlertDialog
 
 @Composable
 fun ForgePlanTopBar(
@@ -778,4 +780,36 @@ fun SideMenuItemRow(
                 MaterialTheme.colorScheme.onSurface
         )
     }
+}
+
+@Composable
+fun ForgeAlertDialog(
+    onDismissRequest: () -> Unit,
+    title: String,
+    text: String,
+    confirmText: String = appText(en = "Confirm", pt = "Confirmar"),
+    dismissText: String = appText(en = "Cancel", pt = "Cancelar"),
+    onConfirm: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismissRequest,
+        title = { Text(text = title) },
+        text = { Text(text = text) },
+        confirmButton = {
+            TextButton(onClick = onConfirm) {
+                Text(
+                    text = confirmText,
+                    color = MaterialTheme.colorScheme.primary
+                )
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismissRequest) {
+                Text(
+                    text = dismissText,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+            }
+        }
+    )
 }

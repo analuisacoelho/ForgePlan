@@ -53,7 +53,9 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.platform.LocalConfiguration
+import android.content.Intent
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -560,9 +562,14 @@ fun TaskReportContent(
     if (taskAttachments.isNotEmpty()) {
         Spacer(modifier = Modifier.height(16.dp))
         ReportSectionCard(title = appText(en = "Attachments", pt = "Ficheiros Anexados")) {
+            val uriHandler = LocalUriHandler.current
             taskAttachments.forEachIndexed { index, attachment ->
+                val url = attachment.file_url
                 Row(
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .then(if (url != null) Modifier.clickable { uriHandler.openUri(url) } else Modifier)
+                        .padding(vertical = 10.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
@@ -570,7 +577,7 @@ fun TaskReportContent(
                             text = attachment.file_name ?: appText(en = "Unnamed file", pt = "Ficheiro sem nome"),
                             style = MaterialTheme.typography.bodyMedium,
                             fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurface
+                            color = if (url != null) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
                         )
                         attachment.file_type?.let { type ->
                             Text(text = type, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f))
@@ -579,7 +586,11 @@ fun TaskReportContent(
                             Text(text = formatCommentDate(date), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f))
                         }
                     }
-                    ForgeMiniChip(text = appText(en = "File", pt = "Ficheiro"))
+                    ForgeMiniChip(
+                        text = appText(en = "Open", pt = "Abrir"),
+                        containerColor = if (url != null) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surface,
+                        contentColor = if (url != null) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
+                    )
                 }
                 if (index < taskAttachments.size - 1) {
                     Divider(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.07f))
@@ -603,9 +614,14 @@ fun TaskReportContent(
                     color = MaterialTheme.colorScheme.onSurface
                 )
                 Spacer(modifier = Modifier.height(6.dp))
+                val uriHandler = LocalUriHandler.current
                 photos.forEachIndexed { photoIndex, photo ->
+                    val photoUrl = photo.photo_url
                     Row(
-                        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .then(if (photoUrl != null) Modifier.clickable { uriHandler.openUri(photoUrl) } else Modifier)
+                            .padding(vertical = 6.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(

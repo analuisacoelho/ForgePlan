@@ -3,7 +3,6 @@ package com.example.forgeplan.admin.ui
 import android.content.res.Configuration
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -64,9 +63,7 @@ fun AdminDashboardScreen(
 
     var searchText by remember { mutableStateOf("") }
 
-    LaunchedEffect(Unit) {
-        viewModel.loadProjects()
-    }
+    LaunchedEffect(Unit) { viewModel.loadProjects() }
 
     LaunchedEffect(projects) {
         projects.forEach { project ->
@@ -75,7 +72,6 @@ fun AdminDashboardScreen(
                 onSuccess = { tasks -> projectTasks[project.id] = tasks },
                 onError = { projectTasks[project.id] = emptyList() }
             )
-
             projectUserRepository.getProjectUsersByProjectId(
                 projectId = project.id,
                 onSuccess = { users -> projectUsers[project.id] = users },
@@ -109,7 +105,7 @@ fun AdminDashboardScreen(
         onLogout = onLogout
     ) {
         Box(modifier = Modifier.fillMaxSize()) {
-            Column(
+            LazyColumn(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(
@@ -117,141 +113,115 @@ fun AdminDashboardScreen(
                         vertical = if (isLandscape) 12.dp else 16.dp
                     )
             ) {
-                ForgeSearchBar(
-                    value = searchText,
-                    onValueChange = { searchText = it },
-                    placeholder = appText(
-                        en = "Search project",
-                        pt = "Pesquisar projeto"
-                    )
-                )
-
-                Spacer(modifier = Modifier.height(if (isLandscape) 14.dp else 22.dp))
-
-                Text(
-                    text = appText(en = "All Projects", pt = "Todos os Projetos"),
-                    style = MaterialTheme.typography.headlineSmall,
-                    color = MaterialTheme.colorScheme.onBackground
-                )
-
-                Spacer(modifier = Modifier.height(14.dp))
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    DashboardStatCard(
-                        title = appText(en = "Total", pt = "Total"),
-                        value = projects.size.toString(),
-                        icon = "☑",
-                        modifier = Modifier.weight(1f)
+                // Header — search, título e stats cards — tudo rola junto
+                item {
+                    ForgeSearchBar(
+                        value = searchText,
+                        onValueChange = { searchText = it },
+                        placeholder = appText(en = "Search project", pt = "Pesquisar projeto")
                     )
 
-                    DashboardStatCard(
-                        title = appText(en = "Active", pt = "Ativos"),
-                        value = activeProjects.toString(),
-                        icon = "↗",
-                        modifier = Modifier.weight(1f)
+                    Spacer(modifier = Modifier.height(if (isLandscape) 14.dp else 22.dp))
+
+                    Text(
+                        text = appText(en = "All Projects", pt = "Todos os Projetos"),
+                        style = MaterialTheme.typography.headlineSmall,
+                        color = MaterialTheme.colorScheme.onBackground
                     )
 
-                    DashboardStatCard(
-                        title = appText(en = "Done", pt = "Concluídos"),
-                        value = completedProjects.toString(),
-                        icon = "✓",
-                        modifier = Modifier.weight(1f)
-                    )
-                }
+                    Spacer(modifier = Modifier.height(14.dp))
 
-                Spacer(modifier = Modifier.height(if (isLandscape) 14.dp else 18.dp))
-
-                when {
-                    isLoading -> {
-                        CircularProgressIndicator(
-                            color = MaterialTheme.colorScheme.primary
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        DashboardStatCard(
+                            title = appText(en = "Total", pt = "Total"),
+                            value = projects.size.toString(),
+                            icon = "☑",
+                            modifier = Modifier.weight(1f)
+                        )
+                        DashboardStatCard(
+                            title = appText(en = "Active", pt = "Ativos"),
+                            value = activeProjects.toString(),
+                            icon = "↗",
+                            modifier = Modifier.weight(1f)
+                        )
+                        DashboardStatCard(
+                            title = appText(en = "Done", pt = "Concluídos"),
+                            value = completedProjects.toString(),
+                            icon = "✓",
+                            modifier = Modifier.weight(1f)
                         )
                     }
 
-                    error != null -> {
+                    Spacer(modifier = Modifier.height(if (isLandscape) 14.dp else 18.dp))
+                }
+
+                // Projetos
+                when {
+                    isLoading -> item {
+                        CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
+                    }
+                    error != null -> item {
                         Text(
-                            text = error ?: appText(
-                                en = "Unknown error",
-                                pt = "Erro desconhecido"
-                            ),
+                            text = error ?: appText(en = "Unknown error", pt = "Erro desconhecido"),
                             color = MaterialTheme.colorScheme.error
                         )
                     }
-
-                    visibleProjects.isEmpty() -> {
+                    visibleProjects.isEmpty() -> item {
                         Text(
-                            text = appText(
-                                en = "No projects found.",
-                                pt = "Nenhum projeto encontrado."
-                            ),
+                            text = appText(en = "No projects found.", pt = "Nenhum projeto encontrado."),
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onBackground
                         )
                     }
-
-                    else -> {
-                        if (isLandscape) {
-                            LazyColumn(
-                                verticalArrangement = Arrangement.spacedBy(14.dp),
-                                modifier = Modifier.padding(bottom = 16.dp)
-                            ) {
-                                items(visibleProjects.chunked(2)) { rowProjects ->
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.spacedBy(14.dp)
-                                    ) {
-                                        rowProjects.forEach { project ->
-                                            ProjectOverviewCard(
-                                                project = project,
-                                                tasks = projectTasks[project.id] ?: emptyList(),
-                                                teamCount = projectUsers[project.id]?.size ?: 0,
-                                                modifier = Modifier.weight(1f),
-                                                onClick = { onProjectClick(project.id) }
-                                            )
-                                        }
-
-                                        if (rowProjects.size == 1) {
-                                            Spacer(modifier = Modifier.weight(1f))
-                                        }
-                                    }
-                                }
+                    isLandscape -> items(visibleProjects.chunked(2)) { rowProjects ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(bottom = 14.dp),
+                            horizontalArrangement = Arrangement.spacedBy(14.dp)
+                        ) {
+                            rowProjects.forEach { project ->
+                                ProjectOverviewCard(
+                                    project = project,
+                                    tasks = projectTasks[project.id] ?: emptyList(),
+                                    teamCount = projectUsers[project.id]?.size ?: 0,
+                                    modifier = Modifier.weight(1f),
+                                    onClick = { onProjectClick(project.id) }
+                                )
                             }
-                        } else {
-                            LazyColumn(
-                                verticalArrangement = Arrangement.spacedBy(16.dp),
-                                modifier = Modifier.padding(bottom = 16.dp)
-                            ) {
-                                items(visibleProjects) { project ->
-                                    ProjectOverviewCard(
-                                        project = project,
-                                        tasks = projectTasks[project.id] ?: emptyList(),
-                                        teamCount = projectUsers[project.id]?.size ?: 0,
-                                        modifier = Modifier.fillMaxWidth(),
-                                        onClick = { onProjectClick(project.id) }
-                                    )
-                                }
-                            }
+                            if (rowProjects.size == 1) Spacer(modifier = Modifier.weight(1f))
                         }
                     }
+                    else -> items(visibleProjects) { project ->
+                        ProjectOverviewCard(
+                            project = project,
+                            tasks = projectTasks[project.id] ?: emptyList(),
+                            teamCount = projectUsers[project.id] ?.size ?: 0,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(bottom = 16.dp),
+                            onClick = { onProjectClick(project.id) }
+                        )
+                    }
                 }
+
+                // Espaço para o FAB não tapar o último card
+                item { Spacer(modifier = Modifier.height(80.dp)) }
             }
 
             FloatingActionButton(
                 onClick = onCreateProjectClick,
-                containerColor = MaterialTheme.colorScheme.primary,
-                contentColor = MaterialTheme.colorScheme.onPrimary,
+                containerColor = MaterialTheme.colorScheme.secondary,
+                contentColor = MaterialTheme.colorScheme.onSecondary,
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
                     .padding(end = 18.dp, bottom = 18.dp)
                     .size(56.dp)
             ) {
-                Text(
-                    text = "+",
-                    style = MaterialTheme.typography.headlineMedium
-                )
+                Text(text = "+", style = MaterialTheme.typography.headlineMedium)
             }
         }
     }

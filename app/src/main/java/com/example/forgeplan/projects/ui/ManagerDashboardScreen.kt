@@ -442,12 +442,25 @@ fun ProjectOverviewCard(
                             contentColor = Color(0xFF14532D)
                         )
                     }
-
-                    isUrgent -> {
+                    project.priority?.uppercase() == "HIGH" -> {
                         ForgeMiniChip(
                             text = appText(en = "Urgent", pt = "Urgente"),
                             containerColor = MaterialTheme.colorScheme.error,
                             contentColor = MaterialTheme.colorScheme.onError
+                        )
+                    }
+                    project.priority?.uppercase() == "MEDIUM" -> {
+                        ForgeMiniChip(
+                            text = appText(en = "Medium", pt = "Média"),
+                            containerColor = Color(0xFFFFF3CD),
+                            contentColor = Color(0xFF7B5200)
+                        )
+                    }
+                    project.priority?.uppercase() == "LOW" -> {
+                        ForgeMiniChip(
+                            text = appText(en = "Low", pt = "Baixa"),
+                            containerColor = Color(0xFFB7EBC0),
+                            contentColor = Color(0xFF14532D)
                         )
                     }
                 }
