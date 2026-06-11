@@ -2,6 +2,7 @@ package com.example.forgeplan.core.network
 
 import com.example.forgeplan.core.model.ActivityLog
 import com.example.forgeplan.core.model.Comment
+import com.example.forgeplan.core.model.Notification
 import com.example.forgeplan.core.model.NotificationPayload
 import com.example.forgeplan.core.model.Project
 import com.example.forgeplan.core.model.ProjectEvaluation
@@ -29,7 +30,6 @@ import retrofit2.http.Headers
 import retrofit2.http.PATCH
 import retrofit2.http.POST
 import retrofit2.http.Query
-import com.example.forgeplan.core.model.Notification
 
 interface SupabaseService {
 
@@ -69,6 +69,13 @@ interface SupabaseService {
         @Query("id") id: String,
         @Query("select") select: String = "*"
     ): Call<List<Project>>
+
+    @GET("projects")
+    fun getProjectsByManagerId(
+        @Query("manager_id") managerId: String,
+        @Query("select") select: String = "*"
+    ): Call<List<Project>>
+
 
     @Headers("Prefer: return=representation")
     @POST("projects")

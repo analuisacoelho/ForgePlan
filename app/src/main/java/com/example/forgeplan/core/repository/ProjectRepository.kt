@@ -36,6 +36,26 @@ class ProjectRepository {
             })
     }
 
+    fun getProjectsByManagerId(
+        managerId: Long,
+        onSuccess: (List<Project>) -> Unit,
+        onError: (String) -> Unit
+    ) {
+        SupabaseApi.service.getProjectsByManagerId("eq.$managerId")
+            .enqueue(object : Callback<List<Project>> {
+                override fun onResponse(
+                    call: Call<List<Project>>,
+                    response: Response<List<Project>>
+                ) {
+                    if (response.isSuccessful) onSuccess(response.body() ?: emptyList())
+                    else onError("Erro ao carregar projetos do manager: ${response.code()}")
+                }
+                override fun onFailure(call: Call<List<Project>>, t: Throwable) {
+                    onError(t.message ?: "Erro desconhecido")
+                }
+            })
+    }
+
     fun getProjectById(
         projectId: Long,
         onSuccess: (Project?) -> Unit,

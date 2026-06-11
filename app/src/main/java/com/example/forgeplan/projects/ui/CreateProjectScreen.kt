@@ -1,8 +1,10 @@
 package com.example.forgeplan.projects.ui
 
+import android.app.DatePickerDialog
 import android.content.res.Configuration
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -28,18 +30,17 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.forgeplan.core.language.appText
 import com.example.forgeplan.core.model.ProjectPayload
+import com.example.forgeplan.core.session.SessionManager
 import com.example.forgeplan.core.ui.components.ForgeCard
 import com.example.forgeplan.core.ui.components.ForgePlanBottomBar
 import com.example.forgeplan.core.ui.components.ForgePlanTopBar
 import com.example.forgeplan.projects.viewmodel.ProjectViewModel
-import androidx.compose.ui.platform.LocalContext
-import android.app.DatePickerDialog
-import androidx.compose.foundation.isSystemInDarkTheme
 import java.util.Calendar
 
 @Composable
@@ -91,9 +92,11 @@ fun CreateProjectScreen(
             hasError = true
         }
         if (!hasError) {
+            val currentUserId = SessionManager.userId.takeIf { it != -1L }
+            val isManager = SessionManager.userRole == "MANAGER"
             val project = ProjectPayload(
-                created_by_id = null,
-                manager_id = null,
+                created_by_id = currentUserId,
+                manager_id = if (isManager) currentUserId else null,
                 name = name.trim(),
                 description = description.trim().ifBlank { null },
                 priority = priority,
