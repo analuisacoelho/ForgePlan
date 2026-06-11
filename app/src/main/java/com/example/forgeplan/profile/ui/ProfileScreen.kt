@@ -52,9 +52,8 @@ fun ProfileScreen(
     onUsersClick: () -> Unit = {},
     onActivityClick: () -> Unit = {},
     onTimelineClick: () -> Unit = {},
-    onReportsClick: () -> Unit = {},
-    onTeamClick: () -> Unit = {},
-    onProgressClick: () -> Unit = {}
+    onProgressClick: () -> Unit = {},
+    onTeamClick: () -> Unit = {}
 ) {
     val role = SessionManager.userRole
 
@@ -95,7 +94,7 @@ fun ProfileScreen(
                 selectedItem = "Profile",
                 onProjectsClick = onProjectsClick,
                 onTimelineClick = onTimelineClick,
-                onProgressClick = onReportsClick,
+                onProgressClick = onProgressClick,
                 onTeamClick = onTeamClick,
                 onProfileClick = {}
             )

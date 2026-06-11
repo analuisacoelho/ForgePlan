@@ -77,6 +77,7 @@ fun TimelineScreen(
     onProjectsClick: () -> Unit = {},
     onProgressClick: () -> Unit = {},
     onTeamClick: () -> Unit = {},
+    onProfileClick: () -> Unit = {},
     isManagerTimeline: Boolean = false,
     dashboardViewModel: UserDashboardViewModel = viewModel()
 ) {
@@ -253,7 +254,8 @@ fun TimelineScreen(
             selectedItem = "Timeline",
             onProjectsClick = onProjectsClick,
             onProgressClick = onProgressClick,
-            onTeamClick = onTeamClick
+            onTeamClick = onTeamClick,
+            onProfileClick = onProfileClick
         )
     }
 }

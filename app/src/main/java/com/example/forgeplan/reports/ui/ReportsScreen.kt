@@ -53,7 +53,6 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.platform.LocalConfiguration
-import android.content.Intent
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.font.FontWeight
@@ -96,6 +95,7 @@ fun ReportsScreen(
     onProjectsClick: () -> Unit = {},
     onTimelineClick: () -> Unit = {},
     onTeamClick: () -> Unit = {},
+    onProfileClick: () -> Unit = {},
     projectViewModel: ProjectViewModel = viewModel(),
     userViewModel: UserViewModel = viewModel()
 ) {
@@ -312,7 +312,7 @@ fun ReportsScreen(
         }
 
         if (showScaffold) {
-            ForgePlanBottomBar(selectedItem = "Reports", onProjectsClick = onProjectsClick, onTimelineClick = onTimelineClick, onProgressClick = {}, onTeamClick = onTeamClick)
+            ForgePlanBottomBar(selectedItem = "Reports", onProjectsClick = onProjectsClick, onTimelineClick = onTimelineClick, onProgressClick = {}, onTeamClick = onTeamClick, onProfileClick = onProfileClick)
         }
     }
 }

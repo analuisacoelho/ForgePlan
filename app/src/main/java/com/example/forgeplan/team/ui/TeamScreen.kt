@@ -55,7 +55,8 @@ data class TeamMemberUi(
 fun TeamScreen(
     onProjectsClick: () -> Unit = {},
     onTimelineClick: () -> Unit = {},
-    onProgressClick: () -> Unit = {}
+    onProgressClick: () -> Unit = {},
+    onProfileClick: () -> Unit = {}
 ) {
     val configuration = LocalConfiguration.current
     val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
@@ -159,7 +160,8 @@ fun TeamScreen(
             selectedItem = "Team",
             onProjectsClick = onProjectsClick,
             onTimelineClick = onTimelineClick,
-            onProgressClick = onProgressClick
+            onProgressClick = onProgressClick,
+            onProfileClick = onProfileClick
         )
     }
 }

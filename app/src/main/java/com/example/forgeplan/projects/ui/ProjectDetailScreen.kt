@@ -67,6 +67,7 @@ fun ProjectDetailScreen(
     onTimelineClick: () -> Unit = {},
     onProgressClick: () -> Unit = {},
     onTeamClick: () -> Unit = {},
+    onProfileClick: () -> Unit = {},
     onReviewProjectClick: () -> Unit = {},
     viewModel: ProjectDetailViewModel = viewModel(),
     evaluationViewModel: ProjectEvaluationViewModel = viewModel(),
@@ -277,7 +278,8 @@ fun ProjectDetailScreen(
             onProjectsClick = onProjectsClick,
             onTimelineClick = onTimelineClick,
             onProgressClick = onProgressClick,
-            onTeamClick = onTeamClick
+            onTeamClick = onTeamClick,
+            onProfileClick = onProfileClick
         )
     }
 

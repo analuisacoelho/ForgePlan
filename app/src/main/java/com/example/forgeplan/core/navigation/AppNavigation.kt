@@ -1,10 +1,6 @@
 package com.example.forgeplan.core.navigation
 
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -37,7 +33,6 @@ import com.example.forgeplan.tasks.ui.TaskPublicDetailScreen
 import com.example.forgeplan.tasks.ui.UserDashboardScreen
 import com.example.forgeplan.team.ui.TeamScreen
 import com.example.forgeplan.timeline.ui.TimelineScreen
-import androidx.compose.foundation.isSystemInDarkTheme
 
 @Composable
 fun AppNavigation(
@@ -199,7 +194,8 @@ fun AppNavigation(
                 onProjectsClick = { navController.navigate("manager") { popUpTo("manager") { inclusive = true } } },
                 onTimelineClick = { navController.navigate("timeline") },
                 onProgressClick = { navController.navigate("reports") },
-                onTeamClick = { navController.navigate("team") }
+                onTeamClick = { navController.navigate("team") },
+                onProfileClick = { navController.navigate("profile") }
             )
         }
 
@@ -230,6 +226,7 @@ fun AppNavigation(
                 onProjectsClick = { navController.navigate("manager") },
                 onProgressClick = { navController.navigate("reports") },
                 onTeamClick = { navController.navigate("team") },
+                onProfileClick = { navController.navigate("profile") },
                 isManagerTimeline = true
             )
         }
@@ -238,7 +235,8 @@ fun AppNavigation(
             ReportsScreen(
                 onProjectsClick = { navController.navigate("manager") },
                 onTimelineClick = { navController.navigate("timeline") },
-                onTeamClick = { navController.navigate("team") }
+                onTeamClick = { navController.navigate("team") },
+                onProfileClick = { navController.navigate("profile") }
             )
         }
 
@@ -246,7 +244,8 @@ fun AppNavigation(
             TeamScreen(
                 onProjectsClick = { navController.navigate("manager") },
                 onTimelineClick = { navController.navigate("timeline") },
-                onProgressClick = { navController.navigate("reports") }
+                onProgressClick = { navController.navigate("reports") },
+                onProfileClick = { navController.navigate("profile") }
             )
         }
 
