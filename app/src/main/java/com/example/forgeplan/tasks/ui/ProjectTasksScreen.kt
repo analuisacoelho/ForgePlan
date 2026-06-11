@@ -2,10 +2,12 @@ package com.example.forgeplan.tasks.ui
 
 import android.content.res.Configuration
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
@@ -26,6 +28,9 @@ import androidx.compose.ui.Alignment
 import com.example.forgeplan.core.ui.components.ForgePlanBottomBar
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
+import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
+import com.example.forgeplan.core.repository.TaskDependencyRepository
+import com.example.forgeplan.ui.theme.ForgeGold
 
 // ─────────────────────────────────────────────
 // STRINGS (PT / EN)
@@ -37,6 +42,7 @@ private object ProjectTasksStrings {
     val progress get() = appText("Progress", "Progresso")
     val done get() = appText("Done", "Feita")
     val pending get() = appText("Pending", "Pendente")
+    val inProgress get() = appText("In Progress", "Em Progresso")
 }
 
 // ─────────────────────────────────────────────
@@ -47,12 +53,13 @@ private object ProjectTasksStrings {
 fun ProjectTasksScreen(
     projectId: Long,
     onBack: () -> Unit,
-    onMyTaskClick: (Long) -> Unit = {},      // ← vai para ProgressScreen
-    onOtherTaskClick: (Long) -> Unit = {},   // ← vai para TaskPublicDetailScreen
+    onMyTaskClick: (Long) -> Unit = {},
+    onOtherTaskClick: (Long) -> Unit = {},
     onTimelineClick: () -> Unit = {},
     onProgressClick: () -> Unit = {},
     onTeamClick: () -> Unit = {},
-    onProfileClick: () -> Unit = {}
+    onProfileClick: () -> Unit = {},
+    onNotificationClick: () -> Unit = {}
 ) {
     val vm: ProjectTasksViewModel = viewModel()
 
@@ -60,12 +67,17 @@ fun ProjectTasksScreen(
     val isLoading by vm.isLoading.collectAsState()
     val error     by vm.error.collectAsState()
 
-    // ── Carrega os IDs das tarefas atribuídas ao user actual ──
     val myUserId = SessionManager.userId
     var myTaskIds by remember { mutableStateOf<Set<Long>>(emptySet()) }
+    // Map: taskId -> list of task IDs it depends on
+    var dependencyMap by remember { mutableStateOf<Map<Long, List<Long>>>(emptyMap()) }
+
+    val notifVm: com.example.forgeplan.notifications.viewmodel.NotificationViewModel = viewModel()
+    val unreadCount by notifVm.unreadCount.collectAsState()
 
     LaunchedEffect(projectId) {
         vm.loadProjectTasks(projectId)
+        notifVm.load()
         val repo = com.example.forgeplan.core.repository.TaskAssignmentRepository()
         repo.getTaskIdsByUserId(
             userId    = myUserId,
@@ -74,16 +86,36 @@ fun ProjectTasksScreen(
         )
     }
 
+    // Load dependencies for all tasks once loaded
+    LaunchedEffect(tasks) {
+        if (tasks.isNotEmpty()) {
+            val depRepo = TaskDependencyRepository()
+            val map = mutableMapOf<Long, List<Long>>()
+            tasks.forEach { task ->
+                depRepo.getDependencies(
+                    taskId = task.id,
+                    onSuccess = { deps -> map[task.id] = deps.map { it.depends_on_task_id } },
+                    onError = { map[task.id] = emptyList() }
+                )
+            }
+            dependencyMap = map
+        }
+    }
+
     Scaffold(
         topBar = {
             ForgePlanTopBar(
                 title    = ProjectTasksStrings.title,
-                initials = SessionManager.userInitials
+                initials = SessionManager.userInitials,
+                onNotificationClick = onNotificationClick,
+                unreadCount = unreadCount,
+                onAvatarClick = onProfileClick
             )
         },
         bottomBar = {
             ForgePlanBottomBar(
-                selectedItem    = "Tasks",
+                selectedItem    = "Projects",
+                onProjectsClick = onBack,
                 onTimelineClick = onTimelineClick,
                 onProgressClick = onProgressClick,
                 onTeamClick     = onTeamClick,
@@ -100,12 +132,23 @@ fun ProjectTasksScreen(
                 if (task.id in myTaskIds) onMyTaskClick(task.id)
                 else                      onOtherTaskClick(task.id)
             },
-            onMarkDone = { task ->
+            onToggleDone = { task ->
                 if (task.id in myTaskIds) {
-                    vm.updateTask(task.copy(status = "DONE", completion_rate = 100))
+                    if (task.status?.uppercase() == "DONE") {
+                        // un-complete: volta para IN_PROGRESS se tinha progresso, senão PENDING
+                        val newStatus = if ((task.completion_rate ?: 0) > 0) "IN_PROGRESS" else "PENDING"
+                        vm.updateTask(task.copy(status = newStatus))
+                    } else {
+                        // só conclui se tiver progresso > 0
+                        if ((task.completion_rate ?: 0) > 0) {
+                            vm.updateTask(task.copy(status = "DONE", completion_rate = 100))
+                        }
+                    }
                 }
             },
-            myTaskIds = myTaskIds
+            myTaskIds     = myTaskIds,
+            dependencyMap = dependencyMap,
+            allTasks      = tasks
         )
     }
 }
@@ -121,11 +164,13 @@ private fun TaskList(
     isLoading: Boolean,
     error: String?,
     onTaskClick: (Task) -> Unit,
-    onMarkDone: (Task) -> Unit,
-    myTaskIds: Set<Long>
+    onToggleDone: (Task) -> Unit,
+    myTaskIds: Set<Long>,
+    dependencyMap: Map<Long, List<Long>>,
+    allTasks: List<Task>
 ) {
     var selectedTab    by remember { mutableStateOf(0) }
-    var selectedFilter by remember { mutableStateOf(0) } // 0=Todas 1=Minhas 2=Equipa
+    var selectedFilter by remember { mutableStateOf(0) }
 
     val activeTasks    = tasks.filter { it.status?.uppercase() != "DONE" }
     val completedTasks = tasks.filter { it.status?.uppercase() == "DONE" }
@@ -133,16 +178,40 @@ private fun TaskList(
     Column(Modifier.fillMaxSize().padding(padding)) {
 
         // ── Tab Ativas / Concluídas ──────────────────────────────
-        TabRow(selectedTabIndex = selectedTab) {
+        TabRow(
+            selectedTabIndex = selectedTab,
+            containerColor   = MaterialTheme.colorScheme.surface,
+            contentColor     = MaterialTheme.colorScheme.primary,
+            indicator        = { tabPositions ->
+                TabRowDefaults.SecondaryIndicator(
+                    modifier = Modifier.tabIndicatorOffset(tabPositions[selectedTab]),
+                    color    = MaterialTheme.colorScheme.primary
+                )
+            }
+        ) {
             Tab(
                 selected = selectedTab == 0,
                 onClick  = { selectedTab = 0 },
-                text     = { Text(appText("Active (${activeTasks.size})", "Ativas (${activeTasks.size})")) }
+                text     = {
+                    Text(
+                        appText("Active (${activeTasks.size})", "Ativas (${activeTasks.size})"),
+                        color = if (selectedTab == 0) MaterialTheme.colorScheme.primary
+                        else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                        fontWeight = if (selectedTab == 0) FontWeight.Bold else FontWeight.Normal
+                    )
+                }
             )
             Tab(
                 selected = selectedTab == 1,
                 onClick  = { selectedTab = 1 },
-                text     = { Text(appText("Completed (${completedTasks.size})", "Concluídas (${completedTasks.size})")) }
+                text     = {
+                    Text(
+                        appText("Completed (${completedTasks.size})", "Concluídas (${completedTasks.size})"),
+                        color = if (selectedTab == 1) MaterialTheme.colorScheme.primary
+                        else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                        fontWeight = if (selectedTab == 1) FontWeight.Bold else FontWeight.Normal
+                    )
+                }
             )
         }
 
@@ -204,11 +273,17 @@ private fun TaskList(
             }
 
             items(displayedTasks) { task ->
+                val deps = dependencyMap[task.id] ?: emptyList()
+                val blockedByUnfinished = deps.any { depId ->
+                    allTasks.find { it.id == depId }?.status?.uppercase() != "DONE"
+                }
                 TaskCard(
-                    task       = task,
-                    isMine     = task.id in myTaskIds,
-                    onClick    = { onTaskClick(task) },
-                    onMarkDone = { onMarkDone(task) }
+                    task               = task,
+                    isMine             = task.id in myTaskIds,
+                    onClick            = { onTaskClick(task) },
+                    onToggleDone       = { onToggleDone(task) },
+                    isBlockedByDep     = blockedByUnfinished && deps.isNotEmpty(),
+                    hasDependencies    = deps.isNotEmpty()
                 )
             }
         }
@@ -216,7 +291,7 @@ private fun TaskList(
 }
 
 // ─────────────────────────────────────────────
-// TASK CARD (MESMO ESTILO DOS PROJECTS)
+// TASK CARD
 // ─────────────────────────────────────────────
 
 @Composable
@@ -224,21 +299,70 @@ fun TaskCard(
     task: Task,
     isMine: Boolean,
     onClick: () -> Unit,
-    onMarkDone: () -> Unit
+    onToggleDone: () -> Unit,
+    isBlockedByDep: Boolean = false,
+    hasDependencies: Boolean = false
 ) {
     val isDone   = task.status?.uppercase() == "DONE"
     val progress = task.completion_rate ?: 0
+    val hasNoProgress = progress == 0 && !isDone
 
+    // Cores bem distintas: verde para concluída, azul para ativa, cinzento para bloqueada
     val containerColor = when {
-        isDone  -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f)
-        !isMine -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)
-        else    -> MaterialTheme.colorScheme.surface
+        isDone         -> MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
+        isBlockedByDep -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+        !isMine        -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)
+        else           -> MaterialTheme.colorScheme.surface
+    }
+
+    val progressColor = when {
+        isDone  -> MaterialTheme.colorScheme.tertiary
+        progress >= 75 -> MaterialTheme.colorScheme.primary
+        progress >= 40 -> MaterialTheme.colorScheme.secondary
+        else    -> MaterialTheme.colorScheme.error.copy(alpha = 0.7f)
+    }
+
+    var showBlockedDialog by remember { mutableStateOf(false) }
+    var showNoProgressDialog by remember { mutableStateOf(false) }
+
+    if (showBlockedDialog) {
+        AlertDialog(
+            onDismissRequest = { showBlockedDialog = false },
+            title = { Text(appText("Blocked Task", "Tarefa Bloqueada")) },
+            text  = { Text(appText(
+                "This task depends on other tasks that are not yet complete. Finish those first.",
+                "Esta tarefa depende de outras tarefas que ainda não estão concluídas. Conclui essas primeiro."
+            )) },
+            confirmButton = {
+                TextButton(onClick = { showBlockedDialog = false }) { Text("OK") }
+            }
+        )
+    }
+
+    if (showNoProgressDialog) {
+        AlertDialog(
+            onDismissRequest = { showNoProgressDialog = false },
+            title = { Text(appText("No Progress", "Sem Progresso")) },
+            text  = { Text(appText(
+                "You need to log some progress before marking this task as done.",
+                "Tens de registar progresso antes de marcar esta tarefa como concluída."
+            )) },
+            confirmButton = {
+                TextButton(onClick = { showNoProgressDialog = false }) { Text("OK") }
+            }
+        )
     }
 
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable { onClick() },
+            .clickable {
+                if (isBlockedByDep) {
+                    showBlockedDialog = true
+                } else {
+                    onClick()
+                }
+            },
         shape  = RoundedCornerShape(22.dp),
         colors = CardDefaults.cardColors(containerColor = containerColor)
     ) {
@@ -246,13 +370,17 @@ fun TaskCard(
 
             Column {
 
-                // ── Título + badge "Outra pessoa" ──────────────────────
+                // ── Título + badges ──────────────────────────────────────
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
                         text       = task.title,
                         style      = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
-                        modifier   = Modifier.weight(1f)
+                        modifier   = Modifier.weight(1f),
+                        color      = if (isDone)
+                            MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                        else
+                            MaterialTheme.colorScheme.onSurface
                     )
 
                     if (!isMine) {
@@ -271,14 +399,49 @@ fun TaskCard(
                             )
                         }
                     }
+
+                    // Badge de dependência
+                    if (hasDependencies) {
+                        Spacer(Modifier.width(6.dp))
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(6.dp))
+                                .background(
+                                    if (isBlockedByDep) MaterialTheme.colorScheme.error.copy(alpha = 0.18f)
+                                    else MaterialTheme.colorScheme.tertiary.copy(alpha = 0.15f)
+                                )
+                                .padding(horizontal = 6.dp, vertical = 3.dp)
+                        ) {
+                            Text(
+                                text  = if (isBlockedByDep) appText("⛔ Blocked", "⛔ Bloqueada")
+                                else appText("✓ Dep. ok", "✓ Dep. ok"),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = if (isBlockedByDep) MaterialTheme.colorScheme.error
+                                else MaterialTheme.colorScheme.tertiary,
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
+                    }
                 }
 
                 Spacer(Modifier.height(6.dp))
 
+                // Status text with color
+                val statusText = when (task.status?.uppercase()) {
+                    "DONE"        -> ProjectTasksStrings.done
+                    "IN_PROGRESS" -> ProjectTasksStrings.inProgress
+                    else          -> ProjectTasksStrings.pending
+                }
+                val statusColor = when (task.status?.uppercase()) {
+                    "DONE"        -> MaterialTheme.colorScheme.primary
+                    "IN_PROGRESS" -> MaterialTheme.colorScheme.tertiary
+                    else          -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                }
                 Text(
-                    text  = if (isDone) ProjectTasksStrings.done else ProjectTasksStrings.pending,
+                    text  = statusText,
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                    color = statusColor,
+                    fontWeight = FontWeight.SemiBold
                 )
 
                 Spacer(Modifier.height(12.dp))
@@ -288,7 +451,7 @@ fun TaskCard(
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     Text(ProjectTasksStrings.progress)
-                    Text("$progress%", fontWeight = FontWeight.Bold)
+                    Text("$progress%", fontWeight = FontWeight.Bold, color = progressColor)
                 }
 
                 Spacer(Modifier.height(6.dp))
@@ -298,26 +461,56 @@ fun TaskCard(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(8.dp)
-                        .clip(RoundedCornerShape(50))
+                        .clip(RoundedCornerShape(50)),
+                    color     = progressColor,
+                    trackColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f)
                 )
             }
 
-            // 🔥 BOTÃO QUICK DONE — só aparece em tarefas tuas e não concluídas
-            if (isMine && !isDone) {
-                IconButton(
-                    onClick  = onMarkDone,
-                    modifier = Modifier.align(Alignment.TopEnd)
+            // ── Círculo toggle de concluído (só nas minhas tarefas) ──
+            if (isMine) {
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .size(36.dp)
+                        .clip(CircleShape)
+                        .background(
+                            if (isDone) MaterialTheme.colorScheme.primary
+                            else MaterialTheme.colorScheme.surface
+                        )
+                        .border(
+                            width = 2.dp,
+                            color = if (isDone) MaterialTheme.colorScheme.primary
+                            else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f),
+                            shape = CircleShape
+                        )
+                        .clickable {
+                            if (!isDone) {
+                                when {
+                                    isBlockedByDep -> showBlockedDialog = true
+                                    hasNoProgress  -> showNoProgressDialog = true
+                                    else           -> onToggleDone()
+                                }
+                            } else {
+                                onToggleDone() // sempre pode descancelar
+                            }
+                        },
+                    contentAlignment = Alignment.Center
                 ) {
-                    Icon(
-                        imageVector        = Icons.Default.Check,
-                        contentDescription = "Mark done",
-                        tint               = MaterialTheme.colorScheme.primary
-                    )
+                    if (isDone) {
+                        Icon(
+                            imageVector        = Icons.Default.Check,
+                            contentDescription = "Done",
+                            tint               = MaterialTheme.colorScheme.onPrimary,
+                            modifier           = Modifier.size(20.dp)
+                        )
+                    }
                 }
             }
         }
     }
 }
+
 // ─────────────────────────────────────────────
 // STATES
 // ─────────────────────────────────────────────

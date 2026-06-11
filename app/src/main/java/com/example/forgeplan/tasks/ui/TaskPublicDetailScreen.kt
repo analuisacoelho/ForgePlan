@@ -41,6 +41,7 @@ fun TaskPublicDetailScreen(
     onProgressClick: () -> Unit = {},
     onTeamClick: () -> Unit = {},
     onProfileClick: () -> Unit = {},
+    onNotificationClick: () -> Unit = {},
     viewModel: TaskPublicDetailViewModel = viewModel()
 ) {
     val task        by viewModel.task.collectAsState()
@@ -52,12 +53,13 @@ fun TaskPublicDetailScreen(
     val userNames by viewModel.userNames.collectAsState()
     val logPhotos by viewModel.logPhotos.collectAsState()
 
-
+    val notifVm: com.example.forgeplan.notifications.viewmodel.NotificationViewModel = viewModel()
+    val unreadCount by notifVm.unreadCount.collectAsState()
 
     var commentText by remember { mutableStateOf("") }
     val snackbar = remember { SnackbarHostState() }
 
-    LaunchedEffect(taskId) { viewModel.load(taskId) }
+    LaunchedEffect(taskId) { viewModel.load(taskId); notifVm.load() }
 
     LaunchedEffect(result) {
         result?.let {
@@ -71,7 +73,10 @@ fun TaskPublicDetailScreen(
         topBar = {
             ForgePlanTopBar(
                 title    = appText("Task details", "Detalhes da tarefa"),
-                initials = SessionManager.userInitials
+                initials = SessionManager.userInitials,
+                onNotificationClick = onNotificationClick,
+                unreadCount = unreadCount,
+                onAvatarClick = onProfileClick
             )
         },
         bottomBar = {
@@ -133,17 +138,17 @@ fun TaskPublicDetailScreen(
             Spacer(Modifier.height(20.dp))
 
             // ── Detalhes da tarefa ──────────────────────────────────
-                       Text(
-                               text       = appText("Task Details", "Detalhes da tarefa"),
-                               style      = MaterialTheme.typography.titleSmall,
-                               fontWeight = FontWeight.Bold,
-                               color      = MaterialTheme.colorScheme.onBackground
-                                   )
-                       Spacer(Modifier.height(8.dp))
+            Text(
+                text       = appText("Task Details", "Detalhes da tarefa"),
+                style      = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.Bold,
+                color      = MaterialTheme.colorScheme.onBackground
+            )
+            Spacer(Modifier.height(8.dp))
 
-                       TaskInfoDetailsCard(task = t)
+            TaskInfoDetailsCard(task = t)
 
-                       Spacer(Modifier.height(20.dp))
+            Spacer(Modifier.height(20.dp))
 
             // ── Histórico de Progresso (Dropdown) ─────────────────────────────
 
@@ -568,40 +573,40 @@ private fun AvatarCircle(initials: String) {
 
 @Composable
 fun TaskInfoDetailsCard(task: Task) {
-        Surface(
-                shape  = RoundedCornerShape(8.dp),
-                color  = MaterialTheme.colorScheme.surface,
-                border = BorderStroke(1.dp, MaterialTheme.colorScheme.tertiary.copy(alpha = 0.35f)),
-                modifier = Modifier.fillMaxWidth()
-                    ) {
-                Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        TaskInfoRow("Status",    readableStatus(task.status))
-                        TaskInfoRow("Prioridade", task.priority ?: "—")
-                        TaskInfoRow("Grupo",      task.task_group ?: "—")
-                        TaskInfoRow("Início",     task.start_date ?: "—")
-                        TaskInfoRow("Fim",        task.end_date ?: "—")
-                    }
-            }
+    Surface(
+        shape  = RoundedCornerShape(8.dp),
+        color  = MaterialTheme.colorScheme.surface,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.tertiary.copy(alpha = 0.35f)),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            TaskInfoRow("Status",    readableStatus(task.status))
+            TaskInfoRow("Prioridade", task.priority ?: "—")
+            TaskInfoRow("Grupo",      task.task_group ?: "—")
+            TaskInfoRow("Início",     task.start_date ?: "—")
+            TaskInfoRow("Fim",        task.end_date ?: "—")
+        }
     }
+}
 
 @Composable
 private fun TaskInfoRow(label: String, value: String) {
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                Text(label,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
-                            )
-                Text(value,
-                        style = MaterialTheme.typography.bodySmall,
-                        fontWeight = FontWeight.Medium,
-                        color = MaterialTheme.colorScheme.onSurface
-                            )
-            }
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+        Text(label,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+        )
+        Text(value,
+            style = MaterialTheme.typography.bodySmall,
+            fontWeight = FontWeight.Medium,
+            color = MaterialTheme.colorScheme.onSurface
+        )
     }
+}
 
 private fun readableStatus(status: String?): String = when (status?.uppercase()) {
-        "DONE"        -> "Feita"
-        "IN_PROGRESS"  -> "Em progresso"
-        "PENDING"      -> "Por fazer"
-        else           -> "Por fazer"
-    }
+    "DONE"        -> "Feita"
+    "IN_PROGRESS"  -> "Em progresso"
+    "PENDING"      -> "Por fazer"
+    else           -> "Por fazer"
+}

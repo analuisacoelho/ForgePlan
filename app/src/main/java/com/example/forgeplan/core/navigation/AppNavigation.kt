@@ -306,7 +306,8 @@ fun AppNavigation(
                 onTimelineClick = { navController.navigate("userTimeline") },
                 onProgressClick = { navController.navigate("userProgress") },
                 onTeamClick = { navController.navigate("userTeam") },
-                onProfileClick = { navController.navigate("profile") }
+                onProfileClick = { navController.navigate("profile") },
+                onNotificationClick = { navController.navigate("notifications") }
             )
         }
 
@@ -320,7 +321,9 @@ fun AppNavigation(
                 onProjectsClick = { navController.navigate("user") },
                 onTimelineClick = { navController.navigate("userTimeline") },
                 onProgressClick = { navController.navigate("userProgress") },
-                onTeamClick = { navController.navigate("userTeam") }
+                onTeamClick = { navController.navigate("userTeam") },
+                onProfileClick = { navController.navigate("profile") },
+                onNotificationClick = { navController.navigate("notifications") }
             )
         }
 
@@ -339,7 +342,8 @@ fun AppNavigation(
             TimelineScreen(
                 onProjectsClick = { navController.navigate("user") },
                 onProgressClick = { navController.navigate("userProgress") },
-                onTeamClick = { navController.navigate("userTeam") }
+                onTeamClick = { navController.navigate("userTeam") },
+                onProfileClick = { navController.navigate("profile") }
             )
         }
 
@@ -351,7 +355,8 @@ fun AppNavigation(
                 taskId = back.arguments?.getLong("taskId") ?: 0L,
                 onProjectsClick = { navController.navigate("user") },
                 onTimelineClick = { navController.navigate("userTimeline") },
-                onTeamClick = { navController.navigate("userTeam") }
+                onTeamClick = { navController.navigate("userTeam") },
+                onBack = { navController.popBackStack() }
             )
         }
 
@@ -360,7 +365,8 @@ fun AppNavigation(
                 taskId = 0L,
                 onProjectsClick = { navController.navigate("user") },
                 onTimelineClick = { navController.navigate("userTimeline") },
-                onTeamClick = { navController.navigate("userTeam") }
+                onTeamClick = { navController.navigate("userTeam") },
+                onBack = { navController.popBackStack() }
             )
         }
 
@@ -368,7 +374,8 @@ fun AppNavigation(
             TeamScreen(
                 onProjectsClick = { navController.navigate("user") },
                 onTimelineClick = { navController.navigate("userTimeline") },
-                onProgressClick = { navController.navigate("userProgress") }
+                onProgressClick = { navController.navigate("userProgress") },
+                onProfileClick = { navController.navigate("profile") }
             )
         }
 

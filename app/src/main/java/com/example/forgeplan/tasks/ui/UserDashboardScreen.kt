@@ -116,7 +116,8 @@ fun UserDashboardScreen(
                 title = "ForgePlan",
                 initials = SessionManager.userInitials,
                 onNotificationClick = onNotificationClick,
-                unreadCount = unreadCount
+                unreadCount = unreadCount,
+                onAvatarClick = onProfileClick
             )
         },
         bottomBar = {
@@ -352,41 +353,135 @@ fun ProjectCard(
     onClick: () -> Unit
 ) {
     val completed = tasks.count { it.status?.uppercase() == "DONE" }
-    val total = tasks.size
-    val progress = if (total == 0) 0 else completed * 100 / total
+    val pending   = tasks.count { it.status?.uppercase() != "DONE" }
+    val total     = tasks.size
+    val progress  = if (total == 0) 0 else completed * 100 / total
+    val isCompleted = progress >= 100
+
+    val progressColor = when {
+        isCompleted   -> MaterialTheme.colorScheme.primary
+        progress >= 50 -> MaterialTheme.colorScheme.tertiary
+        else           -> MaterialTheme.colorScheme.error.copy(alpha = 0.75f)
+    }
 
     Card(
         modifier = modifier
             .fillMaxWidth()
             .clickable { onClick() },
-        shape = RoundedCornerShape(22.dp)
+        shape  = RoundedCornerShape(14.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = if (isCompleted)
+                MaterialTheme.colorScheme.primary.copy(alpha = 0.08f)
+            else
+                MaterialTheme.colorScheme.surface
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
         Column(Modifier.padding(18.dp)) {
 
-            Text(
-                project.name,
-                fontWeight = FontWeight.Bold
-            )
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        project.name,
+                        fontWeight = FontWeight.Bold,
+                        style      = MaterialTheme.typography.titleLarge,
+                        color      = MaterialTheme.colorScheme.onSurface,
+                        maxLines   = 1
+                    )
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        project.description ?: appText("No description", "Sem descrição"),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.65f),
+                        maxLines = 2
+                    )
+                }
+                Spacer(Modifier.width(8.dp))
+                // Priority/completion badge
+                val chipText = when {
+                    isCompleted -> appText("Done ✓", "Concluído ✓")
+                    project.priority?.uppercase() == "HIGH" -> appText("Urgent", "Urgente")
+                    project.priority?.uppercase() == "MEDIUM" -> appText("Medium", "Média")
+                    else -> appText("Active", "Ativa")
+                }
+                val chipBg = when {
+                    isCompleted -> androidx.compose.ui.graphics.Color(0xFFB7EBC0)
+                    project.priority?.uppercase() == "HIGH" -> MaterialTheme.colorScheme.error
+                    project.priority?.uppercase() == "MEDIUM" -> androidx.compose.ui.graphics.Color(0xFFFFF3CD)
+                    else -> MaterialTheme.colorScheme.secondaryContainer
+                }
+                val chipFg = when {
+                    isCompleted -> androidx.compose.ui.graphics.Color(0xFF14532D)
+                    project.priority?.uppercase() == "HIGH" -> MaterialTheme.colorScheme.onError
+                    project.priority?.uppercase() == "MEDIUM" -> androidx.compose.ui.graphics.Color(0xFF7B5200)
+                    else -> MaterialTheme.colorScheme.onSecondaryContainer
+                }
+                Surface(
+                    shape = RoundedCornerShape(50),
+                    color = chipBg
+                ) {
+                    Text(
+                        chipText,
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                        style    = MaterialTheme.typography.labelSmall,
+                        color    = chipFg,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+            }
 
-            Spacer(Modifier.height(6.dp))
+            Spacer(Modifier.height(12.dp))
 
-            Text(
-                project.description ?: "No description",
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
-            )
+            // Task summary chips
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Surface(
+                    shape = RoundedCornerShape(50),
+                    color = MaterialTheme.colorScheme.secondaryContainer
+                ) {
+                    Text(
+                        appText("$completed done", "$completed feitas"),
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                        style    = MaterialTheme.typography.labelSmall,
+                        color    = MaterialTheme.colorScheme.onSecondaryContainer
+                    )
+                }
+                Surface(
+                    shape = RoundedCornerShape(50),
+                    color = MaterialTheme.colorScheme.secondaryContainer
+                ) {
+                    Text(
+                        appText("$pending pending", "$pending pendentes"),
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                        style    = MaterialTheme.typography.labelSmall,
+                        color    = MaterialTheme.colorScheme.onSecondaryContainer
+                    )
+                }
+            }
 
-            Spacer(Modifier.height(16.dp))
+            Spacer(Modifier.height(12.dp))
 
-            Text("Progress: $progress%")
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    appText("Progress", "Progresso"),
+                    style    = MaterialTheme.typography.bodySmall,
+                    color    = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
+                    modifier = Modifier.weight(1f)
+                )
+                Text(
+                    "$progress%",
+                    style      = MaterialTheme.typography.bodySmall,
+                    fontWeight = FontWeight.Bold,
+                    color      = progressColor
+                )
+            }
 
             Spacer(Modifier.height(6.dp))
 
             LinearProgressIndicator(
-                progress = { progress / 100f },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(8.dp)
+                progress  = { progress / 100f },
+                modifier  = Modifier.fillMaxWidth().height(8.dp).clip(RoundedCornerShape(50)),
+                color      = progressColor,
+                trackColor = MaterialTheme.colorScheme.secondaryContainer
             )
         }
     }

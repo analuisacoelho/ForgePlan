@@ -102,33 +102,36 @@ fun TaskOwnerDetailScreen(
                 .fillMaxSize()
                 .padding(padding)
                 .verticalScroll(rememberScrollState())
-                .padding(16.dp)
+                .padding(horizontal = 20.dp, vertical = 18.dp)
         ) {
 
-            Text(t.title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
+            Text(t.title, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
 
-            Spacer(Modifier.height(6.dp))
+            Spacer(Modifier.height(8.dp))
 
             Text(
                 text = t.description ?: "",
+                style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f)
             )
 
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(16.dp))
 
             LinearProgressIndicator(
                 progress = { (t.completion_rate ?: 0) / 100f },
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(6.dp)
-                    .clip(RoundedCornerShape(3.dp)),
+                    .height(10.dp)
+                    .clip(RoundedCornerShape(5.dp)),
                 color = MaterialTheme.colorScheme.primary,
                 trackColor = MaterialTheme.colorScheme.tertiary.copy(alpha = 0.2f)
             )
 
+            Spacer(Modifier.height(4.dp))
+
             Text(
                 text = "${t.completion_rate ?: 0}% concluído",
-                style = MaterialTheme.typography.labelSmall,
+                style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f)
             )
 

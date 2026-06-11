@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.CalendarMonth
@@ -27,6 +28,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.forgeplan.core.language.appText
@@ -41,12 +43,6 @@ import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import java.util.Locale
 
-// ─────────────────────────────────────────────────────────────────────────────
-// ProgressScreen — regista data, local, taxa de conclusão, tempo e notas
-// numa tarefa → task_logs; fotos → task_photos (Supabase Storage)
-// Suporta: PT/EN · light/dark · portrait/landscape
-// ─────────────────────────────────────────────────────────────────────────────
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ProgressScreen(
@@ -54,6 +50,7 @@ fun ProgressScreen(
     onProjectsClick: () -> Unit = {},
     onTimelineClick: () -> Unit = {},
     onTeamClick: () -> Unit = {},
+    onBack: () -> Unit = {},
     dashboardViewModel: UserDashboardViewModel = viewModel(),
     progressViewModel: ProgressViewModel = viewModel()
 ) {
@@ -61,7 +58,6 @@ fun ProgressScreen(
     val configuration = LocalConfiguration.current
     val isLandscape   = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
 
-    // ── Dados do dashboard (projetos + tarefas do user) ──────────────────────
     val projectsWithTasks by dashboardViewModel.projectsWithTasks.collectAsState()
     val isLoading         by dashboardViewModel.isLoading.collectAsState()
     val isSaving          by progressViewModel.isSaving.collectAsState()
@@ -72,21 +68,24 @@ fun ProgressScreen(
         if (proj == null) emptyList() else projectsWithTasks[proj] ?: emptyList()
     }
 
-    // ── Estado do formulário (sobrevive a rotações) ───────────────────────────
     var selectedProject  by rememberSaveable { mutableStateOf<Long?>(null) }
     var selectedTaskId   by rememberSaveable { mutableStateOf<Long?>(null) }
     var progressValue    by rememberSaveable { mutableStateOf(0) }
-    var timeSpentHours   by rememberSaveable { mutableStateOf(0) }
+    // Time spent: hours and minutes separately (free input)
+    var timeHours        by rememberSaveable { mutableStateOf("") }
+    var timeMinutes      by rememberSaveable { mutableStateOf("") }
     var location         by rememberSaveable { mutableStateOf("") }
     var notes            by rememberSaveable { mutableStateOf("") }
     var selectedDate     by rememberSaveable { mutableStateOf("") }
-    var selectedPhotoUri by remember { mutableStateOf<Uri?>(null) }
+    // Multiple photos
+    val selectedPhotoUris = remember { mutableStateListOf<Uri>() }
+
+    var timeError by remember { mutableStateOf<String?>(null) }
 
     val currentProject = userProjects.firstOrNull { it.id == selectedProject }
     val currentTasks   = userTasksForProject(currentProject)
     val currentTask    = currentTasks.firstOrNull { it.id == selectedTaskId }
 
-    // ── DatePicker ────────────────────────────────────────────────────────────
     var showDatePicker  by remember { mutableStateOf(false) }
     val datePickerState = rememberDatePickerState()
 
@@ -112,7 +111,6 @@ fun ProgressScreen(
         ) { DatePicker(state = datePickerState) }
     }
 
-    // ── Efeitos de carregamento ───────────────────────────────────────────────
     LaunchedEffect(Unit) { dashboardViewModel.loadDashboard() }
 
     LaunchedEffect(taskId, projectsWithTasks) {
@@ -140,20 +138,28 @@ fun ProgressScreen(
         }
     }
 
-    // ── Snackbar com resultado do save ────────────────────────────────────────
     val snackbarHostState = remember { SnackbarHostState() }
+
+    // Sair da tela após guardar com sucesso
     LaunchedEffect(saveResult) {
         saveResult?.let {
-            snackbarHostState.showSnackbar(it)
-            progressViewModel.clearResult()
             if (it.startsWith("✓")) {
-                notes            = ""
-                selectedPhotoUri = null
+                notes = ""
+                selectedPhotoUris.clear()
+                timeHours = ""
+                timeMinutes = ""
+                onBack()
+            } else {
+                snackbarHostState.showSnackbar(it)
+                progressViewModel.clearResult()
             }
         }
     }
 
-    // ── UI ────────────────────────────────────────────────────────────────────
+    val photoLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.GetMultipleContents()
+    ) { uris -> selectedPhotoUris.addAll(uris) }
+
     Scaffold(snackbarHost = { SnackbarHost(snackbarHostState) }) { innerPadding ->
         Column(
             modifier = Modifier
@@ -186,7 +192,6 @@ fun ProgressScreen(
                         CircularProgressIndicator()
                     }
                 } else if (isLandscape) {
-                    // ── Landscape: 2 colunas ──────────────────────────────
                     if (taskId == 0L) {
                         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                             ProjectSelector(currentProject, userProjects, Modifier.weight(1f)) {
@@ -204,18 +209,24 @@ fun ProgressScreen(
                             Spacer(Modifier.height(12.dp))
                             DateRow(selectedDate) { showDatePicker = true }
                             Spacer(Modifier.height(12.dp))
-                            TimeSpentRow(timeSpentHours, { timeSpentHours++ }, { if (timeSpentHours > 0) timeSpentHours-- })
+                            TimeSpentFreeInput(timeHours, timeMinutes, timeError,
+                                onHoursChange = { timeHours = it; timeError = null },
+                                onMinutesChange = { timeMinutes = it; timeError = null }
+                            )
                             Spacer(Modifier.height(12.dp))
                             LocationRow(location) { location = it }
                         }
                         Column(Modifier.weight(1f)) {
-                            PhotoAttachmentCard(selectedPhotoUri, { selectedPhotoUri = it }, { selectedPhotoUri = null })
+                            MultiPhotoAttachmentCard(
+                                photoUris = selectedPhotoUris,
+                                onAddPhotos = { photoLauncher.launch("image/*") },
+                                onRemovePhoto = { selectedPhotoUris.remove(it) }
+                            )
                             Spacer(Modifier.height(12.dp))
                             NotesCard(notes) { notes = it }
                         }
                     }
                 } else {
-                    // ── Portrait: coluna única ────────────────────────────
                     if (taskId == 0L) {
                         ProjectSelector(currentProject, userProjects) {
                             selectedProject = it.id; selectedTaskId = null
@@ -230,18 +241,24 @@ fun ProgressScreen(
                     Spacer(Modifier.height(20.dp))
                     DateRow(selectedDate) { showDatePicker = true }
                     Spacer(Modifier.height(12.dp))
-                    TimeSpentRow(timeSpentHours, { timeSpentHours++ }, { if (timeSpentHours > 0) timeSpentHours-- })
+                    TimeSpentFreeInput(timeHours, timeMinutes, timeError,
+                        onHoursChange = { timeHours = it; timeError = null },
+                        onMinutesChange = { timeMinutes = it; timeError = null }
+                    )
                     Spacer(Modifier.height(12.dp))
                     LocationRow(location) { location = it }
                     Spacer(Modifier.height(12.dp))
-                    PhotoAttachmentCard(selectedPhotoUri, { selectedPhotoUri = it }, { selectedPhotoUri = null })
+                    MultiPhotoAttachmentCard(
+                        photoUris = selectedPhotoUris,
+                        onAddPhotos = { photoLauncher.launch("image/*") },
+                        onRemovePhoto = { selectedPhotoUris.remove(it) }
+                    )
                     Spacer(Modifier.height(14.dp))
                     NotesCard(notes) { notes = it }
                 }
 
                 Spacer(Modifier.height(18.dp))
 
-                // ── Botão Guardar ─────────────────────────────────────────
                 Button(
                     modifier = Modifier.fillMaxWidth().height(58.dp),
                     shape    = RoundedCornerShape(8.dp),
@@ -252,17 +269,29 @@ fun ProgressScreen(
                     ),
                     onClick = {
                         val task = currentTask ?: return@Button
+                        val h = timeHours.toIntOrNull() ?: 0
+                        val m = timeMinutes.toIntOrNull() ?: 0
+                        val totalMinutes = h * 60 + m
+
+                        if (totalMinutes == 0) {
+                            timeError = appText(
+                                "You must log at least some time spent.",
+                                "Tens de registar pelo menos algum tempo gasto."
+                            )
+                            return@Button
+                        }
+
                         progressViewModel.saveProgress(
-                            task            = task,
-                            logDate         = selectedDate,
-                            location        = location,
-                            completionRate  = progressValue,
-                            minutesSpent    = timeSpentHours,
-                            notes           = notes,
-                            photoUri        = selectedPhotoUri,
-                            context         = context,
-                            successMsg      = appText("✓ Progress saved.", "✓ Progresso guardado."),
-                            errorPrefix     = appText("Error saving", "Erro ao guardar")
+                            task           = task,
+                            logDate        = selectedDate,
+                            location       = location,
+                            completionRate = progressValue,
+                            minutesSpent   = totalMinutes,
+                            notes          = notes,
+                            photoUri       = selectedPhotoUris.firstOrNull(),
+                            context        = context,
+                            successMsg     = appText("✓ Progress saved.", "✓ Progresso guardado."),
+                            errorPrefix    = appText("Error saving", "Erro ao guardar")
                         )
                     }
                 ) {
@@ -296,7 +325,152 @@ fun ProgressScreen(
     }
 }
 
-// ── Campo de Data ─────────────────────────────────────────────────────────────
+// ── Time Spent (input livre) ───────────────────────────────────────────────────
+
+@Composable
+fun TimeSpentFreeInput(
+    hours: String,
+    minutes: String,
+    error: String?,
+    onHoursChange: (String) -> Unit,
+    onMinutesChange: (String) -> Unit
+) {
+    Column {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                Icons.Outlined.CheckCircle,
+                null,
+                Modifier.size(20.dp),
+                tint = MaterialTheme.colorScheme.onSurface
+            )
+            Text(
+                appText("Time spent", "Tempo gasto"),
+                color    = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.weight(1f)
+            )
+            OutlinedTextField(
+                value         = hours,
+                onValueChange = { if (it.length <= 3 && it.all(Char::isDigit)) onHoursChange(it) },
+                label         = { Text("h") },
+                modifier      = Modifier.width(72.dp),
+                singleLine    = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                shape         = RoundedCornerShape(8.dp),
+                isError       = error != null
+            )
+            Text(":", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurface)
+            OutlinedTextField(
+                value         = minutes,
+                onValueChange = {
+                    val v = it.toIntOrNull()
+                    if (it.isEmpty() || (it.length <= 2 && it.all(Char::isDigit) && (v == null || v < 60)))
+                        onMinutesChange(it)
+                },
+                label         = { Text("min") },
+                modifier      = Modifier.width(78.dp),
+                singleLine    = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                shape         = RoundedCornerShape(8.dp),
+                isError       = error != null
+            )
+        }
+        error?.let {
+            Spacer(Modifier.height(4.dp))
+            Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+        }
+    }
+}
+
+// ── Multi Photo Attachment ─────────────────────────────────────────────────────
+
+@Composable
+fun MultiPhotoAttachmentCard(
+    photoUris: List<Uri>,
+    onAddPhotos: () -> Unit,
+    onRemovePhoto: (Uri) -> Unit
+) {
+    val context = LocalContext.current
+    Surface(
+        modifier = Modifier.fillMaxWidth(),
+        shape    = RoundedCornerShape(8.dp),
+        color    = MaterialTheme.colorScheme.surface,
+        border   = BorderStroke(1.dp, MaterialTheme.colorScheme.tertiary)
+    ) {
+        Column(modifier = Modifier.padding(12.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("▧", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onSurface)
+                Spacer(Modifier.size(8.dp))
+                Text(
+                    appText("Photo attachments", "Fotos anexadas"),
+                    color    = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.weight(1f)
+                )
+                TextButton(onClick = onAddPhotos) {
+                    Text(appText("+ Add", "+ Adicionar"), style = MaterialTheme.typography.labelMedium)
+                }
+            }
+
+            if (photoUris.isEmpty()) {
+                Spacer(Modifier.height(8.dp))
+                Surface(
+                    modifier = Modifier.fillMaxWidth().height(80.dp).clickable { onAddPhotos() },
+                    shape    = RoundedCornerShape(10.dp),
+                    color    = MaterialTheme.colorScheme.background,
+                    border   = BorderStroke(1.dp, MaterialTheme.colorScheme.tertiary.copy(alpha = 0.45f))
+                ) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center
+                    ) {
+                        Text("▣", style = MaterialTheme.typography.headlineSmall, color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.65f))
+                        Text(
+                            appText("Add Photos", "Adicionar fotos"),
+                            fontWeight = FontWeight.Bold,
+                            color      = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.75f)
+                        )
+                    }
+                }
+            } else {
+                Spacer(Modifier.height(8.dp))
+                photoUris.forEach { uri ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(MaterialTheme.colorScheme.secondaryContainer)
+                            .padding(horizontal = 12.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            getFileNameFromUri(context, uri),
+                            modifier   = Modifier.weight(1f),
+                            fontWeight = FontWeight.Bold,
+                            color      = MaterialTheme.colorScheme.onSecondaryContainer,
+                            maxLines   = 1
+                        )
+                        Box(
+                            modifier = Modifier
+                                .size(24.dp)
+                                .clip(CircleShape)
+                                .background(MaterialTheme.colorScheme.error)
+                                .clickable { onRemovePhoto(uri) },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text("×", color = MaterialTheme.colorScheme.onPrimary, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                    Spacer(Modifier.height(6.dp))
+                }
+            }
+        }
+    }
+}
+
+// ── Campos existentes mantidos ────────────────────────────────────────────────
 
 @Composable
 fun DateRow(selectedDate: String, onPickDate: () -> Unit) {
@@ -327,8 +501,6 @@ fun DateRow(selectedDate: String, onPickDate: () -> Unit) {
         }
     }
 }
-
-// ── Selectors ─────────────────────────────────────────────────────────────────
 
 @Composable
 fun ProjectSelector(selectedProject: Project?, projects: List<Project>, modifier: Modifier = Modifier, onProjectSelected: (Project) -> Unit) {
@@ -370,8 +542,6 @@ fun SelectorCard(text: String, iconText: String, onClick: () -> Unit) {
         }
     }
 }
-
-// ── Componentes de formulário ─────────────────────────────────────────────────
 
 @Composable
 fun ProgressMainCard(progress: Int, onProgressChange: (Int) -> Unit) {
@@ -417,31 +587,6 @@ fun ProgressBadge(progress: Int) {
 }
 
 @Composable
-fun TimeSpentRow(hours: Int, onIncrease: () -> Unit, onDecrease: () -> Unit) {
-    val hourText = if (hours == 1) appText("1 hour", "1 hora") else appText("$hours hours", "$hours horas")
-    Surface(
-        modifier = Modifier.fillMaxWidth().height(46.dp),
-        shape    = RoundedCornerShape(8.dp),
-        color    = MaterialTheme.colorScheme.surface,
-        border   = BorderStroke(1.dp, MaterialTheme.colorScheme.tertiary)
-    ) {
-        Row(modifier = Modifier.padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-            Icon(Icons.Outlined.CheckCircle, null, Modifier.size(20.dp), tint = MaterialTheme.colorScheme.onSurface)
-            Spacer(Modifier.size(10.dp))
-            Text(appText("Time spent", "Tempo gasto"), color = MaterialTheme.colorScheme.onSurface, modifier = Modifier.weight(1f))
-            Box(modifier = Modifier.clip(RoundedCornerShape(4.dp)).background(MaterialTheme.colorScheme.tertiary).padding(horizontal = 12.dp, vertical = 6.dp)) {
-                Text(hourText, color = MaterialTheme.colorScheme.onTertiary, fontWeight = FontWeight.Bold)
-            }
-            Spacer(Modifier.size(8.dp))
-            Column {
-                Text("▲", modifier = Modifier.clickable { onIncrease() }, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurface)
-                Text("▼", modifier = Modifier.clickable { onDecrease() }, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurface)
-            }
-        }
-    }
-}
-
-@Composable
 fun LocationRow(value: String, onValueChange: (String) -> Unit) {
     var expanded by remember { mutableStateOf(false) }
     val locations = listOf(
@@ -469,51 +614,6 @@ fun LocationRow(value: String, onValueChange: (String) -> Unit) {
         }
         DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
             locations.forEach { DropdownMenuItem(text = { Text(it) }, onClick = { onValueChange(it); expanded = false }) }
-        }
-    }
-}
-
-@Composable
-fun PhotoAttachmentCard(selectedPhotoUri: Uri?, onPhotoSelected: (Uri) -> Unit, onRemovePhoto: () -> Unit) {
-    val context = LocalContext.current
-    val photoLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri -> uri?.let { onPhotoSelected(it) } }
-    Surface(
-        modifier = Modifier.fillMaxWidth().height(164.dp),
-        shape    = RoundedCornerShape(8.dp),
-        color    = MaterialTheme.colorScheme.surface,
-        border   = BorderStroke(1.dp, MaterialTheme.colorScheme.tertiary)
-    ) {
-        Column(modifier = Modifier.padding(12.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("▧", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.onSurface)
-                Spacer(Modifier.size(8.dp))
-                Text(appText("Photo attachment", "Anexo fotográfico"), color = MaterialTheme.colorScheme.onSurface)
-            }
-            Spacer(Modifier.height(12.dp))
-            if (selectedPhotoUri == null) {
-                Surface(
-                    modifier = Modifier.fillMaxWidth().height(92.dp).clickable { photoLauncher.launch("image/*") },
-                    shape    = RoundedCornerShape(10.dp),
-                    color    = MaterialTheme.colorScheme.background,
-                    border   = BorderStroke(1.dp, MaterialTheme.colorScheme.tertiary.copy(alpha = 0.45f))
-                ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.Center) {
-                        Text("▣", style = MaterialTheme.typography.headlineSmall, color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.65f))
-                        Spacer(Modifier.height(6.dp))
-                        Text(appText("Add Photo", "Adicionar foto"), fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.75f))
-                    }
-                }
-            } else {
-                Row(
-                    modifier = Modifier.fillMaxWidth().height(92.dp).clip(RoundedCornerShape(10.dp)).background(MaterialTheme.colorScheme.secondaryContainer).padding(12.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(getFileNameFromUri(context, selectedPhotoUri), modifier = Modifier.weight(1f), fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSecondaryContainer)
-                    Box(modifier = Modifier.size(26.dp).clip(CircleShape).background(MaterialTheme.colorScheme.error).clickable { onRemovePhoto() }, contentAlignment = Alignment.Center) {
-                        Text("×", color = MaterialTheme.colorScheme.onPrimary, fontWeight = FontWeight.Bold)
-                    }
-                }
-            }
         }
     }
 }
