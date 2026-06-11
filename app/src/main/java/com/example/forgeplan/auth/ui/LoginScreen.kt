@@ -38,13 +38,11 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.zIndex
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.forgeplan.R
 import com.example.forgeplan.auth.viewmodel.LoginUiState
 import com.example.forgeplan.auth.viewmodel.LoginViewModel
-import com.example.forgeplan.core.language.AppLanguage
-import com.example.forgeplan.core.ui.LanguageButton
+import com.example.forgeplan.core.language.appText
 
 private val BrandDarkBlue = Color(0xFF171A4A)
 
@@ -55,20 +53,15 @@ fun LoginScreen(
     val configuration = LocalConfiguration.current
     val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
 
-    var selectedLanguage by remember { mutableStateOf("EN") }
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var emailError by remember { mutableStateOf<String?>(null) }
     var passwordError by remember { mutableStateOf<String?>(null) }
 
-    val emailRequired =
-        if (selectedLanguage == "PT") "O email é obrigatório." else "Email is required."
-    val invalidEmail =
-        if (selectedLanguage == "PT") "Introduz um email válido." else "Enter a valid email."
-    val passwordRequired =
-        if (selectedLanguage == "PT") "A password é obrigatória." else "Password is required."
-    val passwordShort =
-        if (selectedLanguage == "PT") "A password deve ter pelo menos 6 caracteres." else "Password must have at least 6 characters."
+    val emailRequired   = appText(en = "Email is required.",                       pt = "O email é obrigatório.")
+    val invalidEmail    = appText(en = "Enter a valid email.",                      pt = "Introduz um email válido.")
+    val passwordRequired= appText(en = "Password is required.",                    pt = "A password é obrigatória.")
+    val passwordShort   = appText(en = "Password must have at least 6 characters.", pt = "A password deve ter pelo menos 6 caracteres.")
 
     val loginViewModel: LoginViewModel = viewModel()
     val uiState by loginViewModel.uiState.collectAsState()
@@ -94,37 +87,11 @@ fun LoginScreen(
                     bottom = if (isLandscape) 18.dp else 32.dp
                 )
         ) {
-            Row(
-                modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .zIndex(10f),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                LanguageButton(
-                    text = "us EN",
-                    selected = selectedLanguage == "EN",
-                    onClick = {
-                        selectedLanguage = "EN"
-                        AppLanguage.set("EN")
-                    }
-                )
-
-                LanguageButton(
-                    text = "pt PT",
-                    selected = selectedLanguage == "PT",
-                    onClick = {
-                        selectedLanguage = "PT"
-                        AppLanguage.set("PT")
-                    }
-                )
-            }
-
             if (isLandscape) {
                 Row(
                     modifier = Modifier
                         .fillMaxSize()
-                        .verticalScroll(rememberScrollState())
-                        .padding(top = 54.dp),
+                        .verticalScroll(rememberScrollState()),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(32.dp)
                 ) {
@@ -145,37 +112,20 @@ fun LoginScreen(
                         verticalArrangement = Arrangement.Center
                     ) {
                         LoginFormFields(
-                            selectedLanguage = selectedLanguage,
                             email = email,
                             password = password,
                             emailError = emailError,
                             passwordError = passwordError,
                             uiState = uiState,
-                            onEmailChange = {
-                                email = it
-                                emailError = null
-                            },
-                            onPasswordChange = {
-                                password = it
-                                passwordError = null
-                            },
+                            onEmailChange = { email = it; emailError = null },
+                            onPasswordChange = { password = it; passwordError = null },
                             onLoginClick = {
-                                emailError = null
-                                passwordError = null
-
-                                when {
-                                    email.isBlank() -> emailError = emailRequired
-                                    !Patterns.EMAIL_ADDRESS.matcher(email).matches() -> emailError = invalidEmail
-                                }
-
-                                when {
-                                    password.isBlank() -> passwordError = passwordRequired
-                                    password.length < 6 -> passwordError = passwordShort
-                                }
-
-                                if (emailError == null && passwordError == null) {
-                                    loginViewModel.login(email, password)
-                                }
+                                emailError = null; passwordError = null
+                                if (email.isBlank()) emailError = emailRequired
+                                else if (!Patterns.EMAIL_ADDRESS.matcher(email).matches()) emailError = invalidEmail
+                                if (password.isBlank()) passwordError = passwordRequired
+                                else if (password.length < 6) passwordError = passwordShort
+                                if (emailError == null && passwordError == null) loginViewModel.login(email, password)
                             }
                         )
                     }
@@ -185,12 +135,7 @@ fun LoginScreen(
                     modifier = Modifier
                         .fillMaxSize()
                         .verticalScroll(rememberScrollState())
-                        .padding(
-                            start = 8.dp,
-                            end = 8.dp,
-                            top = 54.dp,
-                            bottom = 24.dp
-                        ),
+                        .padding(start = 8.dp, end = 8.dp, top = 32.dp, bottom = 24.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.Center
                 ) {
@@ -203,37 +148,20 @@ fun LoginScreen(
                     Spacer(modifier = Modifier.height(56.dp))
 
                     LoginFormFields(
-                        selectedLanguage = selectedLanguage,
                         email = email,
                         password = password,
                         emailError = emailError,
                         passwordError = passwordError,
                         uiState = uiState,
-                        onEmailChange = {
-                            email = it
-                            emailError = null
-                        },
-                        onPasswordChange = {
-                            password = it
-                            passwordError = null
-                        },
+                        onEmailChange = { email = it; emailError = null },
+                        onPasswordChange = { password = it; passwordError = null },
                         onLoginClick = {
-                            emailError = null
-                            passwordError = null
-
-                            when {
-                                email.isBlank() -> emailError = emailRequired
-                                !Patterns.EMAIL_ADDRESS.matcher(email).matches() -> emailError = invalidEmail
-                            }
-
-                            when {
-                                password.isBlank() -> passwordError = passwordRequired
-                                password.length < 6 -> passwordError = passwordShort
-                            }
-
-                            if (emailError == null && passwordError == null) {
-                                loginViewModel.login(email, password)
-                            }
+                            emailError = null; passwordError = null
+                            if (email.isBlank()) emailError = emailRequired
+                            else if (!Patterns.EMAIL_ADDRESS.matcher(email).matches()) emailError = invalidEmail
+                            if (password.isBlank()) passwordError = passwordRequired
+                            else if (password.length < 6) passwordError = passwordShort
+                            if (emailError == null && passwordError == null) loginViewModel.login(email, password)
                         }
                     )
                 }
@@ -244,7 +172,6 @@ fun LoginScreen(
 
 @Composable
 fun LoginFormFields(
-    selectedLanguage: String,
     email: String,
     password: String,
     emailError: String?,
@@ -260,9 +187,7 @@ fun LoginFormFields(
             color = MaterialTheme.colorScheme.onBackground,
             style = MaterialTheme.typography.bodyLarge
         )
-
         Spacer(modifier = Modifier.height(4.dp))
-
         OutlinedTextField(
             value = email,
             onValueChange = onEmailChange,
@@ -279,26 +204,19 @@ fun LoginFormFields(
                 focusedBorderColor = MaterialTheme.colorScheme.primary
             )
         )
-
         if (emailError != null) {
             Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = emailError,
-                color = MaterialTheme.colorScheme.error,
-                style = MaterialTheme.typography.bodySmall
-            )
+            Text(text = emailError, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
         }
 
         Spacer(modifier = Modifier.height(20.dp))
 
         Text(
-            text = if (selectedLanguage == "PT") "Palavra-passe" else "Password",
+            text = appText(en = "Password", pt = "Palavra-passe"),
             color = MaterialTheme.colorScheme.onBackground,
             style = MaterialTheme.typography.bodyLarge
         )
-
         Spacer(modifier = Modifier.height(4.dp))
-
         OutlinedTextField(
             value = password,
             onValueChange = onPasswordChange,
@@ -316,14 +234,9 @@ fun LoginFormFields(
                 focusedBorderColor = MaterialTheme.colorScheme.primary
             )
         )
-
         if (passwordError != null) {
             Spacer(modifier = Modifier.height(4.dp))
-            Text(
-                text = passwordError,
-                color = MaterialTheme.colorScheme.error,
-                style = MaterialTheme.typography.bodySmall
-            )
+            Text(text = passwordError, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
         }
 
         Spacer(modifier = Modifier.height(56.dp))
@@ -341,18 +254,14 @@ fun LoginFormFields(
             shape = RoundedCornerShape(8.dp)
         ) {
             Text(
-                text = if (selectedLanguage == "PT") "Entrar" else "Login",
+                text = appText(en = "Login", pt = "Entrar"),
                 style = MaterialTheme.typography.titleMedium
             )
         }
 
         if (uiState is LoginUiState.Error) {
             Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                text = uiState.message,
-                color = MaterialTheme.colorScheme.error,
-                style = MaterialTheme.typography.bodySmall
-            )
+            Text(text = uiState.message, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
         }
     }
 }

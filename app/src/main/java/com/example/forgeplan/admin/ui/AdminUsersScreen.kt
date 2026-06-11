@@ -119,12 +119,18 @@ fun AdminUsersScreen(
                     viewModel.toggleUserActive(user)
                     userToToggle = null
                 }) {
-                    Text(appText(en = "Confirm", pt = "Confirmar"))
+                    Text(
+                        text = appText(en = "Confirm", pt = "Confirmar"),
+                        color = MaterialTheme.colorScheme.primary
+                    )
                 }
             },
             dismissButton = {
                 TextButton(onClick = { userToToggle = null }) {
-                    Text(appText(en = "Cancel", pt = "Cancelar"))
+                    Text(
+                        text = appText(en = "Cancel", pt = "Cancelar"),
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
                 }
             }
         )
@@ -233,8 +239,8 @@ fun AdminUsersScreen(
 
             FloatingActionButton(
                 onClick = onCreateUserClick,
-                containerColor = MaterialTheme.colorScheme.primary,
-                contentColor = MaterialTheme.colorScheme.onPrimary,
+                containerColor = MaterialTheme.colorScheme.secondary,
+                contentColor = MaterialTheme.colorScheme.secondary,
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
                     .padding(end = 18.dp, bottom = 18.dp)

@@ -16,7 +16,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -59,15 +58,11 @@ fun CreateProjectScreen(
     var priority by remember { mutableStateOf("MEDIUM") }
     var startDate by remember { mutableStateOf("") }
     var endDate by remember { mutableStateOf("") }
-
-    // Datas internas em formato ISO para enviar ao Supabase
     var startDateIso by remember { mutableStateOf("") }
     var endDateIso by remember { mutableStateOf("") }
-
     var nameError by remember { mutableStateOf<String?>(null) }
     var dateError by remember { mutableStateOf<String?>(null) }
 
-    // Abre o DatePicker e formata a data selecionada
     fun showDatePicker(isStart: Boolean) {
         val calendar = Calendar.getInstance()
         DatePickerDialog(
@@ -75,13 +70,8 @@ fun CreateProjectScreen(
             { _, year, month, day ->
                 val formatted = "%02d/%02d/%04d".format(day, month + 1, year)
                 val iso = "%04d-%02d-%02d".format(year, month + 1, day)
-                if (isStart) {
-                    startDate = formatted
-                    startDateIso = iso
-                } else {
-                    endDate = formatted
-                    endDateIso = iso
-                }
+                if (isStart) { startDate = formatted; startDateIso = iso }
+                else { endDate = formatted; endDateIso = iso }
                 dateError = null
             },
             calendar.get(Calendar.YEAR),
@@ -92,24 +82,14 @@ fun CreateProjectScreen(
 
     fun saveProject() {
         var hasError = false
-
         if (name.isBlank()) {
-            nameError = appText(
-                en = "Project name is required.",
-                pt = "O nome do projeto é obrigatório."
-            )
+            nameError = appText(en = "Project name is required.", pt = "O nome do projeto é obrigatório.")
             hasError = true
         }
-
-        // Valida que a data de fim não é anterior à de início
         if (startDateIso.isNotBlank() && endDateIso.isNotBlank() && endDateIso < startDateIso) {
-            dateError = appText(
-                en = "The end date cannot be earlier than the start date.",
-                pt = "A data de fim não pode ser anterior à data de início."
-            )
+            dateError = appText(en = "The end date cannot be earlier than the start date.", pt = "A data de fim não pode ser anterior à data de início.")
             hasError = true
         }
-
         if (!hasError) {
             val project = ProjectPayload(
                 created_by_id = null,
@@ -227,7 +207,76 @@ fun CreateProjectScreen(
     }
 }
 
-// Campos de data com DatePicker ao clicar
+@Composable
+fun ProjectPriorityFields(
+    priority: String,
+    onPriorityChange: (String) -> Unit
+) {
+    Text(
+        text = appText(en = "Priority", pt = "Prioridade"),
+        style = MaterialTheme.typography.titleSmall,
+        color = MaterialTheme.colorScheme.onBackground
+    )
+    Spacer(modifier = Modifier.height(8.dp))
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        listOf(
+            "LOW" to appText(en = "Low", pt = "Baixa"),
+            "MEDIUM" to appText(en = "Medium", pt = "Média"),
+            "HIGH" to appText(en = "High", pt = "Alta")
+        ).forEach { (value, label) ->
+            ProjectPriorityButton(
+                text = label,
+                selected = priority == value,
+                onClick = { onPriorityChange(value) },
+                modifier = Modifier.weight(1f)
+            )
+        }
+    }
+}
+
+@Composable
+fun ProjectPriorityButton(
+    text: String,
+    selected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val primary = MaterialTheme.colorScheme.primary
+    val onPrimary = MaterialTheme.colorScheme.onPrimary
+    val surface = MaterialTheme.colorScheme.surface
+    val onSurface = MaterialTheme.colorScheme.onSurface
+
+    if (selected) {
+        Button(
+            onClick = onClick,
+            modifier = modifier.height(48.dp),
+            shape = RoundedCornerShape(10.dp),
+            colors = ButtonDefaults.buttonColors(
+                containerColor = primary,
+                contentColor = onPrimary
+            )
+        ) {
+            Text(text = text, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyMedium)
+        }
+    } else {
+        OutlinedButton(
+            onClick = onClick,
+            modifier = modifier.height(48.dp),
+            shape = RoundedCornerShape(10.dp),
+            border = BorderStroke(1.5.dp, onSurface.copy(alpha = 0.25f)),
+            colors = ButtonDefaults.outlinedButtonColors(
+                containerColor = surface,
+                contentColor = onSurface
+            )
+        ) {
+            Text(text = text, style = MaterialTheme.typography.bodyMedium)
+        }
+    }
+}
+
 @Composable
 fun ProjectDateFields(
     startDate: String,
@@ -246,7 +295,6 @@ fun ProjectDateFields(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        // Campo de data clicável que abre o DatePicker
         OutlinedTextField(
             modifier = Modifier.weight(1f),
             value = startDate,
@@ -257,19 +305,13 @@ fun ProjectDateFields(
             shape = RoundedCornerShape(14.dp),
             interactionSource = remember {
                 object : androidx.compose.foundation.interaction.MutableInteractionSource {
-                    override val interactions = kotlinx.coroutines.flow.MutableSharedFlow<androidx.compose.foundation.interaction.Interaction>(
-                        extraBufferCapacity = 16
-                    )
+                    override val interactions = kotlinx.coroutines.flow.MutableSharedFlow<androidx.compose.foundation.interaction.Interaction>(extraBufferCapacity = 16)
                     override suspend fun emit(interaction: androidx.compose.foundation.interaction.Interaction) {
-                        if (interaction is androidx.compose.foundation.interaction.PressInteraction.Release) {
-                            onStartDateClick()
-                        }
+                        if (interaction is androidx.compose.foundation.interaction.PressInteraction.Release) onStartDateClick()
                         interactions.emit(interaction)
                     }
                     override fun tryEmit(interaction: androidx.compose.foundation.interaction.Interaction): Boolean {
-                        if (interaction is androidx.compose.foundation.interaction.PressInteraction.Release) {
-                            onStartDateClick()
-                        }
+                        if (interaction is androidx.compose.foundation.interaction.PressInteraction.Release) onStartDateClick()
                         return interactions.tryEmit(interaction)
                     }
                 }
@@ -287,56 +329,17 @@ fun ProjectDateFields(
             shape = RoundedCornerShape(14.dp),
             interactionSource = remember {
                 object : androidx.compose.foundation.interaction.MutableInteractionSource {
-                    override val interactions = kotlinx.coroutines.flow.MutableSharedFlow<androidx.compose.foundation.interaction.Interaction>(
-                        extraBufferCapacity = 16
-                    )
+                    override val interactions = kotlinx.coroutines.flow.MutableSharedFlow<androidx.compose.foundation.interaction.Interaction>(extraBufferCapacity = 16)
                     override suspend fun emit(interaction: androidx.compose.foundation.interaction.Interaction) {
-                        if (interaction is androidx.compose.foundation.interaction.PressInteraction.Release) {
-                            onEndDateClick()
-                        }
+                        if (interaction is androidx.compose.foundation.interaction.PressInteraction.Release) onEndDateClick()
                         interactions.emit(interaction)
                     }
                     override fun tryEmit(interaction: androidx.compose.foundation.interaction.Interaction): Boolean {
-                        if (interaction is androidx.compose.foundation.interaction.PressInteraction.Release) {
-                            onEndDateClick()
-                        }
+                        if (interaction is androidx.compose.foundation.interaction.PressInteraction.Release) onEndDateClick()
                         return interactions.tryEmit(interaction)
                     }
                 }
             }
-        )
-    }
-}
-
-@Composable
-fun ProjectPriorityFields(
-    priority: String,
-    onPriorityChange: (String) -> Unit
-) {
-    Text(
-        text = appText(en = "Priority", pt = "Prioridade"),
-        style = MaterialTheme.typography.titleSmall,
-        color = MaterialTheme.colorScheme.onBackground
-    )
-    Spacer(modifier = Modifier.height(8.dp))
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        ProjectPriorityChip(
-            text = appText(en = "LOW", pt = "BAIXA"),
-            selected = priority == "LOW",
-            onClick = { onPriorityChange("LOW") }
-        )
-        ProjectPriorityChip(
-            text = appText(en = "MEDIUM", pt = "MÉDIA"),
-            selected = priority == "MEDIUM",
-            onClick = { onPriorityChange("MEDIUM") }
-        )
-        ProjectPriorityChip(
-            text = appText(en = "HIGH", pt = "ALTA"),
-            selected = priority == "HIGH",
-            onClick = { onPriorityChange("HIGH") }
         )
     }
 }
@@ -423,19 +426,4 @@ fun ProjectErrorMessage(error: String?) {
             style = MaterialTheme.typography.bodyMedium
         )
     }
-}
-
-@Composable
-fun ProjectPriorityChip(
-    text: String,
-    selected: Boolean,
-    onClick: () -> Unit
-) {
-    FilterChip(
-        selected = selected,
-        onClick = onClick,
-        label = {
-            Text(text = text, style = MaterialTheme.typography.labelSmall)
-        }
-    )
 }

@@ -7,7 +7,6 @@ import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 
 private val LightColorScheme = lightColorScheme(
-
     primary = ForgePrimary,
     onPrimary = ForgeWhite,
 
@@ -25,6 +24,9 @@ private val LightColorScheme = lightColorScheme(
 
     tertiary = ForgePurple,
     onTertiary = ForgeWhite,
+
+    outline = ForgePrimary,
+    outlineVariant = ForgeSurfaceDark,
 
     error = ForgeError
 )
@@ -47,6 +49,9 @@ private val DarkColorScheme = darkColorScheme(
 
     tertiary = ForgeSurfaceDark,
     onTertiary = ForgeBlack,
+
+    outline = ForgeGold,
+    outlineVariant = ForgeDarkSurfaceElevated,
 
     error = ForgeError
 )

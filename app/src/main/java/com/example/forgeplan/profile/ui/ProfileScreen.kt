@@ -2,7 +2,10 @@ package com.example.forgeplan.profile.ui
 
 import android.content.res.Configuration
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -14,6 +17,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -25,8 +29,10 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.example.forgeplan.admin.ui.AdminScaffold
+import com.example.forgeplan.core.language.AppLanguage
 import com.example.forgeplan.core.language.appText
 import com.example.forgeplan.core.session.SessionManager
 import com.example.forgeplan.core.ui.components.ForgeAvatar
@@ -37,10 +43,10 @@ import com.example.forgeplan.core.ui.components.ForgeSecondaryButton
 
 @Composable
 fun ProfileScreen(
+    isDarkTheme: Boolean,
+    onToggleTheme: () -> Unit,
     onEditProfile: () -> Unit = {},
     onChangePassword: () -> Unit = {},
-    onHelpCenter: () -> Unit = {},
-    onAbout: () -> Unit = {},
     onLogout: () -> Unit = {},
     onProjectsClick: () -> Unit = {},
     onUsersClick: () -> Unit = {},
@@ -62,10 +68,10 @@ fun ProfileScreen(
             onLogout = onLogout
         ) {
             ProfileContent(
+                isDarkTheme = isDarkTheme,
+                onToggleTheme = onToggleTheme,
                 onEditProfile = onEditProfile,
                 onChangePassword = onChangePassword,
-                onHelpCenter = onHelpCenter,
-                onAbout = onAbout,
                 onLogout = onLogout
             )
         }
@@ -78,10 +84,10 @@ fun ProfileScreen(
             ForgePlanTopBar(title = "ForgePlan", initials = SessionManager.userInitials)
             Box(modifier = Modifier.weight(1f)) {
                 ProfileContent(
+                    isDarkTheme = isDarkTheme,
+                    onToggleTheme = onToggleTheme,
                     onEditProfile = onEditProfile,
                     onChangePassword = onChangePassword,
-                    onHelpCenter = onHelpCenter,
-                    onAbout = onAbout,
                     onLogout = onLogout
                 )
             }
@@ -103,10 +109,10 @@ fun ProfileScreen(
             ForgePlanTopBar(title = "ForgePlan", initials = SessionManager.userInitials)
             Box(modifier = Modifier.weight(1f)) {
                 ProfileContent(
+                    isDarkTheme = isDarkTheme,
+                    onToggleTheme = onToggleTheme,
                     onEditProfile = onEditProfile,
                     onChangePassword = onChangePassword,
-                    onHelpCenter = onHelpCenter,
-                    onAbout = onAbout,
                     onLogout = onLogout
                 )
             }
@@ -123,10 +129,10 @@ fun ProfileScreen(
 
 @Composable
 private fun ProfileContent(
+    isDarkTheme: Boolean,
+    onToggleTheme: () -> Unit,
     onEditProfile: () -> Unit,
     onChangePassword: () -> Unit,
-    onHelpCenter: () -> Unit,
-    onAbout: () -> Unit,
     onLogout: () -> Unit
 ) {
     val configuration = LocalConfiguration.current
@@ -143,6 +149,7 @@ private fun ProfileContent(
                 vertical = 16.dp
             )
     ) {
+        // ── Avatar card ──────────────────────────────────────────────
         ForgeCard(modifier = Modifier.fillMaxWidth()) {
             Column(
                 modifier = Modifier
@@ -184,6 +191,7 @@ private fun ProfileContent(
 
         Spacer(modifier = Modifier.height(16.dp))
 
+        // ── Account section ──────────────────────────────────────────
         ProfileSection(
             title = appText(en = "Account", pt = "Conta"),
             items = listOf(
@@ -191,6 +199,78 @@ private fun ProfileContent(
                 appText(en = "Change Password", pt = "Alterar Password") to onChangePassword
             )
         )
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // ── Preferences section (Language + Theme) ───────────────────
+        ForgeCard(modifier = Modifier.fillMaxWidth()) {
+            Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp)) {
+                Text(
+                    text = appText(en = "Preferences", pt = "Preferências"),
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // Language toggle
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = appText(en = "Language", pt = "Idioma"),
+                        modifier = Modifier.weight(1f),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    SegmentedToggle(
+                        options = listOf("EN", "PT"),
+                        selected = AppLanguage.current,
+                        onSelect = { AppLanguage.set(it) }
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(4.dp))
+
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(0.5.dp)
+                        .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f))
+                )
+
+                Spacer(modifier = Modifier.height(4.dp))
+
+                // Theme toggle
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = appText(en = "Theme", pt = "Tema"),
+                        modifier = Modifier.weight(1f),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    SegmentedToggle(
+                        options = listOf(
+                            appText(en = "Light", pt = "Claro"),
+                            appText(en = "Dark", pt = "Escuro")
+                        ),
+                        selected = if (isDarkTheme)
+                            appText(en = "Dark", pt = "Escuro")
+                        else
+                            appText(en = "Light", pt = "Claro"),
+                        onSelect = { choice ->
+                            val wantsDark = choice == appText(en = "Dark", pt = "Escuro")
+                            if (wantsDark != isDarkTheme) onToggleTheme()
+                        }
+                    )
+                }
+            }
+        }
 
         Spacer(modifier = Modifier.height(24.dp))
 
@@ -204,6 +284,48 @@ private fun ProfileContent(
     }
 }
 
+// ── Small segmented control ──────────────────────────────────────────────────
+@Composable
+private fun SegmentedToggle(
+    options: List<String>,
+    selected: String,
+    onSelect: (String) -> Unit
+) {
+    val isDark = isSystemInDarkTheme()
+    val activeBg = if (isDark) MaterialTheme.colorScheme.secondary
+    else MaterialTheme.colorScheme.primary
+    val activeText = if (isDark) MaterialTheme.colorScheme.onSecondary
+    else MaterialTheme.colorScheme.onPrimary
+    val borderColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.2f)
+
+    Row(
+        modifier = Modifier
+            .border(width = 1.dp, color = borderColor, shape = RoundedCornerShape(8.dp))
+            .clip(RoundedCornerShape(8.dp)),
+        horizontalArrangement = Arrangement.Center
+    ) {
+        options.forEach { option ->
+            val isSelected = option == selected
+            Box(
+                modifier = Modifier
+                    .background(if (isSelected) activeBg else MaterialTheme.colorScheme.surface)
+                    .clickable { onSelect(option) }
+                    .padding(horizontal = 14.dp, vertical = 6.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = option,
+                    fontSize = 13.sp,
+                    fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
+                    color = if (isSelected) activeText
+                    else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                )
+            }
+        }
+    }
+}
+
+// ── Reusable section ─────────────────────────────────────────────────────────
 @Composable
 fun ProfileSection(
     title: String,
