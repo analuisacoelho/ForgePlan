@@ -58,6 +58,8 @@ import com.example.forgeplan.core.model.Project
 import com.example.forgeplan.core.model.Task
 import com.example.forgeplan.core.model.User
 import com.example.forgeplan.core.repository.TaskAttachmentRepository
+import com.example.forgeplan.core.session.SessionManager
+import com.example.forgeplan.projects.viewmodel.ProjectUserViewModel
 import com.example.forgeplan.projects.viewmodel.ProjectViewModel
 import com.example.forgeplan.tasks.viewmodel.TaskAssignmentViewModel
 import com.example.forgeplan.tasks.viewmodel.TaskDependencyViewModel
@@ -76,7 +78,8 @@ fun CreateTaskScreen(
     userViewModel: UserViewModel = viewModel(),
     assignmentViewModel: TaskAssignmentViewModel = viewModel(),
     dependencyViewModel: TaskDependencyViewModel = viewModel(),
-    taskGroupViewModel: TaskGroupViewModel = viewModel()
+    taskGroupViewModel: TaskGroupViewModel = viewModel(),
+    projectUserViewModel: ProjectUserViewModel = viewModel()
 ) {
     val configuration = LocalConfiguration.current
     val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
@@ -88,6 +91,7 @@ fun CreateTaskScreen(
     val tasks by taskViewModel.tasks.collectAsState()
     val users by userViewModel.users.collectAsState()
     val groups by taskGroupViewModel.groups.collectAsState()
+    val projectUsers by projectUserViewModel.projectUsers.collectAsState()
 
     val taskError by taskViewModel.error.collectAsState()
     val assignmentError by assignmentViewModel.error.collectAsState()
@@ -320,9 +324,22 @@ fun CreateTaskScreen(
         selectedProject?.let { project ->
             taskViewModel.loadTasks(project.id)
             taskGroupViewModel.loadGroups(project.id)
+            projectUserViewModel.loadProjectUsers(project.id)
             selectedDependency = null
             taskGroup = ""
         }
+    }
+
+    val projectMemberUsers = users.filter { user ->
+        val isInProject = projectUsers.any { projectUser ->
+            projectUser.user_id == user.id
+        }
+
+        val isUser = user.role?.uppercase() == "USER"
+        val isCurrentManager = user.id == SessionManager.userId &&
+                user.role?.uppercase() == "MANAGER"
+
+        isInProject && (isUser || isCurrentManager)
     }
 
     Column(
@@ -410,7 +427,7 @@ fun CreateTaskScreen(
 
                     Column(modifier = Modifier.weight(1f)) {
                         CreateTaskUsersAndAttachments(
-                            users = users,
+                            users = projectMemberUsers,
                             userSearch = userSearch,
                             selectedUsers = selectedUsers,
                             attachments = attachments,
@@ -487,7 +504,7 @@ fun CreateTaskScreen(
                 )
 
                 CreateTaskUsersAndAttachments(
-                    users = users,
+                    users = projectMemberUsers,
                     userSearch = userSearch,
                     selectedUsers = selectedUsers,
                     attachments = attachments,

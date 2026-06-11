@@ -24,6 +24,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -39,7 +40,11 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.forgeplan.core.language.appText
+import com.example.forgeplan.core.model.Project
 import com.example.forgeplan.core.model.Task
+import com.example.forgeplan.core.repository.ProjectRepository
+import com.example.forgeplan.core.repository.ProjectUserRepository
+import com.example.forgeplan.core.repository.TaskRepository
 import com.example.forgeplan.core.session.SessionManager
 import com.example.forgeplan.core.ui.components.ForgeCard
 import com.example.forgeplan.core.ui.components.ForgeOutlinedCard
@@ -72,6 +77,7 @@ fun TimelineScreen(
     onProjectsClick: () -> Unit = {},
     onProgressClick: () -> Unit = {},
     onTeamClick: () -> Unit = {},
+    isManagerTimeline: Boolean = false,
     dashboardViewModel: UserDashboardViewModel = viewModel()
 ) {
     val isLandscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
@@ -80,15 +86,44 @@ fun TimelineScreen(
     val isLoading by dashboardViewModel.isLoading.collectAsState()
     val error by dashboardViewModel.error.collectAsState()
 
+    val managerProjectsWithTasks = remember { mutableStateMapOf<Project, List<Task>>() }
+    var managerIsLoading by remember { mutableStateOf(false) }
+    var managerError by remember { mutableStateOf<String?>(null) }
+
     var searchText by rememberSaveable { mutableStateOf("") }
     var selectedMode by rememberSaveable { mutableStateOf("Week") }
 
-    LaunchedEffect(Unit) {
-        dashboardViewModel.loadDashboard()
+    LaunchedEffect(isManagerTimeline) {
+        if (isManagerTimeline) {
+            managerIsLoading = true
+            managerError = null
+            managerProjectsWithTasks.clear()
+
+            loadManagerTimelineData(
+                onSuccess = { result ->
+                    managerProjectsWithTasks.clear()
+                    managerProjectsWithTasks.putAll(result)
+                    managerIsLoading = false
+                },
+                onError = { message ->
+                    managerError = message
+                    managerProjectsWithTasks.clear()
+                    managerIsLoading = false
+                }
+            )
+        } else {
+            dashboardViewModel.loadDashboard()
+        }
     }
 
-    val allTasks: List<Task> = remember(projectsWithTasks) {
-        projectsWithTasks.values.flatten()
+    val timelineProjectsWithTasks: Map<Project, List<Task>> =
+        if (isManagerTimeline) managerProjectsWithTasks else projectsWithTasks
+
+    val timelineIsLoading = if (isManagerTimeline) managerIsLoading else isLoading
+    val timelineError = if (isManagerTimeline) managerError else error
+
+    val allTasks: List<Task> = remember(timelineProjectsWithTasks) {
+        timelineProjectsWithTasks.values.flatten()
     }
 
     val sortedTasks: List<Task> = remember(allTasks) {
@@ -106,8 +141,8 @@ fun TimelineScreen(
         }
     }
 
-    val projectNameById = remember(projectsWithTasks) {
-        projectsWithTasks.keys.associate { it.id to it.name }
+    val projectNameById = remember(timelineProjectsWithTasks) {
+        timelineProjectsWithTasks.keys.associate { it.id to it.name }
     }
 
     val finishedCount = filteredTasks.count { it.status?.uppercase() == "DONE" }
@@ -171,7 +206,7 @@ fun TimelineScreen(
 
             Spacer(Modifier.height(if (isLandscape) 14.dp else 22.dp))
 
-            error?.let {
+            timelineError?.let {
                 Text(
                     text = it,
                     color = MaterialTheme.colorScheme.error
@@ -180,7 +215,7 @@ fun TimelineScreen(
                 Spacer(Modifier.height(8.dp))
             }
 
-            if (isLoading) {
+            if (timelineIsLoading) {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -221,6 +256,71 @@ fun TimelineScreen(
             onTeamClick = onTeamClick
         )
     }
+}
+
+private fun loadManagerTimelineData(
+    onSuccess: (Map<Project, List<Task>>) -> Unit,
+    onError: (String) -> Unit
+) {
+    val managerId = SessionManager.userId
+
+    if (managerId == -1L) {
+        onError(appText(en = "Invalid session. Please log in again.", pt = "Sessão inválida. Faz login novamente."))
+        return
+    }
+
+    val projectUserRepository = ProjectUserRepository()
+    val projectRepository = ProjectRepository()
+    val taskRepository = TaskRepository()
+
+    projectUserRepository.getProjectIdsByUserId(
+        userId = managerId,
+        onSuccess = { projectIds ->
+            if (projectIds.isEmpty()) {
+                onSuccess(emptyMap())
+                return@getProjectIdsByUserId
+            }
+
+            val result = linkedMapOf<Project, List<Task>>()
+            var pendingProjects = projectIds.size
+
+            fun finishOneProject() {
+                pendingProjects--
+                if (pendingProjects <= 0) {
+                    onSuccess(result)
+                }
+            }
+
+            projectIds.forEach { projectId ->
+                projectRepository.getProjectById(
+                    projectId = projectId,
+                    onSuccess = { project ->
+                        if (project == null) {
+                            finishOneProject()
+                        } else {
+                            taskRepository.getTasksByProjectId(
+                                projectId = project.id,
+                                onSuccess = { tasks ->
+                                    result[project] = tasks
+                                    finishOneProject()
+                                },
+                                onError = {
+                                    result[project] = emptyList()
+                                    finishOneProject()
+                                }
+                            )
+                        }
+                    },
+                    onError = {
+                        finishOneProject()
+                    }
+                )
+            }
+        },
+        onError = { message ->
+            onError(message)
+        }
+    )
 }
 
 @Composable

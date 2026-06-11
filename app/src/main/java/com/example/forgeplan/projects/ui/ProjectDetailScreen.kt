@@ -107,7 +107,10 @@ fun ProjectDetailScreen(
 
     val assignedUserIds = projectUsers.map { it.user_id }
     val assignedUsers = users.filter { assignedUserIds.contains(it.id) }
-    val availableUsers = users.filter { user -> !assignedUserIds.contains(user.id) }
+    val availableUsers = users.filter { user ->
+        !assignedUserIds.contains(user.id) &&
+                user.role?.uppercase() == "USER"
+    }
 
     val progress = calculateProjectDetailProgress(tasks)
 

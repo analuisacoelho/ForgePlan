@@ -60,7 +60,8 @@ fun ManagerDashboardScreen(
     onTimelineClick: () -> Unit,
     onProgressClick: () -> Unit,
     onTeamClick: () -> Unit,
-    onNotificationClick: () -> Unit = {},          // ← NOVO parâmetro
+    onProfileClick: () -> Unit,
+    onNotificationClick: () -> Unit = {},
     viewModel: ProjectViewModel = viewModel()
 ) {
     val configuration = LocalConfiguration.current
@@ -70,10 +71,8 @@ fun ManagerDashboardScreen(
     val isLoading by viewModel.isLoading.collectAsState()
     val error by viewModel.error.collectAsState()
 
-    // ── NotificationViewModel para badge do sino ──────────────────────────────
     val notifVm: NotificationViewModel = viewModel()
     val unreadCount by notifVm.unreadCount.collectAsState()
-    // ─────────────────────────────────────────────────────────────────────────
 
     val taskRepository = remember { TaskRepository() }
     val projectUserRepository = remember { ProjectUserRepository() }
@@ -82,10 +81,17 @@ fun ManagerDashboardScreen(
     val projectUsers = remember { mutableStateMapOf<Long, List<ProjectUser>>() }
 
     var searchText by remember { mutableStateOf("") }
+    var managerProjectIds by remember { mutableStateOf<List<Long>?>(null) }
 
     LaunchedEffect(Unit) {
         viewModel.loadProjects()
-        notifVm.load()                             // ← carrega contagem de não lidas
+        notifVm.load()
+
+        projectUserRepository.getProjectIdsByUserId(
+            userId = SessionManager.userId,
+            onSuccess = { ids -> managerProjectIds = ids },
+            onError = { managerProjectIds = emptyList() }
+        )
     }
 
     LaunchedEffect(projects) {
@@ -104,13 +110,17 @@ fun ManagerDashboardScreen(
         }
     }
 
-    val visibleProjects = projects.filter { project ->
+    val managerProjects = projects.filter { project ->
+        managerProjectIds?.contains(project.id) == true
+    }
+
+    val visibleProjects = managerProjects.filter { project ->
         searchText.isBlank() ||
                 project.name.contains(searchText, ignoreCase = true) ||
                 (project.description ?: "").contains(searchText, ignoreCase = true)
     }
 
-    val activeProjects = projects.count { project ->
+    val activeProjects = managerProjects.count { project ->
         val tasks = projectTasks[project.id] ?: emptyList()
         calculateProjectProgress(tasks) < 100
     }
@@ -126,8 +136,8 @@ fun ManagerDashboardScreen(
             ForgePlanTopBar(
                 title = "ForgePlan",
                 initials = SessionManager.userInitials,
-                onNotificationClick = onNotificationClick,   // ← LIGADO
-                unreadCount = unreadCount                    // ← LIGADO
+                onNotificationClick = onNotificationClick,
+                unreadCount = unreadCount
             )
 
             LazyColumn(
@@ -170,7 +180,7 @@ fun ManagerDashboardScreen(
                     Spacer(modifier = Modifier.height(18.dp))
 
                     DashboardStatsRow(
-                        totalProjects = projects.size,
+                        totalProjects = managerProjects.size,
                         activeProjects = activeProjects,
                         totalTeamMembers = totalTeamMembers,
                         isLandscape = isLandscape
@@ -269,7 +279,8 @@ fun ManagerDashboardScreen(
                 onProjectsClick = {},
                 onTimelineClick = onTimelineClick,
                 onProgressClick = onProgressClick,
-                onTeamClick = onTeamClick
+                onTeamClick = onTeamClick,
+                onProfileClick = onProfileClick
             )
         }
     }

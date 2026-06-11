@@ -181,6 +181,7 @@ fun AppNavigation() {
                 onTimelineClick = { navController.navigate("timeline") },
                 onProgressClick = { navController.navigate("reports") },
                 onTeamClick = { navController.navigate("team") },
+                onProfileClick = { navController.navigate("profile") },
                 onNotificationClick = { navController.navigate("notifications") }  // ← LIGADO
             )
         }
@@ -252,7 +253,8 @@ fun AppNavigation() {
             TimelineScreen(
                 onProjectsClick = { navController.navigate("manager") },
                 onProgressClick = { navController.navigate("reports") },
-                onTeamClick = { navController.navigate("team") }
+                onTeamClick = { navController.navigate("team") },
+                isManagerTimeline = true
             )
         }
 

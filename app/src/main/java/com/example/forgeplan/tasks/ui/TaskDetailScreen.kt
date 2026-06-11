@@ -53,6 +53,7 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.forgeplan.core.language.appText
 import com.example.forgeplan.core.model.Project
+import com.example.forgeplan.core.model.ProjectUser
 import com.example.forgeplan.core.model.Task
 import com.example.forgeplan.core.model.TaskAttachment
 import com.example.forgeplan.core.model.TaskLog
@@ -125,6 +126,41 @@ fun TaskDetailScreen(
     val assignedUsers = users.filter { assignedUserIds.contains(it.id) }
     val project = projects.firstOrNull { it.id == task?.project_id }
 
+    val projectUserIds = remember { mutableStateListOf<Long>() }
+
+    LaunchedEffect(project?.id) {
+        project?.id?.let { projectId ->
+
+            SupabaseApi.service.getProjectUsersByProjectId("eq.$projectId")
+                .enqueue(object : Callback<List<ProjectUser>> {
+
+                    override fun onResponse(
+                        call: Call<List<ProjectUser>>,
+                        response: Response<List<ProjectUser>>
+                    ) {
+                        projectUserIds.clear()
+                        projectUserIds.addAll(
+                            response.body()
+                                ?.map { it.user_id }
+                                ?: emptyList()
+                        )
+                    }
+
+                    override fun onFailure(
+                        call: Call<List<ProjectUser>>,
+                        t: Throwable
+                    ) {
+                        projectUserIds.clear()
+                    }
+                })
+        }
+    }
+
+    val availableUsers = users.filter { user ->
+        user.role?.uppercase() == "USER" &&
+                projectUserIds.contains(user.id)
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -178,7 +214,7 @@ fun TaskDetailScreen(
     if (showManageWorkersDialog) {
         ManageTaskWorkersDialog(
             taskId = taskId,
-            users = users,
+            users = availableUsers,
             assignedUserIds = assignedUserIds,
             assignmentViewModel = assignmentViewModel,
             onDismiss = { showManageWorkersDialog = false }
