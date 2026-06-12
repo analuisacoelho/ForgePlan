@@ -7,15 +7,17 @@ import com.example.forgeplan.core.model.TaskAttachment
 import com.example.forgeplan.core.model.TaskAttachmentPayload
 import com.example.forgeplan.core.network.SupabaseApi
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
-import okhttp3.RequestBody
+import okhttp3.RequestBody.Companion.toRequestBody
 import retrofit2.Call
 import retrofit2.Callback
 import retrofit2.Response
 
 class TaskAttachmentRepository {
 
-    private val bucketName = "task-attachments"
-
+    /**
+     * Faz upload do ficheiro para o Supabase Storage (bucket task-attachments)
+     * e guarda a URL pública na tabela task_attachments.
+     */
     fun uploadAttachment(
         context: Context,
         taskId: Long,
@@ -24,85 +26,54 @@ class TaskAttachmentRepository {
         onError: (String) -> Unit
     ) {
         val fileName = getFileName(context, uri)
-        val fileType = getFileType(context, uri)
+        val mimeType = getFileType(context, uri)
+        val fileBytes = readBytes(context, uri)
 
-        val safeFileName = fileName
-            .replace(" ", "_")
-            .replace("/", "_")
-            .replace("\\", "_")
-
-        val filePath = "task_$taskId/${System.currentTimeMillis()}_$safeFileName"
-
-        val inputStream = context.contentResolver.openInputStream(uri)
-
-        if (inputStream == null) {
+        if (fileBytes == null) {
             onError("Não foi possível ler o ficheiro.")
             return
         }
 
-        val fileBytes = inputStream.use { it.readBytes() }
-
-        val requestBody = RequestBody.create(
-            fileType.toMediaTypeOrNull(),
-            fileBytes
-        )
+        // Caminho único no bucket: task-attachments/taskId/timestamp_filename
+        val filePath = "$taskId/${System.currentTimeMillis()}_$fileName"
+        val requestBody = fileBytes.toRequestBody(mimeType.toMediaTypeOrNull())
 
         SupabaseApi.storageService.uploadFile(
-            bucket = bucketName,
+            bucket = "task-attachments",
             filePath = filePath,
-            contentType = fileType,
+            contentType = mimeType,
             file = requestBody
         ).enqueue(object : Callback<okhttp3.ResponseBody> {
-
             override fun onResponse(
                 call: Call<okhttp3.ResponseBody>,
                 response: Response<okhttp3.ResponseBody>
             ) {
-                if (!response.isSuccessful) {
-                    onError("Erro ao enviar ficheiro para o Storage: ${response.code()}")
-                    return
-                }
-
-                val publicUrl = SupabaseApi.publicStorageUrl(
-                    bucket = bucketName,
-                    filePath = filePath
-                )
-
-                val payload = TaskAttachmentPayload(
-                    task_id = taskId,
-                    file_name = fileName,
-                    file_url = publicUrl,
-                    file_type = fileType
-                )
-
-                SupabaseApi.service.createTaskAttachment(payload)
-                    .enqueue(object : Callback<List<TaskAttachment>> {
-
-                        override fun onResponse(
-                            call: Call<List<TaskAttachment>>,
-                            response: Response<List<TaskAttachment>>
-                        ) {
-                            if (response.isSuccessful) {
-                                onSuccess()
-                            } else {
-                                onError("Erro ao guardar anexo na BD: ${response.code()}")
+                if (response.isSuccessful || response.code() == 200) {
+                    // Constrói a URL pública e guarda na BD
+                    val publicUrl = SupabaseApi.publicStorageUrl("task-attachments", filePath)
+                    val payload = TaskAttachmentPayload(
+                        task_id = taskId,
+                        file_name = fileName,
+                        file_url = publicUrl,
+                        file_type = mimeType
+                    )
+                    SupabaseApi.service.createTaskAttachment(payload)
+                        .enqueue(object : Callback<List<TaskAttachment>> {
+                            override fun onResponse(call: Call<List<TaskAttachment>>, response: Response<List<TaskAttachment>>) {
+                                if (response.isSuccessful) onSuccess()
+                                else onError("Erro ao guardar anexo: ${response.code()}")
                             }
-                        }
-
-                        override fun onFailure(
-                            call: Call<List<TaskAttachment>>,
-                            t: Throwable
-                        ) {
-                            onError(t.message ?: "Erro desconhecido ao guardar anexo.")
-                        }
-                    })
+                            override fun onFailure(call: Call<List<TaskAttachment>>, t: Throwable) {
+                                onError(t.message ?: "Erro desconhecido ao guardar anexo.")
+                            }
+                        })
+                } else {
+                    onError("Erro ao fazer upload: ${response.code()}")
+                }
             }
 
-            override fun onFailure(
-                call: Call<okhttp3.ResponseBody>,
-                t: Throwable
-            ) {
-                onError(t.message ?: "Erro desconhecido ao enviar ficheiro.")
+            override fun onFailure(call: Call<okhttp3.ResponseBody>, t: Throwable) {
+                onError(t.message ?: "Erro desconhecido no upload.")
             }
         })
     }
@@ -114,46 +85,34 @@ class TaskAttachmentRepository {
     ) {
         SupabaseApi.service.getTaskAttachmentsByTaskId("eq.$taskId")
             .enqueue(object : Callback<List<TaskAttachment>> {
-
                 override fun onResponse(
                     call: Call<List<TaskAttachment>>,
                     response: Response<List<TaskAttachment>>
                 ) {
-                    if (response.isSuccessful) {
-                        onSuccess(response.body() ?: emptyList())
-                    } else {
-                        onError("Erro ao carregar anexos: ${response.code()}")
-                    }
+                    if (response.isSuccessful) onSuccess(response.body() ?: emptyList())
+                    else onError("Erro ao carregar anexos: ${response.code()}")
                 }
-
-                override fun onFailure(
-                    call: Call<List<TaskAttachment>>,
-                    t: Throwable
-                ) {
+                override fun onFailure(call: Call<List<TaskAttachment>>, t: Throwable) {
                     onError(t.message ?: "Erro desconhecido")
                 }
             })
     }
 
+    private fun readBytes(context: Context, uri: Uri): ByteArray? {
+        return try {
+            context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+        } catch (e: Exception) {
+            null
+        }
+    }
+
     private fun getFileName(context: Context, uri: Uri): String {
         var fileName = "attachment_${System.currentTimeMillis()}"
-
-        val cursor = context.contentResolver.query(
-            uri,
-            null,
-            null,
-            null,
-            null
-        )
-
+        val cursor = context.contentResolver.query(uri, null, null, null, null)
         cursor?.use {
             val nameIndex = it.getColumnIndex(OpenableColumns.DISPLAY_NAME)
-
-            if (it.moveToFirst() && nameIndex >= 0) {
-                fileName = it.getString(nameIndex)
-            }
+            if (it.moveToFirst() && nameIndex >= 0) fileName = it.getString(nameIndex)
         }
-
         return fileName
     }
 

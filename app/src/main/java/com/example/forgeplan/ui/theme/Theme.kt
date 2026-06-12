@@ -51,7 +51,7 @@ private val DarkColorScheme = darkColorScheme(
     onTertiary = ForgeBlack,
 
     outline = ForgeGold,
-    outlineVariant = ForgeDarkSurfaceElevated,
+    outlineVariant = ForgeSurfaceDark,
 
     error = ForgeError
 )

@@ -64,7 +64,6 @@ fun AdminUsersScreen(
     var searchText by remember { mutableStateOf("") }
     var userToToggle by remember { mutableStateOf<User?>(null) }
 
-    // Mapa manager_id -> nº projetos ativos
     val projectCountByManager = projects
         .filter { it.manager_id != null && it.status?.uppercase() != "DONE" }
         .groupBy { it.manager_id!! }
@@ -240,7 +239,7 @@ fun AdminUsersScreen(
             FloatingActionButton(
                 onClick = onCreateUserClick,
                 containerColor = MaterialTheme.colorScheme.secondary,
-                contentColor = MaterialTheme.colorScheme.secondary,
+                contentColor = MaterialTheme.colorScheme.onSecondary,
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
                     .padding(end = 18.dp, bottom = 18.dp)
@@ -306,7 +305,6 @@ fun AdminUserCard(
                         containerColor = if (user.is_active) Color(0xFFB7EBC0) else Color(0xFFFFD0D0),
                         contentColor = if (user.is_active) Color(0xFF14532D) else Color(0xFF7F1D1D)
                     )
-                    // Badge de carga só para managers
                     if (isManager) {
                         ForgeMiniChip(
                             text = appText(

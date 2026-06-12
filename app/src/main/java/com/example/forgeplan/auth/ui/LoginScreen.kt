@@ -200,8 +200,8 @@ fun LoginFormFields(
             colors = OutlinedTextFieldDefaults.colors(
                 unfocusedContainerColor = MaterialTheme.colorScheme.surface,
                 focusedContainerColor = MaterialTheme.colorScheme.surface,
-                unfocusedBorderColor = MaterialTheme.colorScheme.secondary,
-                focusedBorderColor = MaterialTheme.colorScheme.primary
+                unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant,
+                focusedBorderColor = MaterialTheme.colorScheme.outline
             )
         )
         if (emailError != null) {
@@ -230,8 +230,8 @@ fun LoginFormFields(
             colors = OutlinedTextFieldDefaults.colors(
                 unfocusedContainerColor = MaterialTheme.colorScheme.surface,
                 focusedContainerColor = MaterialTheme.colorScheme.surface,
-                unfocusedBorderColor = MaterialTheme.colorScheme.secondary,
-                focusedBorderColor = MaterialTheme.colorScheme.primary
+                unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant,
+                focusedBorderColor = MaterialTheme.colorScheme.outline
             )
         )
         if (passwordError != null) {
