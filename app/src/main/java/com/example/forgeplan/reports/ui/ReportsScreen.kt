@@ -53,6 +53,7 @@ import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.platform.LocalConfiguration
+import android.content.Intent
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.font.FontWeight
@@ -220,6 +221,21 @@ fun ReportsScreen(
                 taskId = task.id,
                 onSuccess = { attachments -> taskAttachments.clear(); taskAttachments.addAll(attachments) },
                 onError = { taskAttachments.clear() }
+            )
+            // Carrega logs da tarefa selecionada e as fotos de cada log
+            taskLogRepository.getLogsByTaskId(
+                taskId = task.id,
+                onSuccess = { logs ->
+                    taskLogs[task.id] = logs
+                    logs.forEach { log ->
+                        taskLogRepository.getPhotosByLogId(
+                            taskLogId = log.id,
+                            onSuccess = { photos -> logPhotos[log.id] = photos },
+                            onError = { logPhotos[log.id] = emptyList() }
+                        )
+                    }
+                },
+                onError = {}
             )
         }
     }

@@ -109,11 +109,11 @@ fun AdminActivityScreen(
             TabRow(
                 selectedTabIndex = selectedTab,
                 containerColor = MaterialTheme.colorScheme.background,
-                contentColor = MaterialTheme.colorScheme.primary,
+                contentColor = MaterialTheme.colorScheme.outline,
                 indicator = { tabPositions ->
                     TabRowDefaults.Indicator(
                         modifier = Modifier.tabIndicatorOffset(tabPositions[selectedTab]),
-                        color = MaterialTheme.colorScheme.primary
+                        color = MaterialTheme.colorScheme.outline
                     )
                 }
             ) {
@@ -126,7 +126,7 @@ fun AdminActivityScreen(
                                 text = title,
                                 fontWeight = if (selectedTab == index) FontWeight.Bold else FontWeight.Normal,
                                 color = if (selectedTab == index)
-                                    MaterialTheme.colorScheme.primary
+                                    MaterialTheme.colorScheme.outline
                                 else
                                     MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f)
                             )

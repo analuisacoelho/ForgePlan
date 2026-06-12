@@ -21,6 +21,7 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -262,7 +263,12 @@ fun ProjectPriorityButton(
                 contentColor = onPrimary
             )
         ) {
-            Text(text = text, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyMedium)
+            Text(
+                text = text,
+                fontWeight = FontWeight.Bold,
+                style = MaterialTheme.typography.bodyMedium,
+                maxLines = 1
+            )
         }
     } else {
         OutlinedButton(
@@ -275,7 +281,11 @@ fun ProjectPriorityButton(
                 contentColor = onSurface
             )
         ) {
-            Text(text = text, style = MaterialTheme.typography.bodyMedium)
+            Text(
+                text = text,
+                style = MaterialTheme.typography.bodyMedium,
+                maxLines = 1
+            )
         }
     }
 }
@@ -306,6 +316,14 @@ fun ProjectDateFields(
             label = { Text(appText(en = "Start", pt = "Início")) },
             placeholder = { Text("DD/MM/YYYY") },
             shape = RoundedCornerShape(14.dp),
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = MaterialTheme.colorScheme.outline,
+                unfocusedBorderColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.35f),
+                focusedLabelColor = MaterialTheme.colorScheme.outline,
+                unfocusedLabelColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                unfocusedTextColor = MaterialTheme.colorScheme.onSurface
+            ),
             interactionSource = remember {
                 object : androidx.compose.foundation.interaction.MutableInteractionSource {
                     override val interactions = kotlinx.coroutines.flow.MutableSharedFlow<androidx.compose.foundation.interaction.Interaction>(extraBufferCapacity = 16)
@@ -330,6 +348,14 @@ fun ProjectDateFields(
             isError = dateError != null,
             supportingText = { dateError?.let { Text(it) } },
             shape = RoundedCornerShape(14.dp),
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = MaterialTheme.colorScheme.outline,
+                unfocusedBorderColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.35f),
+                focusedLabelColor = MaterialTheme.colorScheme.outline,
+                unfocusedLabelColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                unfocusedTextColor = MaterialTheme.colorScheme.onSurface
+            ),
             interactionSource = remember {
                 object : androidx.compose.foundation.interaction.MutableInteractionSource {
                     override val interactions = kotlinx.coroutines.flow.MutableSharedFlow<androidx.compose.foundation.interaction.Interaction>(extraBufferCapacity = 16)
@@ -406,7 +432,15 @@ fun ProjectMainFields(
         placeholder = { Text(appText(en = "Name your project", pt = "Nome do projeto")) },
         isError = nameError != null,
         supportingText = { nameError?.let { Text(it) } },
-        shape = RoundedCornerShape(14.dp)
+        shape = RoundedCornerShape(14.dp),
+        colors = OutlinedTextFieldDefaults.colors(
+            focusedBorderColor = MaterialTheme.colorScheme.outline,
+            unfocusedBorderColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.35f),
+            focusedLabelColor = MaterialTheme.colorScheme.outline,
+            unfocusedLabelColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+            focusedTextColor = MaterialTheme.colorScheme.onSurface,
+            unfocusedTextColor = MaterialTheme.colorScheme.onSurface
+        )
     )
     Spacer(modifier = Modifier.height(12.dp))
     OutlinedTextField(
@@ -415,7 +449,15 @@ fun ProjectMainFields(
         onValueChange = onDescriptionChange,
         label = { Text(appText(en = "Description", pt = "Descrição")) },
         placeholder = { Text(appText(en = "Describe the project", pt = "Descreve o projeto")) },
-        shape = RoundedCornerShape(14.dp)
+        shape = RoundedCornerShape(14.dp),
+        colors = OutlinedTextFieldDefaults.colors(
+            focusedBorderColor = MaterialTheme.colorScheme.outline,
+            unfocusedBorderColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.35f),
+            focusedLabelColor = MaterialTheme.colorScheme.outline,
+            unfocusedLabelColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+            focusedTextColor = MaterialTheme.colorScheme.onSurface,
+            unfocusedTextColor = MaterialTheme.colorScheme.onSurface
+        )
     )
 }
 
