@@ -5,7 +5,8 @@ import androidx.room.PrimaryKey
 
 @Entity(tableName = "projects")
 data class ProjectEntity(
-    @PrimaryKey val id: Long,
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val remote_id: Long? = null,
     val created_by_id: Long?,
     val manager_id: Long?,
     val name: String,
@@ -14,5 +15,6 @@ data class ProjectEntity(
     val status: String?,
     val start_date: String?,
     val end_date: String?,
-    val created_at: String?
+    val created_at: String?,
+    val is_synced: Boolean = false
 )

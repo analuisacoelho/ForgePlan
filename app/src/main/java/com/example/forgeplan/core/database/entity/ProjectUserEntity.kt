@@ -6,5 +6,6 @@ import androidx.room.Entity
 data class ProjectUserEntity(
     val project_id: Long,
     val user_id: Long,
-    val joined_at: String?
+    val joined_at: String?,
+    val is_synced: Boolean = false
 )
