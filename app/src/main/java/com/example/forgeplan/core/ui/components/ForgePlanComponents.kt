@@ -57,6 +57,7 @@ import com.example.forgeplan.core.language.appText
 import com.example.forgeplan.core.session.SessionManager
 import kotlinx.coroutines.launch
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.OutlinedTextFieldDefaults
 
 @Composable
 fun ForgePlanTopBar(
@@ -813,3 +814,14 @@ fun ForgeAlertDialog(
         }
     )
 }
+
+@Composable
+fun forgeTextFieldColors() = OutlinedTextFieldDefaults.colors(
+    unfocusedContainerColor = MaterialTheme.colorScheme.surface,
+    focusedContainerColor = MaterialTheme.colorScheme.surface,
+    focusedBorderColor = MaterialTheme.colorScheme.outline,
+    unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant,
+    focusedTextColor = MaterialTheme.colorScheme.onSurface,
+    unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
+    cursorColor = MaterialTheme.colorScheme.outline
+)
