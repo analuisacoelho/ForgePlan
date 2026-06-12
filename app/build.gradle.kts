@@ -73,10 +73,6 @@ dependencies {
     // Navegação
     implementation("androidx.navigation:navigation-compose:2.8.0")
 
-    // Room (base de dados local)
-    implementation("androidx.room:room-runtime:2.6.1")
-    implementation("androidx.room:room-ktx:2.6.1")
-
     // Ktor (cliente HTTP para Supabase SDK)
     implementation("io.ktor:ktor-client-android:3.1.2")
 
