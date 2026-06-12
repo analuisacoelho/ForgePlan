@@ -31,6 +31,8 @@ import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import com.example.forgeplan.core.repository.TaskDependencyRepository
 import com.example.forgeplan.ui.theme.ForgeGold
+import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlin.coroutines.resume
 
 // ─────────────────────────────────────────────
 // STRINGS (PT / EN)
@@ -86,17 +88,20 @@ fun ProjectTasksScreen(
         )
     }
 
-    // Load dependencies for all tasks once loaded
+    // Load dependencies for all tasks once loaded — sequencial para evitar race condition
     LaunchedEffect(tasks) {
         if (tasks.isNotEmpty()) {
             val depRepo = TaskDependencyRepository()
             val map = mutableMapOf<Long, List<Long>>()
             tasks.forEach { task ->
-                depRepo.getDependencies(
-                    taskId = task.id,
-                    onSuccess = { deps -> map[task.id] = deps.map { it.depends_on_task_id } },
-                    onError = { map[task.id] = emptyList() }
-                )
+                val deps = suspendCancellableCoroutine<List<Long>> { cont ->
+                    depRepo.getDependencies(
+                        taskId    = task.id,
+                        onSuccess = { result -> cont.resume(result.map { it.depends_on_task_id }) },
+                        onError   = { cont.resume(emptyList()) }
+                    )
+                }
+                map[task.id] = deps
             }
             dependencyMap = map
         }
@@ -274,16 +279,18 @@ private fun TaskList(
 
             items(displayedTasks) { task ->
                 val deps = dependencyMap[task.id] ?: emptyList()
-                val blockedByUnfinished = deps.any { depId ->
-                    allTasks.find { it.id == depId }?.status?.uppercase() != "DONE"
-                }
+                val blockingTasks = deps
+                    .mapNotNull { depId -> allTasks.find { it.id == depId } }
+                    .filter { it.status?.uppercase() != "DONE" }
+                val blockedByUnfinished = blockingTasks.isNotEmpty()
                 TaskCard(
                     task               = task,
                     isMine             = task.id in myTaskIds,
                     onClick            = { onTaskClick(task) },
                     onToggleDone       = { onToggleDone(task) },
                     isBlockedByDep     = blockedByUnfinished && deps.isNotEmpty(),
-                    hasDependencies    = deps.isNotEmpty()
+                    hasDependencies    = deps.isNotEmpty(),
+                    blockingTaskNames  = blockingTasks.map { it.title }
                 )
             }
         }
@@ -301,7 +308,8 @@ fun TaskCard(
     onClick: () -> Unit,
     onToggleDone: () -> Unit,
     isBlockedByDep: Boolean = false,
-    hasDependencies: Boolean = false
+    hasDependencies: Boolean = false,
+    blockingTaskNames: List<String> = emptyList()
 ) {
     val isDone   = task.status?.uppercase() == "DONE"
     val progress = task.completion_rate ?: 0
@@ -329,10 +337,25 @@ fun TaskCard(
         AlertDialog(
             onDismissRequest = { showBlockedDialog = false },
             title = { Text(appText("Blocked Task", "Tarefa Bloqueada")) },
-            text  = { Text(appText(
-                "This task depends on other tasks that are not yet complete. Finish those first.",
-                "Esta tarefa depende de outras tarefas que ainda não estão concluídas. Conclui essas primeiro."
-            )) },
+            text  = {
+                Column {
+                    Text(appText(
+                        "This task is waiting for the following tasks to be completed first:",
+                        "Esta tarefa está à espera que as seguintes tarefas sejam concluídas primeiro:"
+                    ))
+                    if (blockingTaskNames.isNotEmpty()) {
+                        Spacer(Modifier.height(8.dp))
+                        blockingTaskNames.forEach { name ->
+                            Text(
+                                text = "• $name",
+                                style = MaterialTheme.typography.bodySmall,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.error
+                            )
+                        }
+                    }
+                }
+            },
             confirmButton = {
                 TextButton(onClick = { showBlockedDialog = false }) { Text("OK") }
             }
