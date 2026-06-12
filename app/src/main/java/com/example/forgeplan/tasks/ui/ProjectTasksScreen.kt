@@ -11,6 +11,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -24,6 +25,7 @@ import com.example.forgeplan.core.model.Task
 import com.example.forgeplan.core.session.SessionManager
 import com.example.forgeplan.core.ui.components.ForgePlanTopBar
 import com.example.forgeplan.tasks.viewmodel.ProjectTasksViewModel
+import com.example.forgeplan.timeline.ui.parseDate
 import androidx.compose.ui.Alignment
 import com.example.forgeplan.core.ui.components.ForgePlanBottomBar
 import androidx.compose.material3.FilterChip
@@ -45,7 +47,13 @@ private object ProjectTasksStrings {
     val done get() = appText("Done", "Feita")
     val pending get() = appText("Pending", "Pendente")
     val inProgress get() = appText("In Progress", "Em Progresso")
+    val sortLabel get() = appText("Sort", "Ordenar")
+    val sortDefault get() = appText("Default", "Padrão")
+    val sortByDate get() = appText("By Date", "Por Data")
+    val sortByCompletion get() = appText("By Completion", "Por Conclusão")
 }
+
+private enum class TaskSortType { DEFAULT, DATE, COMPLETION }
 
 // ─────────────────────────────────────────────
 // SCREEN
@@ -176,6 +184,8 @@ private fun TaskList(
 ) {
     var selectedTab    by remember { mutableStateOf(0) }
     var selectedFilter by remember { mutableStateOf(0) }
+    var sortType       by remember { mutableStateOf(TaskSortType.DEFAULT) }
+    var showSortMenu   by remember { mutableStateOf(false) }
 
     val activeTasks    = tasks.filter { it.status?.uppercase() != "DONE" }
     val completedTasks = tasks.filter { it.status?.uppercase() == "DONE" }
@@ -231,7 +241,8 @@ private fun TaskList(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 16.dp, vertical = 10.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
             filterLabels.forEachIndexed { index, label ->
                 val isSelected = selectedFilter == index
@@ -245,6 +256,49 @@ private fun TaskList(
                     )
                 )
             }
+
+            Spacer(Modifier.weight(1f))
+
+            Box {
+                AssistChip(
+                    onClick = { showSortMenu = true },
+                    label = {
+                        Text(
+                            when (sortType) {
+                                TaskSortType.DEFAULT -> ProjectTasksStrings.sortLabel
+                                TaskSortType.DATE -> ProjectTasksStrings.sortByDate
+                                TaskSortType.COMPLETION -> ProjectTasksStrings.sortByCompletion
+                            },
+                            style = MaterialTheme.typography.labelMedium
+                        )
+                    },
+                    leadingIcon = {
+                        Icon(
+                            imageVector = Icons.Default.FilterList,
+                            contentDescription = null,
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
+                )
+
+                DropdownMenu(
+                    expanded = showSortMenu,
+                    onDismissRequest = { showSortMenu = false }
+                ) {
+                    DropdownMenuItem(
+                        text = { Text(ProjectTasksStrings.sortDefault) },
+                        onClick = { sortType = TaskSortType.DEFAULT; showSortMenu = false }
+                    )
+                    DropdownMenuItem(
+                        text = { Text(ProjectTasksStrings.sortByDate) },
+                        onClick = { sortType = TaskSortType.DATE; showSortMenu = false }
+                    )
+                    DropdownMenuItem(
+                        text = { Text(ProjectTasksStrings.sortByCompletion) },
+                        onClick = { sortType = TaskSortType.COMPLETION; showSortMenu = false }
+                    )
+                }
+            }
         }
 
         LazyColumn(
@@ -257,10 +311,20 @@ private fun TaskList(
 
             val byTab = if (selectedTab == 0) activeTasks else completedTasks
 
-            val displayedTasks = when (selectedFilter) {
+            val filteredTasks = when (selectedFilter) {
                 1    -> byTab.filter { it.id in myTaskIds }
                 2    -> byTab.filter { it.id !in myTaskIds }
                 else -> byTab
+            }
+
+            val displayedTasks = when (sortType) {
+                TaskSortType.DEFAULT -> filteredTasks
+                TaskSortType.DATE -> filteredTasks.sortedWith(
+                    compareBy(nullsLast()) { parseDate(it.start_date) }
+                )
+                TaskSortType.COMPLETION -> filteredTasks.sortedByDescending {
+                    it.completion_rate ?: 0
+                }
             }
 
             if (!isLoading && displayedTasks.isEmpty()) {

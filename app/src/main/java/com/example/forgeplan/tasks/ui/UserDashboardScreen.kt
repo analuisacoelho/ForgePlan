@@ -38,7 +38,6 @@ private object Strings {
     val yourProjects      get() = appText("Your Projects", "Os Seus Projectos")
     val subtitle          get() = appText("Tap a project to open.", "Toque num projecto para abrir.")
     val filterLabel       get() = appText("Filter", "Filtrar")
-    val filterByProject   get() = appText("By Project", "Por Projecto")
     val filterByDate      get() = appText("By Date", "Por Data")
     val filterByRate      get() = appText("By Completion", "Por Conclusão")
     val allFilters        get() = appText("All", "Todos")
@@ -48,7 +47,7 @@ private object Strings {
 
 // ── FILTER TYPE ──────────────────────────────────────────────────────────
 
-private enum class FilterType { ALL, PROJECT_NAME, DATE, COMPLETION }
+private enum class FilterType { ALL, DATE, COMPLETION }
 
 // ── SCREEN ──────────────────────────────────────────────────────────────
 
@@ -93,9 +92,6 @@ fun UserDashboardScreen(
             }
 
         when (filterType) {
-            FilterType.PROJECT_NAME ->
-                map.entries.sortedBy { it.key.name }.associate { it.key to it.value }
-
             FilterType.DATE ->
                 map.entries.sortedBy { it.key.start_date ?: "" }
                     .associate { it.key to it.value }
@@ -318,7 +314,6 @@ private fun DashboardHeader(
                 Text(
                     when (filterType) {
                         FilterType.ALL -> Strings.filterLabel
-                        FilterType.PROJECT_NAME -> Strings.filterByProject
                         FilterType.DATE -> Strings.filterByDate
                         FilterType.COMPLETION -> Strings.filterByRate
                     },
@@ -329,7 +324,6 @@ private fun DashboardHeader(
             DropdownMenu(showMenu, onDismiss) {
                 listOf(
                     FilterType.ALL to Strings.allFilters,
-                    FilterType.PROJECT_NAME to Strings.filterByProject,
                     FilterType.DATE to Strings.filterByDate,
                     FilterType.COMPLETION to Strings.filterByRate
                 ).forEach { (type, label) ->
