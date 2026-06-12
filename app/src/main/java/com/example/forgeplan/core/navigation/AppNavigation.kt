@@ -235,8 +235,7 @@ fun AppNavigation(
             ReportsScreen(
                 onProjectsClick = { navController.navigate("manager") },
                 onTimelineClick = { navController.navigate("timeline") },
-                onTeamClick = { navController.navigate("team") },
-                onProfileClick = { navController.navigate("profile") }
+                onTeamClick = { navController.navigate("team") }
             )
         }
 

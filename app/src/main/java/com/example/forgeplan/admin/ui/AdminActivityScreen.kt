@@ -357,7 +357,6 @@ private fun ReportsTab(
 ) {
     // O ReportsScreen já tem toda a lógica. Passamos os ViewModels para não recriar estado.
     ReportsScreen(
-        showScaffold = false,
         onProjectsClick = {},
         onTimelineClick = {},
         onTeamClick = {},
