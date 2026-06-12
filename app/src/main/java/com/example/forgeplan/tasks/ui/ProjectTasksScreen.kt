@@ -389,147 +389,147 @@ fun TaskCard(
         shape  = RoundedCornerShape(22.dp),
         colors = CardDefaults.cardColors(containerColor = containerColor)
     ) {
-        Box(Modifier.padding(18.dp)) {
+        Column(Modifier.padding(18.dp)) {
 
-            Column {
-
-                // ── Título + badges ──────────────────────────────────────
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text       = task.title,
-                        style      = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        modifier   = Modifier.weight(1f),
-                        color      = if (isDone)
-                            MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
-                        else
-                            MaterialTheme.colorScheme.onSurface
-                    )
-
-                    if (!isMine) {
-                        Spacer(Modifier.width(8.dp))
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(6.dp))
-                                .background(MaterialTheme.colorScheme.tertiary.copy(alpha = 0.25f))
-                                .padding(horizontal = 8.dp, vertical = 3.dp)
-                        ) {
-                            Text(
-                                text  = appText("Team", "Equipa"),
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f),
-                                fontWeight = FontWeight.Medium
-                            )
-                        }
-                    }
-
-                    // Badge de dependência
-                    if (hasDependencies) {
-                        Spacer(Modifier.width(6.dp))
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(6.dp))
-                                .background(
-                                    if (isBlockedByDep) MaterialTheme.colorScheme.error.copy(alpha = 0.18f)
-                                    else MaterialTheme.colorScheme.tertiary.copy(alpha = 0.15f)
-                                )
-                                .padding(horizontal = 6.dp, vertical = 3.dp)
-                        ) {
-                            Text(
-                                text  = if (isBlockedByDep) appText("⛔ Blocked", "⛔ Bloqueada")
-                                else appText("✓ Dep. ok", "✓ Dep. ok"),
-                                style = MaterialTheme.typography.labelSmall,
-                                color = if (isBlockedByDep) MaterialTheme.colorScheme.error
-                                else MaterialTheme.colorScheme.tertiary,
-                                fontWeight = FontWeight.Medium
-                            )
-                        }
-                    }
-                }
-
-                Spacer(Modifier.height(6.dp))
-
-                // Status text with color
-                val statusText = when (task.status?.uppercase()) {
-                    "DONE"        -> ProjectTasksStrings.done
-                    "IN_PROGRESS" -> ProjectTasksStrings.inProgress
-                    else          -> ProjectTasksStrings.pending
-                }
-                val statusColor = when (task.status?.uppercase()) {
-                    "DONE"        -> MaterialTheme.colorScheme.primary
-                    "IN_PROGRESS" -> MaterialTheme.colorScheme.tertiary
-                    else          -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
-                }
+            // ── Título + badges + toggle ──────────────────────────────────────
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth()
+            ) {
                 Text(
-                    text  = statusText,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = statusColor,
-                    fontWeight = FontWeight.SemiBold
+                    text       = task.title,
+                    style      = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    modifier   = Modifier.weight(1f),
+                    color      = if (isDone)
+                        MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                    else
+                        MaterialTheme.colorScheme.onSurface
                 )
 
-                Spacer(Modifier.height(12.dp))
-
-                Row(
-                    modifier              = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Text(ProjectTasksStrings.progress)
-                    Text("$progress%", fontWeight = FontWeight.Bold, color = progressColor)
-                }
-
-                Spacer(Modifier.height(6.dp))
-
-                LinearProgressIndicator(
-                    progress = { progress / 100f },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(8.dp)
-                        .clip(RoundedCornerShape(50)),
-                    color     = progressColor,
-                    trackColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f)
-                )
-            }
-
-            // ── Círculo toggle de concluído (só nas minhas tarefas) ──
-            if (isMine) {
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.TopEnd)
-                        .size(36.dp)
-                        .clip(CircleShape)
-                        .background(
-                            if (isDone) MaterialTheme.colorScheme.primary
-                            else MaterialTheme.colorScheme.surface
-                        )
-                        .border(
-                            width = 2.dp,
-                            color = if (isDone) MaterialTheme.colorScheme.primary
-                            else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f),
-                            shape = CircleShape
-                        )
-                        .clickable {
-                            if (!isDone) {
-                                when {
-                                    isBlockedByDep -> showBlockedDialog = true
-                                    hasNoProgress  -> showNoProgressDialog = true
-                                    else           -> onToggleDone()
-                                }
-                            } else {
-                                onToggleDone() // sempre pode descancelar
-                            }
-                        },
-                    contentAlignment = Alignment.Center
-                ) {
-                    if (isDone) {
-                        Icon(
-                            imageVector        = Icons.Default.Check,
-                            contentDescription = "Done",
-                            tint               = MaterialTheme.colorScheme.onPrimary,
-                            modifier           = Modifier.size(20.dp)
+                if (!isMine) {
+                    Spacer(Modifier.width(8.dp))
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(MaterialTheme.colorScheme.tertiary.copy(alpha = 0.25f))
+                            .padding(horizontal = 8.dp, vertical = 3.dp)
+                    ) {
+                        Text(
+                            text  = appText("Team", "Equipa"),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f),
+                            fontWeight = FontWeight.Medium
                         )
                     }
                 }
+
+                // Badge de dependência
+                if (hasDependencies) {
+                    Spacer(Modifier.width(6.dp))
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(
+                                if (isBlockedByDep) MaterialTheme.colorScheme.error.copy(alpha = 0.18f)
+                                else MaterialTheme.colorScheme.tertiary.copy(alpha = 0.15f)
+                            )
+                            .padding(horizontal = 6.dp, vertical = 3.dp)
+                    ) {
+                        Text(
+                            text  = if (isBlockedByDep) appText("⛔ Blocked", "⛔ Bloqueada")
+                            else appText("✓ Dep. ok", "✓ Dep. ok"),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = if (isBlockedByDep) MaterialTheme.colorScheme.error
+                            else MaterialTheme.colorScheme.tertiary,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+                }
+
+                // ── Círculo toggle de concluído (só nas minhas tarefas) ──
+                if (isMine) {
+                    Spacer(Modifier.width(8.dp))
+                    Box(
+                        modifier = Modifier
+                            .size(36.dp)
+                            .clip(CircleShape)
+                            .background(
+                                if (isDone) MaterialTheme.colorScheme.primary
+                                else MaterialTheme.colorScheme.surface
+                            )
+                            .border(
+                                width = 2.dp,
+                                color = if (isDone) MaterialTheme.colorScheme.primary
+                                else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f),
+                                shape = CircleShape
+                            )
+                            .clickable {
+                                if (!isDone) {
+                                    when {
+                                        isBlockedByDep -> showBlockedDialog = true
+                                        hasNoProgress  -> showNoProgressDialog = true
+                                        else           -> onToggleDone()
+                                    }
+                                } else {
+                                    onToggleDone()
+                                }
+                            },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        if (isDone) {
+                            Icon(
+                                imageVector        = Icons.Default.Check,
+                                contentDescription = "Done",
+                                tint               = MaterialTheme.colorScheme.onPrimary,
+                                modifier           = Modifier.size(20.dp)
+                            )
+                        }
+                    }
+                }
             }
+
+            Spacer(Modifier.height(6.dp))
+
+            // Status text with color
+            val statusText = when (task.status?.uppercase()) {
+                "DONE"        -> ProjectTasksStrings.done
+                "IN_PROGRESS" -> ProjectTasksStrings.inProgress
+                else          -> ProjectTasksStrings.pending
+            }
+            val statusColor = when (task.status?.uppercase()) {
+                "DONE"        -> MaterialTheme.colorScheme.primary
+                "IN_PROGRESS" -> MaterialTheme.colorScheme.tertiary
+                else          -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+            }
+            Text(
+                text  = statusText,
+                style = MaterialTheme.typography.bodySmall,
+                color = statusColor,
+                fontWeight = FontWeight.SemiBold
+            )
+
+            Spacer(Modifier.height(12.dp))
+
+            Row(
+                modifier              = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(ProjectTasksStrings.progress)
+                Text("$progress%", fontWeight = FontWeight.Bold, color = progressColor)
+            }
+
+            Spacer(Modifier.height(6.dp))
+
+            LinearProgressIndicator(
+                progress = { progress / 100f },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(8.dp)
+                    .clip(RoundedCornerShape(50)),
+                color     = progressColor,
+                trackColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f)
+            )
         }
     }
 }

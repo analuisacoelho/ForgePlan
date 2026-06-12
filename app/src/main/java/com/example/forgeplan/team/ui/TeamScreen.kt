@@ -16,6 +16,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -27,8 +28,10 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.forgeplan.core.language.appText
+import com.example.forgeplan.core.model.ProjectUser
 import com.example.forgeplan.core.model.User
 import com.example.forgeplan.core.network.SupabaseApi
 import com.example.forgeplan.core.ui.components.ForgeCard
@@ -37,9 +40,12 @@ import com.example.forgeplan.core.ui.components.ForgePlanBottomBar
 import com.example.forgeplan.core.ui.components.ForgePlanTopBar
 import com.example.forgeplan.core.ui.components.ForgeSearchBar
 import com.example.forgeplan.core.ui.components.UserAvatarChip
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.suspendCancellableCoroutine
 import retrofit2.Call
 import retrofit2.Callback
 import retrofit2.Response
+import kotlin.coroutines.resume
 
 data class TeamMemberUi(
     val initials: String,
@@ -67,17 +73,21 @@ fun TeamScreen(
     val users = viewModel.users.value
     val loading = viewModel.loading.value
 
+    val projectCounts = viewModel.projectCounts.value
+
     val members = users
         .filter { it.is_active }
         .map { user ->
+            val isOnline = viewModel.onlineUserIds.value.contains(user.id)
             TeamMemberUi(
                 initials = getInitials(user.name),
                 name = user.name,
                 username = user.username ?: "",
                 email = user.email,
                 role = translatedRole(user.role),
-                status = appText(en = "Online", pt = "Online"),
-                projects = "0"
+                status = if (isOnline) appText(en = "Online", pt = "Online")
+                else appText(en = "Offline", pt = "Offline"),
+                projects = (projectCounts[user.id] ?: 0).toString()
             )
         }
 
@@ -274,6 +284,14 @@ class TeamViewModel : ViewModel() {
     private val _loading = mutableStateOf(true)
     val loading: State<Boolean> = _loading
 
+    // userId -> number of projects
+    private val _projectCounts = mutableStateOf<Map<Long, Int>>(emptyMap())
+    val projectCounts: State<Map<Long, Int>> = _projectCounts
+
+    // Set of user IDs currently considered "online" (only the logged-in user)
+    private val _onlineUserIds = mutableStateOf<Set<Long>>(emptySet())
+    val onlineUserIds: State<Set<Long>> = _onlineUserIds
+
     init {
         loadUsers()
     }
@@ -286,8 +304,18 @@ class TeamViewModel : ViewModel() {
                     call: Call<List<User>>,
                     response: Response<List<User>>
                 ) {
-                    _users.value = response.body() ?: emptyList()
+                    val userList = response.body() ?: emptyList()
+                    _users.value = userList
                     _loading.value = false
+
+                    // Mark current user as online
+                    val currentUserId = com.example.forgeplan.core.session.SessionManager.userId
+                    if (currentUserId != -1L) {
+                        _onlineUserIds.value = setOf(currentUserId)
+                    }
+
+                    // Load project counts for all active users
+                    loadProjectCounts(userList.filter { it.is_active }.map { it.id })
                 }
 
                 override fun onFailure(
@@ -298,5 +326,35 @@ class TeamViewModel : ViewModel() {
                     _loading.value = false
                 }
             })
+    }
+
+    private fun loadProjectCounts(userIds: List<Long>) {
+        if (userIds.isEmpty()) return
+
+        viewModelScope.launch {
+            val counts = mutableMapOf<Long, Int>()
+
+            userIds.forEach { userId ->
+                val count = suspendCancellableCoroutine<Int> { cont ->
+                    SupabaseApi.service.getProjectUsersByUserId(
+                        userId = "eq.$userId"
+                    ).enqueue(object : Callback<List<ProjectUser>> {
+                        override fun onResponse(
+                            call: Call<List<ProjectUser>>,
+                            response: Response<List<ProjectUser>>
+                        ) {
+                            cont.resume(response.body()?.size ?: 0)
+                        }
+
+                        override fun onFailure(call: Call<List<ProjectUser>>, t: Throwable) {
+                            cont.resume(0)
+                        }
+                    })
+                }
+                counts[userId] = count
+            }
+
+            _projectCounts.value = counts
+        }
     }
 }
