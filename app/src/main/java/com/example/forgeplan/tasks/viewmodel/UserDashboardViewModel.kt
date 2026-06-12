@@ -16,20 +16,7 @@ import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlin.coroutines.resume
 import com.example.forgeplan.core.network.SupabaseApi
 import com.example.forgeplan.core.network.SupabaseService.CommentRequest
-/**
- * Localização: app/src/main/java/com/example/forgeplan/tasks/viewmodel/UserDashboardViewModel.kt
- * SUBSTITUI completamente o ficheiro existente.
- *
- * Lógica:
- *  1. project_users filtrado por user_id → IDs dos projectos
- *  2. Para cada project_id → busca o Project completo
- *  3. task_assignments filtrado por user_id → IDs das tarefas
- *  4. Para cada projecto → intersecção de tarefas do projecto com as atribuídas ao user
- *  5. Expõe projectsWithTasks: Map<Project, List<Task>>
- *
- * Novo método updateTaskProgress: usado pelo ProgressScreen para guardar
- * data, taxa de conclusão e status sem recarregar o dashboard inteiro.
- */
+
 class UserDashboardViewModel : ViewModel() {
 
     private val projectUserRepo    = ProjectUserRepository()
