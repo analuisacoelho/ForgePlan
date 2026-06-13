@@ -157,6 +157,7 @@ fun ProjectDetailScreen(
 
                 else -> {
                     val currentProject = project!!
+                    val isDone = currentProject.status?.uppercase() == "DONE"
 
                     val isCompleted = tasks.isNotEmpty() && tasks.all {
                         it.status?.uppercase() == "DONE"
@@ -171,15 +172,19 @@ fun ProjectDetailScreen(
                         progress = progress,
                         isCompleted = isCompleted,
                         hasReview = hasReview,
-                        onReviewProjectClick = onReviewProjectClick
+                        onReviewProjectClick = onReviewProjectClick,
+                        onEditProjectClick = onEditProjectClick
                     )
 
                     Spacer(modifier = Modifier.height(18.dp))
 
-                    ProjectDetailActions(
-                        onCreateTaskClick = onCreateTaskClick,
-                        onAddGroupClick = { showCreateGroup = !showCreateGroup }
-                    )
+                    if (!isDone) {
+                        ProjectDetailActions(
+                            onCreateTaskClick = onCreateTaskClick,
+                            onAddGroupClick = { showCreateGroup = !showCreateGroup }
+                        )
+                        Spacer(modifier = Modifier.height(22.dp))
+                    }
 
                     Spacer(modifier = Modifier.height(22.dp))
 
@@ -230,7 +235,8 @@ fun ProjectDetailScreen(
                                 ProjectDetailTeamSection(
                                     users = assignedUsers,
                                     error = projectUserError,
-                                    onAddUserClick = { showAddUserDialog = true }
+                                    onAddUserClick = { showAddUserDialog = true },
+                                    isReadOnly = isDone
                                 )
                             }
                         }
@@ -266,7 +272,8 @@ fun ProjectDetailScreen(
                         ProjectDetailTeamSection(
                             users = assignedUsers,
                             error = projectUserError,
-                            onAddUserClick = { showAddUserDialog = true }
+                            onAddUserClick = { showAddUserDialog = true },
+                            isReadOnly = isDone
                         )
                     }
                 }
@@ -508,7 +515,8 @@ fun ProjectDetailHeader(
     progress: Int,
     isCompleted: Boolean,
     hasReview: Boolean,
-    onReviewProjectClick: () -> Unit
+    onReviewProjectClick: () -> Unit,
+    onEditProjectClick: () -> Unit
 ) {
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -569,12 +577,34 @@ fun ProjectDetailHeader(
                     color = Color(0xFF14532D)
                 )
             }
-        } else if (project.priority?.uppercase() == "HIGH") {
-            ForgeMiniChip(
-                text = appText(en = "Urgent", pt = "Urgente"),
-                containerColor = MaterialTheme.colorScheme.error,
-                contentColor = MaterialTheme.colorScheme.onError
-            )
+        } else {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                if (project.priority?.uppercase() == "HIGH") {
+                    ForgeMiniChip(
+                        text = appText(en = "Urgent", pt = "Urgente"),
+                        containerColor = MaterialTheme.colorScheme.error,
+                        contentColor = MaterialTheme.colorScheme.onError
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                }
+
+                Box(
+                    modifier = Modifier
+                        .height(30.dp)
+                        .clip(RoundedCornerShape(50))
+                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.15f))
+                        .clickable { onEditProjectClick() }
+                        .padding(horizontal = 14.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = appText(en = "Edit", pt = "Editar"),
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+            }
         }
     }
 }
@@ -757,7 +787,8 @@ fun ProjectDetailTaskCard(
 fun ProjectDetailTeamSection(
     users: List<User>,
     error: String?,
-    onAddUserClick: () -> Unit
+    onAddUserClick: () -> Unit,
+    isReadOnly: Boolean = false
 ) {
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -771,10 +802,12 @@ fun ProjectDetailTeamSection(
             color = MaterialTheme.colorScheme.onBackground
         )
 
-        ForgePrimaryButton(
-            text = appText(en = "Add", pt = "Adicionar"),
-            onClick = onAddUserClick
-        )
+        if (!isReadOnly) {
+            ForgePrimaryButton(
+                text = appText(en = "Add", pt = "Adicionar"),
+                onClick = onAddUserClick
+            )
+        }
     }
 
     Spacer(modifier = Modifier.height(10.dp))

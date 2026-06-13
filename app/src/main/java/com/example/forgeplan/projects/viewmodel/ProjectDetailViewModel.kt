@@ -3,6 +3,7 @@ package com.example.forgeplan.projects.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.forgeplan.core.model.Project
+import com.example.forgeplan.core.model.ProjectPayload
 import com.example.forgeplan.core.repository.ActivityLogRepository
 import com.example.forgeplan.core.repository.ProjectRepository
 import com.example.forgeplan.core.session.SessionManager
@@ -62,6 +63,45 @@ class ProjectDetailViewModel : ViewModel() {
                         detailsPt = "Admin: ${SessionManager.currentUser?.name} arquivou o projeto '$pName'"
                     )
                 }
+                onSuccess()
+            },
+            onError = { message -> onError(message) }
+        )
+    }
+
+    fun completeProject(
+        projectId: Long,
+        onSuccess: () -> Unit,
+        onError: (String) -> Unit
+    ) {
+        val current = _project.value ?: return
+        val payload = ProjectPayload(
+            created_by_id = current.created_by_id,
+            manager_id = current.manager_id,
+            name = current.name,
+            description = current.description,
+            priority = current.priority,
+            status = "DONE",
+            start_date = current.start_date,
+            end_date = current.end_date
+        )
+        repository.updateProject(
+            projectId = projectId,
+            project = payload,
+            onSuccess = {
+                _project.value = current.copy(status = "DONE")
+                
+                viewModelScope.launch {
+                    val pName = current.name
+                    logRepository.logActivity(
+                        action = "Completed project",
+                        entityType = "project",
+                        entityId = projectId,
+                        detailsEn = "Admin: ${SessionManager.currentUser?.name} marked project '$pName' as completed",
+                        detailsPt = "Admin: ${SessionManager.currentUser?.name} marcou o projeto '$pName' como concluído"
+                    )
+                }
+                
                 onSuccess()
             },
             onError = { message -> onError(message) }

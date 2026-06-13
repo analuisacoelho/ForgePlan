@@ -133,7 +133,6 @@ fun ProjectReviewScreen(
         }
 
         val totalToSave = reviewUsers.size
-        var savedCount = 0
 
         if (totalToSave == 0) {
             message = appText(
@@ -142,6 +141,8 @@ fun ProjectReviewScreen(
             )
             return
         }
+
+        var savedCount = 0
 
         reviewUsers.forEach { user ->
             evaluationViewModel.createEvaluation(
@@ -153,13 +154,26 @@ fun ProjectReviewScreen(
                 ),
                 onSuccess = {
                     savedCount++
-
                     if (savedCount == totalToSave) {
-                        message = appText(
-                            en = "Evaluation saved successfully.",
-                            pt = "Avaliação guardada com sucesso."
+                        // Marca o projeto como DONE após guardar todas as avaliações
+                        projectViewModel.completeProject(
+                            projectId = projectId,
+                            onSuccess = {
+                                message = appText(
+                                    en = "Evaluation saved. Project marked as completed.",
+                                    pt = "Avaliação guardada. Projeto marcado como concluído."
+                                )
+                                onSaveClick()
+                            },
+                            onError = {
+                                // Avaliações guardadas mas status não atualizou — não bloquear
+                                message = appText(
+                                    en = "Evaluation saved successfully.",
+                                    pt = "Avaliação guardada com sucesso."
+                                )
+                                onSaveClick()
+                            }
                         )
-                        onSaveClick()
                     }
                 }
             )
