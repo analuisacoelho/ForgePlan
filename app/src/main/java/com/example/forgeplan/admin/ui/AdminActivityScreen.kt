@@ -39,16 +39,9 @@ import com.example.forgeplan.core.language.appText
 import com.example.forgeplan.core.model.ActivityLog
 import com.example.forgeplan.projects.viewmodel.ProjectViewModel
 import com.example.forgeplan.reports.ui.ReportsScreen
-import com.example.forgeplan.tasks.viewmodel.UserDashboardViewModel
-import com.example.forgeplan.timeline.ui.TimelineBoardWithSummary
-import com.example.forgeplan.timeline.ui.TimelineToggle
+import com.example.forgeplan.timeline.ui.ManagerTimelineContent
+import com.example.forgeplan.timeline.ui.ManagerTimelineViewModel
 import com.example.forgeplan.tasks.viewmodel.UserViewModel
-import androidx.compose.foundation.horizontalScroll
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.runtime.remember
-import com.example.forgeplan.timeline.ui.parseDate
 
 @Composable
 fun AdminActivityScreen(
@@ -57,7 +50,7 @@ fun AdminActivityScreen(
     onProfileClick: () -> Unit = {},
     onLogout: () -> Unit = {},
     adminViewModel: AdminViewModel = viewModel(),
-    dashboardViewModel: UserDashboardViewModel = viewModel(),
+    managerTimelineViewModel: ManagerTimelineViewModel = viewModel(),
     projectViewModel: ProjectViewModel = viewModel(),
     userViewModel: UserViewModel = viewModel()
 ) {
@@ -76,7 +69,6 @@ fun AdminActivityScreen(
 
     LaunchedEffect(Unit) {
         adminViewModel.loadActivityLogs()
-        dashboardViewModel.loadDashboard()
     }
 
     AdminScaffold(
@@ -143,7 +135,7 @@ fun AdminActivityScreen(
                     isLandscape = isLandscape
                 )
                 1 -> TimelineTab(
-                    dashboardViewModel = dashboardViewModel,
+                    managerTimelineViewModel = managerTimelineViewModel,
                     isLandscape = isLandscape
                 )
                 2 -> ReportsTab(
@@ -258,96 +250,31 @@ private fun formatLogDate(dateString: String?): String {
 }
 
 // ─────────────────────────────────────────────────────────
-// Tab 1 – Timeline (reutiliza exatamente os composables do TimelineScreen)
+// Tab 1 – Timeline (reutiliza ManagerTimelineContent, mostra PROJETOS)
 // ─────────────────────────────────────────────────────────
 
 @Composable
 private fun TimelineTab(
-    dashboardViewModel: UserDashboardViewModel,
+    managerTimelineViewModel: ManagerTimelineViewModel,
     isLandscape: Boolean
 ) {
-    val projectsWithTasks by dashboardViewModel.projectsWithTasks.collectAsState()
-    val isLoading by dashboardViewModel.isLoading.collectAsState()
-    val error by dashboardViewModel.error.collectAsState()
-
-    var selectedMode by rememberSaveable { mutableStateOf("Week") }
-
-    val allTasks = remember(projectsWithTasks) { projectsWithTasks.values.flatten() }
-    val sortedTasks = remember(allTasks) {
-        allTasks.sortedWith(compareBy(nullsLast()) { parseDate(it.start_date) })
+    LaunchedEffect(Unit) {
+        managerTimelineViewModel.loadAllProjects()
     }
-    val projectNameById = remember(projectsWithTasks) {
-        projectsWithTasks.keys.associate { it.id to it.name }
-    }
-
-    val finishedCount = sortedTasks.count { it.status?.uppercase() == "DONE" }
-    val activeCount = sortedTasks.count { it.status?.uppercase() == "IN_PROGRESS" }
-    val pendingCount = sortedTasks.size - finishedCount - activeCount
 
     Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(
-                horizontal = if (isLandscape) 28.dp else 14.dp,
-                vertical = if (isLandscape) 12.dp else 16.dp
-            )
-            .padding(bottom = 16.dp)
+        modifier = Modifier.fillMaxSize()
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
-        ) {
-            Text(
-                text = appText("Timeline", "Linha Temporal"),
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onBackground,
-                modifier = Modifier.weight(1f)
-            )
-            TimelineToggle(
-                text = appText("Week", "Semana"),
-                selected = selectedMode == "Week",
-                onClick = { selectedMode = "Week" }
-            )
-            Spacer(modifier = Modifier.padding(2.dp))
-            TimelineToggle(
-                text = appText("Month", "Mês"),
-                selected = selectedMode == "Month",
-                onClick = { selectedMode = "Month" }
-            )
-        }
-
-        Spacer(modifier = Modifier.height(14.dp))
-
-        error?.let {
-            Text(text = it, color = MaterialTheme.colorScheme.error)
-            Spacer(modifier = Modifier.height(8.dp))
-        }
-
-        if (isLoading) {
-            CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
-        } else if (sortedTasks.isEmpty()) {
-            Text(
-                text = appText("No tasks to show.", "Não existem tarefas para apresentar."),
-                color = MaterialTheme.colorScheme.onBackground
-            )
-        } else {
-            TimelineBoardWithSummary(
-                tasks = sortedTasks,
-                mode = selectedMode,
-                projectNameById = projectNameById,
-                finished = finishedCount,
-                active = activeCount,
-                pending = pendingCount,
-                isLandscape = isLandscape
-            )
-        }
+        ManagerTimelineContent(
+            viewModel = managerTimelineViewModel,
+            isLandscape = isLandscape,
+            modifier = Modifier.fillMaxSize()
+        )
     }
 }
 
 // ─────────────────────────────────────────────────────────
-// Tab 2 – Reports (reutiliza exatamente o ReportsScreen existente)
+// Tab 2 – Reports (conteúdo sem scaffold próprio, evita duplicar topbar/bottombar)
 // ─────────────────────────────────────────────────────────
 
 @Composable
@@ -355,8 +282,8 @@ private fun ReportsTab(
     projectViewModel: ProjectViewModel,
     userViewModel: UserViewModel
 ) {
-    // O ReportsScreen já tem toda a lógica. Passamos os ViewModels para não recriar estado.
     ReportsScreen(
+        showScaffold = false,
         onProjectsClick = {},
         onTimelineClick = {},
         onTeamClick = {},

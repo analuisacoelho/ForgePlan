@@ -119,7 +119,7 @@ fun TimelineScreen(
 // ── Manager timeline (por projetos) ──────────────────────────────────────────
 
 @Composable
-private fun ManagerTimelineContent(
+fun ManagerTimelineContent(
     viewModel: ManagerTimelineViewModel,
     isLandscape: Boolean,
     modifier: Modifier = Modifier

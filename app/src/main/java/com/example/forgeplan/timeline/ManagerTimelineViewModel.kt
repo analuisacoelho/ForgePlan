@@ -13,9 +13,12 @@ import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlin.coroutines.resume
 
 /**
- * ViewModel para a Timeline do Manager.
- * Usa project_users para saber quais projetos o manager pertence,
- * igual ao ManagerDashboardScreen.
+ * ViewModel para a Timeline do Manager (e também reutilizado pelo Admin).
+ *
+ * - loadTimeline(): usa project_users para saber quais projetos o utilizador logado
+ *   (manager) pertence, igual ao ManagerDashboardScreen.
+ * - loadAllProjects(): carrega TODOS os projetos sem filtro, usado pelo Admin
+ *   (que não é "membro" de projetos via project_users).
  */
 class ManagerTimelineViewModel : ViewModel() {
 
@@ -31,6 +34,10 @@ class ManagerTimelineViewModel : ViewModel() {
     private val _projects = MutableStateFlow<List<Project>>(emptyList())
     val projects: StateFlow<List<Project>> = _projects
 
+    /**
+     * Carrega os projetos onde o utilizador logado (manager) é membro,
+     * via project_users.
+     */
     fun loadTimeline() {
         val managerId = SessionManager.userId
         if (managerId == -1L) {
@@ -52,6 +59,24 @@ class ManagerTimelineViewModel : ViewModel() {
                 // 2. Todos os projetos, filtrados pelos IDs acima
                 val allProjects = fetchAllProjects()
                 _projects.value = allProjects.filter { it.id in projectIds }
+            } catch (e: Exception) {
+                _error.value = e.message ?: "Erro desconhecido"
+            } finally {
+                _isLoading.value = false
+            }
+        }
+    }
+
+    /**
+     * Carrega TODOS os projetos, sem qualquer filtro por utilizador.
+     * Usado pelo Admin (vê todos os projetos da plataforma).
+     */
+    fun loadAllProjects() {
+        viewModelScope.launch {
+            _isLoading.value = true
+            _error.value = null
+            try {
+                _projects.value = fetchAllProjects()
             } catch (e: Exception) {
                 _error.value = e.message ?: "Erro desconhecido"
             } finally {
