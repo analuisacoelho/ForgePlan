@@ -16,22 +16,15 @@ class TaskGroupRepository {
     ) {
         SupabaseApi.service.getTaskGroupsByProjectId("eq.$projectId")
             .enqueue(object : Callback<List<TaskGroup>> {
-                override fun onResponse(
-                    call: Call<List<TaskGroup>>,
-                    response: Response<List<TaskGroup>>
-                ) {
+                override fun onResponse(call: Call<List<TaskGroup>>, response: Response<List<TaskGroup>>) {
                     if (response.isSuccessful) {
                         onSuccess(response.body() ?: emptyList())
                     } else {
-                        onError("Erro ao carregar grupos: ${response.code()}")
+                        onSuccess(emptyList())
                     }
                 }
-
-                override fun onFailure(
-                    call: Call<List<TaskGroup>>,
-                    t: Throwable
-                ) {
-                    onError(t.message ?: "Erro desconhecido ao carregar grupos.")
+                override fun onFailure(call: Call<List<TaskGroup>>, t: Throwable) {
+                    onSuccess(emptyList())
                 }
             })
     }

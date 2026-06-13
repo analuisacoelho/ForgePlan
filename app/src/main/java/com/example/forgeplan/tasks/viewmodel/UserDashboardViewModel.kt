@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.forgeplan.core.model.Project
 import com.example.forgeplan.core.model.Task
+import com.example.forgeplan.core.repository.CommentRepository
 import com.example.forgeplan.core.repository.ProjectRepository
 import com.example.forgeplan.core.repository.ProjectUserRepository
 import com.example.forgeplan.core.repository.TaskAssignmentRepository
@@ -14,8 +15,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlin.coroutines.resume
-import com.example.forgeplan.core.network.SupabaseApi
-import com.example.forgeplan.core.network.SupabaseService.CommentRequest
 
 class UserDashboardViewModel : ViewModel() {
 
@@ -23,6 +22,7 @@ class UserDashboardViewModel : ViewModel() {
     private val projectRepo        = ProjectRepository()
     private val taskAssignmentRepo = TaskAssignmentRepository()
     private val taskRepo           = TaskRepository()
+    private val commentRepo        = CommentRepository()
 
     private val _isLoading = MutableStateFlow(false)
     val isLoading: StateFlow<Boolean> = _isLoading
@@ -76,12 +76,6 @@ class UserDashboardViewModel : ViewModel() {
 
     // ── Guardar progresso (ProgressScreen) ───────────────────────────────────
 
-    /**
-     * Actualiza uma tarefa com o novo status, taxa de conclusão e data.
-     * Ao contrário de markTaskAsDone, não recarrega o dashboard inteiro —
-     * apenas actualiza a tarefa no mapa em memória para a UI reflectir
-     * a mudança imediatamente, evitando um reload desnecessário.
-     */
     fun updateTaskProgress(
         task: Task,
         onSuccess: () -> Unit,
@@ -96,7 +90,6 @@ class UserDashboardViewModel : ViewModel() {
                 )
             }
             if (ok) {
-                // Actualiza apenas a tarefa no mapa sem reload completo
                 val updated = _projectsWithTasks.value.mapValues { (_, tasks) ->
                     tasks.map { if (it.id == task.id) task else it }
                 }
@@ -145,6 +138,9 @@ class UserDashboardViewModel : ViewModel() {
         }
         return projectTasks.filter { it.id in assignedIds }
     }
+
+    // ── Comentários ───────────────────────────────────────────────────────────
+
     fun insertComment(
         taskId: Long,
         content: String,
@@ -154,21 +150,15 @@ class UserDashboardViewModel : ViewModel() {
         viewModelScope.launch {
             try {
                 val userId = SessionManager.userId
-
-                val comment = CommentRequest(
-                    task_id = taskId,
-                    user_id = userId,
+                commentRepo.insertComment(
+                    taskId = taskId,
+                    userId = userId,
                     content = content
                 )
-
-                SupabaseApi.service.insertComment(comment)
-
                 onSuccess()
-
             } catch (e: Exception) {
                 onError(e.message ?: "Erro ao guardar comentário")
             }
         }
-
     }
 }

@@ -23,7 +23,7 @@ class TaskDependencyRepository {
                     if (response.isSuccessful) {
                         onSuccess(response.body() ?: emptyList())
                     } else {
-                        onError("Erro ao carregar dependências")
+                        onSuccess(emptyList())
                     }
                 }
 
@@ -31,7 +31,7 @@ class TaskDependencyRepository {
                     call: Call<List<TaskDependency>>,
                     t: Throwable
                 ) {
-                    onError(t.message ?: "Erro desconhecido")
+                    onSuccess(emptyList())
                 }
             })
     }

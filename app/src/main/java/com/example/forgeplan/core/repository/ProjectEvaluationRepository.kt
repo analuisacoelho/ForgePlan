@@ -25,7 +25,7 @@ class ProjectEvaluationRepository {
                     if (response.isSuccessful) {
                         onSuccess(response.body() ?: emptyList())
                     } else {
-                        onError("Erro ao carregar avaliações.")
+                        onSuccess(emptyList())
                     }
                 }
 
@@ -33,7 +33,7 @@ class ProjectEvaluationRepository {
                     call: Call<List<ProjectEvaluation>>,
                     t: Throwable
                 ) {
-                    onError(t.message ?: "Erro desconhecido ao carregar avaliações.")
+                    onSuccess(emptyList())
                 }
             })
     }

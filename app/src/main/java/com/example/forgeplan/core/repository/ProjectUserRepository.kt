@@ -55,9 +55,22 @@ class ProjectUserRepository {
 
     private fun loadLocalByProjectId(projectId: Long, onSuccess: (List<ProjectUser>) -> Unit) {
         CoroutineScope(Dispatchers.IO).launch {
-            val local = db.projectUserDao().getByProjectId(projectId).map {
-                ProjectUser(project_user_id = 0, project_id = it.project_id, user_id = it.user_id, joined_at = it.joined_at)
-            }
+            val project = db.projectDao().getProjectById(projectId)
+                ?: db.projectDao().getProjectByRemoteId(projectId)
+
+            val candidateIds = mutableSetOf(projectId)
+            project?.remote_id?.let { candidateIds.add(it) }
+            project?.id?.let { candidateIds.add(it) }
+
+            val local = db.projectUserDao().getByProjectId(projectId)
+                .let { rows ->
+                    if (rows.isNotEmpty()) rows
+                    else candidateIds.flatMap { db.projectUserDao().getByProjectId(it) }
+                }
+                .distinctBy { it.user_id }
+                .map {
+                    ProjectUser(project_user_id = 0, project_id = it.project_id, user_id = it.user_id, joined_at = it.joined_at)
+                }
             withContext(Dispatchers.Main) { onSuccess(local) }
         }
     }
@@ -127,15 +140,35 @@ class ProjectUserRepository {
         onSuccess: (ProjectUser?) -> Unit,
         onError: (String) -> Unit
     ) {
-        SupabaseApi.service.assignUserToProject(projectUser)
-            .enqueue(object : Callback<List<ProjectUser>> {
-                override fun onResponse(call: Call<List<ProjectUser>>, response: Response<List<ProjectUser>>) {
-                    if (response.isSuccessful) onSuccess(response.body()?.firstOrNull())
-                    else onError("Erro ao associar utilizador ao projeto: ${response.code()}")
-                }
-                override fun onFailure(call: Call<List<ProjectUser>>, t: Throwable) {
-                    onError(t.message ?: "Erro desconhecido")
-                }
-            })
+        if (NetworkUtils.isOnline(context)) {
+            SupabaseApi.service.assignUserToProject(projectUser)
+                .enqueue(object : Callback<List<ProjectUser>> {
+                    override fun onResponse(call: Call<List<ProjectUser>>, response: Response<List<ProjectUser>>) {
+                        if (response.isSuccessful) onSuccess(response.body()?.firstOrNull())
+                        else saveAssignmentLocally(projectUser, onSuccess)
+                    }
+                    override fun onFailure(call: Call<List<ProjectUser>>, t: Throwable) {
+                        saveAssignmentLocally(projectUser, onSuccess)
+                    }
+                })
+        } else {
+            saveAssignmentLocally(projectUser, onSuccess)
+        }
+    }
+
+    private fun saveAssignmentLocally(projectUser: ProjectUserPayload, onSuccess: (ProjectUser?) -> Unit) {
+        CoroutineScope(Dispatchers.IO).launch {
+            db.projectUserDao().insertAll(listOf(
+                ProjectUserEntity(
+                    project_id = projectUser.project_id,
+                    user_id = projectUser.user_id,
+                    joined_at = null,
+                    is_synced = false
+                )
+            ))
+            withContext(Dispatchers.Main) {
+                onSuccess(ProjectUser(project_user_id = 0, project_id = projectUser.project_id, user_id = projectUser.user_id, joined_at = null))
+            }
+        }
     }
 }
