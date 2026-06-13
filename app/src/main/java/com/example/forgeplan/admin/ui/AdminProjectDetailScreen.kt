@@ -24,6 +24,8 @@ import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -39,6 +41,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.BorderStroke
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.forgeplan.core.language.appText
 import com.example.forgeplan.core.model.Task
@@ -57,7 +60,8 @@ import com.example.forgeplan.tasks.viewmodel.UserViewModel
 
 /**
  * Ecrã de detalhe de projeto para o Admin.
- * Leitura de tarefas e equipa, com FAB para editar e botão para associar manager.
+ * Leitura de tarefas e equipa, com FAB para editar, botão para associar manager
+ * e botão para arquivar (soft-delete) o projeto.
  */
 @Composable
 fun AdminProjectDetailScreen(
@@ -86,6 +90,8 @@ fun AdminProjectDetailScreen(
 
     var searchText by remember { mutableStateOf("") }
     var showAddManagerDialog by remember { mutableStateOf(false) }
+    var showArchiveDialog by remember { mutableStateOf(false) }
+    var archiveError by remember { mutableStateOf<String?>(null) }
 
     LaunchedEffect(projectId) {
         viewModel.loadProject(projectId)
@@ -226,6 +232,13 @@ fun AdminProjectDetailScreen(
                                         users = assignedUsers,
                                         onAddManagerClick = { showAddManagerDialog = true }
                                     )
+
+                                    Spacer(modifier = Modifier.height(14.dp))
+
+                                    AdminDangerZone(
+                                        archiveError = archiveError,
+                                        onArchiveClick = { showArchiveDialog = true }
+                                    )
                                 }
                             }
                         } else {
@@ -240,6 +253,13 @@ fun AdminProjectDetailScreen(
                             AdminTeamSection(
                                 users = assignedUsers,
                                 onAddManagerClick = { showAddManagerDialog = true }
+                            )
+
+                            Spacer(modifier = Modifier.height(14.dp))
+
+                            AdminDangerZone(
+                                archiveError = archiveError,
+                                onArchiveClick = { showArchiveDialog = true }
                             )
                         }
                     }
@@ -311,6 +331,102 @@ fun AdminProjectDetailScreen(
                 )
             }
         )
+    }
+
+    // Dialog de confirmação para arquivar o projeto
+    if (showArchiveDialog) {
+        AlertDialog(
+            onDismissRequest = { showArchiveDialog = false },
+            title = {
+                Text(appText(en = "Archive project?", pt = "Arquivar projeto?"))
+            },
+            text = {
+                Text(
+                    appText(
+                        en = "This project will be hidden from all lists, but its data (tasks, comments, history) will be preserved.",
+                        pt = "Este projeto deixará de aparecer nas listas, mas os seus dados (tarefas, comentários, histórico) serão preservados."
+                    )
+                )
+            },
+            confirmButton = {
+                Text(
+                    text = appText(en = "Archive", pt = "Arquivar"),
+                    color = MaterialTheme.colorScheme.error,
+                    modifier = Modifier
+                        .clickable {
+                            showArchiveDialog = false
+                            viewModel.archiveProject(
+                                projectId = projectId,
+                                onSuccess = { onBackClick() },
+                                onError = { message -> archiveError = message }
+                            )
+                        }
+                        .padding(8.dp)
+                )
+            },
+            dismissButton = {
+                Text(
+                    text = appText(en = "Cancel", pt = "Cancelar"),
+                    color = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier
+                        .clickable { showArchiveDialog = false }
+                        .padding(8.dp)
+                )
+            }
+        )
+    }
+}
+
+// Secção "zona de perigo" - arquivar projeto (admin apenas)
+@Composable
+private fun AdminDangerZone(
+    archiveError: String?,
+    onArchiveClick: () -> Unit
+) {
+    ForgeCard(modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(14.dp)) {
+            Text(
+                text = appText(en = "Danger Zone", pt = "Zona de Perigo"),
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = appText(
+                    en = "Archive this project. It will be hidden from all lists but kept for history.",
+                    pt = "Arquivar este projeto. Deixa de aparecer nas listas mas é mantido no histórico."
+                ),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.65f)
+            )
+
+            archiveError?.let {
+                Spacer(modifier = Modifier.height(6.dp))
+                Text(
+                    text = it,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error
+                )
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            OutlinedButton(
+                onClick = onArchiveClick,
+                modifier = Modifier.fillMaxWidth().height(46.dp),
+                shape = RoundedCornerShape(12.dp),
+                border = BorderStroke(width = 1.dp, color = MaterialTheme.colorScheme.error),
+                colors = ButtonDefaults.outlinedButtonColors(
+                    contentColor = MaterialTheme.colorScheme.error
+                )
+            ) {
+                Text(
+                    text = appText(en = "Archive Project", pt = "Arquivar Projeto"),
+                    fontWeight = FontWeight.Bold
+                )
+            }
+        }
     }
 }
 

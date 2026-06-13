@@ -35,4 +35,19 @@ class ProjectDetailViewModel : ViewModel() {
             }
         )
     }
+
+    /**
+     * Arquiva (soft-delete) o projeto. projectId pode ser local ou remoto.
+     */
+    fun archiveProject(
+        projectId: Long,
+        onSuccess: () -> Unit,
+        onError: (String) -> Unit
+    ) {
+        repository.archiveProject(
+            projectId = projectId,
+            onSuccess = { onSuccess() },
+            onError = { message -> onError(message) }
+        )
+    }
 }

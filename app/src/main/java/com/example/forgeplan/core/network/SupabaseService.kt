@@ -90,6 +90,11 @@ interface SupabaseService {
         @Body project: ProjectPayload
     ): Call<List<Project>>
 
+    @GET("projects")
+    fun getProjectsByStatus(
+        @Query("status") status: String
+    ): Call<List<Project>>
+
     // ── TASKS ────────────────────────────────────────────────────────────────
 
     @GET("tasks")

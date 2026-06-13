@@ -40,7 +40,8 @@ class ProjectRepository {
                 .enqueue(object : Callback<List<Project>> {
                     override fun onResponse(call: Call<List<Project>>, response: Response<List<Project>>) {
                         if (response.isSuccessful) {
-                            val projects = response.body() ?: emptyList()
+                            val projects = (response.body() ?: emptyList())
+                                .filter { it.status?.uppercase() != "ARCHIVED" }
                             CoroutineScope(Dispatchers.IO).launch {
                                 upsertAllFromRemote(projects)
                             }
@@ -63,7 +64,9 @@ class ProjectRepository {
         onError: (String) -> Unit
     ) {
         CoroutineScope(Dispatchers.IO).launch {
-            val local = db.projectDao().getAllProjects().map { it.toModel() }
+            val local = db.projectDao().getAllProjects()
+                .filter { it.status?.uppercase() != "ARCHIVED" }
+                .map { it.toModel() }
             withContext(Dispatchers.Main) {
                 if (local.isNotEmpty()) onSuccess(local)
                 else onError("Sem internet e sem dados guardados.")
@@ -85,7 +88,8 @@ class ProjectRepository {
                 .enqueue(object : Callback<List<Project>> {
                     override fun onResponse(call: Call<List<Project>>, response: Response<List<Project>>) {
                         if (response.isSuccessful) {
-                            val projects = response.body() ?: emptyList()
+                            val projects = (response.body() ?: emptyList())
+                                .filter { it.status?.uppercase() != "ARCHIVED" }
                             CoroutineScope(Dispatchers.IO).launch {
                                 upsertAllFromRemote(projects)
                             }
@@ -104,9 +108,8 @@ class ProjectRepository {
     private fun loadLocalByManagerId(managerId: Long, onSuccess: (List<Project>) -> Unit) {
         CoroutineScope(Dispatchers.IO).launch {
             val all = db.projectDao().getAllProjects()
-            android.util.Log.d("FORGEPLAN_DEBUG", "loadLocalByManagerId: managerId=$managerId | all=${all.map { "id=${it.id} remote_id=${it.remote_id} manager_id=${it.manager_id} name=${it.name}" }}")
             val local = all
-                .filter { it.manager_id == managerId || it.remote_id == managerId }
+                .filter { (it.manager_id == managerId || it.remote_id == managerId) && it.status?.uppercase() != "ARCHIVED" }
                 .map { it.toModel() }
             withContext(Dispatchers.Main) { onSuccess(local) }
         }
@@ -276,6 +279,64 @@ class ProjectRepository {
     }
 
     // ─────────────────────────────────────────────────────────────────────
+    // ARCHIVE (soft delete)
+    // ─────────────────────────────────────────────────────────────────────
+
+    /**
+     * "Elimina" um projeto sem o apagar da base de dados: marca status = "ARCHIVED".
+     * Projetos arquivados deixam de aparecer em getProjects/getProjectsByManagerId,
+     * mas continuam na BD (histórico, tasks, logs, etc. preservados).
+     *
+     * projectId pode ser local ou remoto.
+     */
+    fun archiveProject(
+        projectId: Long,
+        onSuccess: (Project?) -> Unit,
+        onError: (String) -> Unit
+    ) {
+        CoroutineScope(Dispatchers.IO).launch {
+            val existing = resolveEntity(projectId)
+            if (existing == null) {
+                withContext(Dispatchers.Main) { onError("Projeto não encontrado") }
+                return@launch
+            }
+
+            val payload = ProjectPayload(
+                created_by_id = existing.created_by_id,
+                manager_id = existing.manager_id,
+                name = existing.name,
+                description = existing.description,
+                priority = existing.priority,
+                status = "ARCHIVED",
+                start_date = existing.start_date,
+                end_date = existing.end_date
+            )
+
+            val remoteId = existing.remote_id
+
+            if (NetworkUtils.isOnline(context) && remoteId != null) {
+                try {
+                    val response = SupabaseApi.service.updateProject("eq.$remoteId", payload).execute()
+                    if (response.isSuccessful) {
+                        val updatedEntity = existing.copy(status = "ARCHIVED", is_synced = true)
+                        db.projectDao().update(updatedEntity)
+                        withContext(Dispatchers.Main) { onSuccess(updatedEntity.toModel()) }
+                    } else {
+                        markProjectDirty(existing, payload)
+                        withContext(Dispatchers.Main) { onError("Erro ao arquivar projeto: ${response.code()}") }
+                    }
+                } catch (e: Exception) {
+                    markProjectDirty(existing, payload)
+                    withContext(Dispatchers.Main) { onSuccess(existing.copy(status = "ARCHIVED").toModel()) }
+                }
+            } else {
+                markProjectDirty(existing, payload)
+                withContext(Dispatchers.Main) { onSuccess(existing.copy(status = "ARCHIVED").toModel()) }
+            }
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────
     // REMOTE <-> LOCAL MAPPING (com mutex para evitar duplicados)
     // ─────────────────────────────────────────────────────────────────────
 
@@ -330,4 +391,98 @@ class ProjectRepository {
         end_date = end_date,
         created_at = created_at
     )
+
+    // ─────────────────────────────────────────────────────────────────────
+    // GET ARCHIVED
+    // ─────────────────────────────────────────────────────────────────────
+
+    fun getArchivedProjects(
+        onSuccess: (List<Project>) -> Unit,
+        onError: (String) -> Unit
+    ) {
+        if (NetworkUtils.isOnline(context)) {
+            SupabaseApi.service.getProjectsByStatus("eq.ARCHIVED")
+                .enqueue(object : Callback<List<Project>> {
+                    override fun onResponse(call: Call<List<Project>>, response: Response<List<Project>>) {
+                        if (response.isSuccessful) {
+                            val projects = response.body() ?: emptyList()
+                            CoroutineScope(Dispatchers.IO).launch { upsertAllFromRemote(projects) }
+                            onSuccess(projects)
+                        } else {
+                            loadArchivedFromRoom(onSuccess, onError)
+                        }
+                    }
+                    override fun onFailure(call: Call<List<Project>>, t: Throwable) {
+                        loadArchivedFromRoom(onSuccess, onError)
+                    }
+                })
+        } else {
+            loadArchivedFromRoom(onSuccess, onError)
+        }
+    }
+
+    private fun loadArchivedFromRoom(
+        onSuccess: (List<Project>) -> Unit,
+        onError: (String) -> Unit
+    ) {
+        CoroutineScope(Dispatchers.IO).launch {
+            val local = db.projectDao().getAllProjects()
+                .filter { it.status?.uppercase() == "ARCHIVED" }
+                .map { it.toModel() }
+            withContext(Dispatchers.Main) {
+                if (local.isNotEmpty()) onSuccess(local)
+                else onError("Sem projetos arquivados guardados.")
+            }
+        }
+    }
+
+    // ─────────────────────────────────────────────────────────────────────
+    // RESTORE (unarchive)
+    // ─────────────────────────────────────────────────────────────────────
+    fun restoreProject(
+        projectId: Long,
+        onSuccess: (Project?) -> Unit,
+        onError: (String) -> Unit
+    ) {
+        CoroutineScope(Dispatchers.IO).launch {
+            val existing = resolveEntity(projectId)
+            if (existing == null) {
+                withContext(Dispatchers.Main) { onError("Projeto não encontrado") }
+                return@launch
+            }
+
+            val payload = ProjectPayload(
+                created_by_id = existing.created_by_id,
+                manager_id = existing.manager_id,
+                name = existing.name,
+                description = existing.description,
+                priority = existing.priority,
+                status = "ACTIVE",
+                start_date = existing.start_date,
+                end_date = existing.end_date
+            )
+
+            val remoteId = existing.remote_id
+
+            if (NetworkUtils.isOnline(context) && remoteId != null) {
+                try {
+                    val response = SupabaseApi.service.updateProject("eq.$remoteId", payload).execute()
+                    if (response.isSuccessful) {
+                        val updated = existing.copy(status = "ACTIVE", is_synced = true)
+                        db.projectDao().update(updated)
+                        withContext(Dispatchers.Main) { onSuccess(updated.toModel()) }
+                    } else {
+                        markProjectDirty(existing, payload)
+                        withContext(Dispatchers.Main) { onError("Erro ao restaurar: ${response.code()}") }
+                    }
+                } catch (e: Exception) {
+                    markProjectDirty(existing, payload)
+                    withContext(Dispatchers.Main) { onSuccess(existing.copy(status = "ACTIVE").toModel()) }
+                }
+            } else {
+                markProjectDirty(existing, payload)
+                withContext(Dispatchers.Main) { onSuccess(existing.copy(status = "ACTIVE").toModel()) }
+            }
+        }
+    }
 }

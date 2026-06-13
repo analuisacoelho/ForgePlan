@@ -23,10 +23,15 @@ class ProjectViewModel : ViewModel() {
     private val _error = MutableStateFlow<String?>(null)
     val error: StateFlow<String?> = _error
 
+    private val _archivedProjects = MutableStateFlow<List<Project>>(emptyList())
+    val archivedProjects: StateFlow<List<Project>> = _archivedProjects
+
+    private val _isLoadingArchived = MutableStateFlow(false)
+    val isLoadingArchived: StateFlow<Boolean> = _isLoadingArchived
+
     fun loadProjects() {
         _isLoading.value = true
         _error.value = null
-
         repository.getProjects(
             onSuccess = { projectList ->
                 _projects.value = projectList
@@ -42,7 +47,6 @@ class ProjectViewModel : ViewModel() {
     fun loadProjectById(projectId: Long) {
         _isLoading.value = true
         _error.value = null
-
         repository.getProjectById(
             projectId = projectId,
             onSuccess = { project ->
@@ -62,7 +66,6 @@ class ProjectViewModel : ViewModel() {
     ) {
         _isLoading.value = true
         _error.value = null
-
         repository.createProject(
             project = project,
             onSuccess = {
@@ -84,7 +87,6 @@ class ProjectViewModel : ViewModel() {
     ) {
         _isLoading.value = true
         _error.value = null
-
         repository.updateProject(
             projectId = projectId,
             project = project,
@@ -97,6 +99,33 @@ class ProjectViewModel : ViewModel() {
                 _error.value = errorMessage
                 _isLoading.value = false
             }
+        )
+    }
+
+    fun loadArchivedProjects() {
+        _isLoadingArchived.value = true
+        repository.getArchivedProjects(
+            onSuccess = { projects ->
+                _archivedProjects.value = projects
+                _isLoadingArchived.value = false
+            },
+            onError = {
+                _archivedProjects.value = emptyList()
+                _isLoadingArchived.value = false
+            }
+        )
+    }
+
+    fun restoreProject(projectId: Long, onSuccess: () -> Unit, onError: (String) -> Unit) {
+        repository.restoreProject(
+            projectId = projectId,
+            onSuccess = {
+                _archivedProjects.value = _archivedProjects.value.filter { it.id != projectId }
+                loadProjects()
+                loadArchivedProjects()
+                onSuccess()
+            },
+            onError = onError
         )
     }
 }
