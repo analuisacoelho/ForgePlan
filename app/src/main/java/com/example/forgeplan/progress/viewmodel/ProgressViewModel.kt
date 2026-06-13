@@ -102,7 +102,7 @@ class ProgressViewModel : ViewModel() {
                     log_date        = logDate.ifBlank { nowIso.substring(0, 10) },
                     location        = location.ifBlank { "" },
                     completion_rate = completionRate,
-                    minutes_spent   = minutesSpent * 60,
+                    minutes_spent   = minutesSpent,
                     notes           = notes,
                     is_synced       = true
                 )

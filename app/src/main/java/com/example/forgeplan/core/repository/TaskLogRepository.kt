@@ -88,6 +88,24 @@ class TaskLogRepository {
                     ) {
                         if (response.isSuccessful) {
                             val logs = response.body() ?: emptyList()
+                            CoroutineScope(Dispatchers.IO).launch {
+                                logs.forEach { remote ->
+                                    db.taskLogDao().insert(
+                                        TaskLogEntity(
+                                            id = remote.id,
+                                            task_id = remote.task_id,
+                                            user_id = remote.user_id,
+                                            log_date = remote.log_date,
+                                            location = remote.location,
+                                            completion_rate = remote.completion_rate,
+                                            minutes_spent = remote.minutes_spent,
+                                            notes = remote.notes,
+                                            created_at = remote.created_at,
+                                            is_synced = true
+                                        )
+                                    )
+                                }
+                            }
                             onSuccess(logs)
                         } else {
                             loadLocalLogs(taskId, onSuccess)
