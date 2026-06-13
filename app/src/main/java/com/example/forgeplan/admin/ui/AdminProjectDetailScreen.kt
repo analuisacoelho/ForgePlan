@@ -92,6 +92,8 @@ fun AdminProjectDetailScreen(
     val projectUsers by projectUserViewModel.projectUsers.collectAsState()
     val taskGroups by taskGroupViewModel.groups.collectAsState()
 
+    val isDone = project?.status?.uppercase() == "DONE"
+
     var searchText by remember { mutableStateOf("") }
     var showAddManagerDialog by remember { mutableStateOf(false) }
     var showArchiveDialog by remember { mutableStateOf(false) }
@@ -234,7 +236,8 @@ fun AdminProjectDetailScreen(
                                             taskViewModel.deleteTask(task, onSuccess = {
                                                 taskViewModel.loadTasks(projectId)
                                             })
-                                        }
+                                        },
+                                        isReadOnly = isDone
                                     )
                                 }
                                 Column(modifier = Modifier.weight(0.8f)) {
@@ -249,15 +252,18 @@ fun AdminProjectDetailScreen(
                                                     projectUserViewModel.loadProjectUsers(projectId)
                                                 }
                                             )
-                                        }
+                                        },
+                                        isReadOnly = isDone
                                     )
 
-                                    Spacer(modifier = Modifier.height(14.dp))
+                                    if (!isDone) {
+                                        Spacer(modifier = Modifier.height(14.dp))
 
-                                    AdminDangerZone(
-                                        archiveError = archiveError,
-                                        onArchiveClick = { showArchiveDialog = true }
-                                    )
+                                        AdminDangerZone(
+                                            archiveError = archiveError,
+                                            onArchiveClick = { showArchiveDialog = true }
+                                        )
+                                    }
                                 }
                             }
                         } else {
@@ -272,7 +278,8 @@ fun AdminProjectDetailScreen(
                                     taskViewModel.deleteTask(task, onSuccess = {
                                         taskViewModel.loadTasks(projectId)
                                     })
-                                }
+                                },
+                                isReadOnly = isDone
                             )
                             Spacer(modifier = Modifier.height(22.dp))
                             AdminTeamSection(
@@ -286,34 +293,39 @@ fun AdminProjectDetailScreen(
                                             projectUserViewModel.loadProjectUsers(projectId)
                                         }
                                     )
-                                }
+                                },
+                                isReadOnly = isDone
                             )
 
-                            Spacer(modifier = Modifier.height(14.dp))
+                            if (!isDone) {
+                                Spacer(modifier = Modifier.height(14.dp))
 
-                            AdminDangerZone(
-                                archiveError = archiveError,
-                                onArchiveClick = { showArchiveDialog = true }
-                            )
+                                AdminDangerZone(
+                                    archiveError = archiveError,
+                                    onArchiveClick = { showArchiveDialog = true }
+                                )
+                            }
                         }
                     }
                 }
             }
 
-            // FAB com lápis para editar o projeto
-            FloatingActionButton(
-                onClick = onEditProjectClick,
-                containerColor = MaterialTheme.colorScheme.primary,
-                contentColor = MaterialTheme.colorScheme.onPrimary,
-                modifier = Modifier
-                    .align(Alignment.BottomEnd)
-                    .padding(end = 18.dp, bottom = 18.dp)
-                    .size(56.dp)
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Edit,
-                    contentDescription = appText(en = "Edit project", pt = "Editar projeto")
-                )
+            // FAB com lápis para editar o projeto - Só se não estiver DONE
+            if (!isDone) {
+                FloatingActionButton(
+                    onClick = onEditProjectClick,
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary,
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .padding(end = 18.dp, bottom = 18.dp)
+                        .size(56.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Edit,
+                        contentDescription = appText(en = "Edit project", pt = "Editar projeto")
+                    )
+                }
             }
         }
     }
@@ -472,7 +484,8 @@ private fun AdminTasksSection(
     totalTasks: Int,
     taskGroups: List<TaskGroup>,
     onTaskClick: (Long) -> Unit,
-    onDeleteTask: (Task) -> Unit
+    onDeleteTask: (Task) -> Unit,
+    isReadOnly: Boolean = false
 ) {
     Text(
         text = appText(en = "Tasks", pt = "Tarefas"),
@@ -525,7 +538,8 @@ private fun AdminTasksSection(
                     AdminTaskCard(
                         task = task,
                         onTaskClick = onTaskClick,
-                        onDeleteClick = { onDeleteTask(task) }
+                        onDeleteClick = { onDeleteTask(task) },
+                        isReadOnly = isReadOnly
                     )
                     Spacer(modifier = Modifier.height(10.dp))
                 }
@@ -545,7 +559,8 @@ private fun AdminTasksSection(
                 AdminTaskCard(
                     task = task,
                     onTaskClick = onTaskClick,
-                    onDeleteClick = { onDeleteTask(task) }
+                    onDeleteClick = { onDeleteTask(task) },
+                    isReadOnly = isReadOnly
                 )
                 Spacer(modifier = Modifier.height(10.dp))
             }
@@ -568,7 +583,8 @@ private fun AdminTasksSection(
 private fun AdminTaskCard(
     task: Task,
     onTaskClick: (Long) -> Unit,
-    onDeleteClick: () -> Unit
+    onDeleteClick: () -> Unit,
+    isReadOnly: Boolean = false
 ) {
     val isDone = task.status?.uppercase() == "DONE"
     val isInProgress = task.status?.uppercase() == "IN_PROGRESS"
@@ -602,7 +618,7 @@ private fun AdminTaskCard(
                 }
 
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    if (progress == 0) {
+                    if (progress == 0 && !isReadOnly) {
                         IconButton(onClick = onDeleteClick) {
                             Icon(
                                 imageVector = Icons.Default.Delete,
@@ -660,7 +676,8 @@ private fun AdminTaskCard(
 private fun AdminTeamSection(
     users: List<User>,
     onAddManagerClick: () -> Unit,
-    onRemoveUser: (User) -> Unit
+    onRemoveUser: (User) -> Unit,
+    isReadOnly: Boolean = false
 ) {
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -673,10 +690,12 @@ private fun AdminTeamSection(
             fontWeight = FontWeight.Bold,
             color = MaterialTheme.colorScheme.onBackground
         )
-        ForgePrimaryButton(
-            text = appText(en = "Add", pt = "Adicionar"),
-            onClick = onAddManagerClick
-        )
+        if (!isReadOnly) {
+            ForgePrimaryButton(
+                text = appText(en = "Add", pt = "Adicionar"),
+                onClick = onAddManagerClick
+            )
+        }
     }
     Spacer(modifier = Modifier.height(10.dp))
     ForgeCard(modifier = Modifier.fillMaxWidth()) {
@@ -718,7 +737,7 @@ private fun AdminTeamSection(
                             )
                             
                             val isUser = user.role.uppercase() == "USER"
-                            if (isUser) {
+                            if (isUser && !isReadOnly) {
                                 Spacer(modifier = Modifier.width(8.dp))
                                 IconButton(onClick = { onRemoveUser(user) }) {
                                     Icon(
