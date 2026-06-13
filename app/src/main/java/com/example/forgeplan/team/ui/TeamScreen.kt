@@ -16,7 +16,6 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -31,9 +30,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.forgeplan.core.language.appText
-import com.example.forgeplan.core.model.ProjectUser
 import com.example.forgeplan.core.model.User
-import com.example.forgeplan.core.network.SupabaseApi
 import com.example.forgeplan.core.repository.ProjectUserRepository
 import com.example.forgeplan.core.repository.UserRepository
 import com.example.forgeplan.core.ui.components.ForgeCard
@@ -44,9 +41,6 @@ import com.example.forgeplan.core.ui.components.ForgeSearchBar
 import com.example.forgeplan.core.ui.components.UserAvatarChip
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
-import retrofit2.Call
-import retrofit2.Callback
-import retrofit2.Response
 import kotlin.coroutines.resume
 
 data class TeamMemberUi(
@@ -79,15 +73,12 @@ fun TeamScreen(
     val members = users
         .filter { it.is_active }
         .map { user ->
-            val isOnline = viewModel.onlineUserIds.value.contains(user.id)
             TeamMemberUi(
                 initials = getInitials(user.name),
                 name = user.name,
                 username = user.username ?: "",
                 email = user.email,
                 role = translatedRole(user.role),
-                status = if (isOnline) appText(en = "Online", pt = "Online")
-                else appText(en = "Offline", pt = "Offline"),
                 projects = (projectCounts[user.id] ?: 0).toString()
             )
         }
@@ -96,8 +87,7 @@ fun TeamScreen(
         member.name.contains(searchText, ignoreCase = true) ||
                 member.username.contains(searchText, ignoreCase = true) ||
                 member.email.contains(searchText, ignoreCase = true) ||
-                member.role.contains(searchText, ignoreCase = true) ||
-                member.status.contains(searchText, ignoreCase = true)
+                member.role.contains(searchText, ignoreCase = true)
     }
 
     Column(
