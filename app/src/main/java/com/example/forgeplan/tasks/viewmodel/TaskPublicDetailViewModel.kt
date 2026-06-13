@@ -160,7 +160,7 @@ class TaskPublicDetailViewModel : ViewModel() {
         errorPrefix: String
     ) {
         val myId = SessionManager.userId
-        if (myId == -1L || content.isBlank()) return
+        if (myId == -1L || content.isBlank() || _isSending.value) return
 
         viewModelScope.launch {
             _isSending.value = true

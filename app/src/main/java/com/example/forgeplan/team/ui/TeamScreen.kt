@@ -34,6 +34,8 @@ import com.example.forgeplan.core.language.appText
 import com.example.forgeplan.core.model.ProjectUser
 import com.example.forgeplan.core.model.User
 import com.example.forgeplan.core.network.SupabaseApi
+import com.example.forgeplan.core.repository.ProjectUserRepository
+import com.example.forgeplan.core.repository.UserRepository
 import com.example.forgeplan.core.ui.components.ForgeCard
 import com.example.forgeplan.core.ui.components.ForgeMiniChip
 import com.example.forgeplan.core.ui.components.ForgePlanBottomBar
@@ -53,7 +55,6 @@ data class TeamMemberUi(
     val username: String,
     val email: String,
     val role: String,
-    val status: String,
     val projects: String
 )
 
@@ -225,18 +226,6 @@ fun TeamMemberCard(
             Column(
                 horizontalAlignment = Alignment.End
             ) {
-                ForgeMiniChip(text = appText(en = "Status", pt = "Estado"))
-
-                Spacer(modifier = Modifier.height(5.dp))
-
-                Text(
-                    text = "• ${member.status}",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-
-                Spacer(modifier = Modifier.height(26.dp))
-
                 ForgeMiniChip(text = appText(en = "Currently in", pt = "Atualmente em"))
 
                 Spacer(modifier = Modifier.height(5.dp))
@@ -278,54 +267,34 @@ private fun getInitials(name: String): String {
 
 class TeamViewModel : ViewModel() {
 
+    private val userRepo = UserRepository()
+    private val projectUserRepo = ProjectUserRepository()
+
     private val _users = mutableStateOf<List<User>>(emptyList())
     val users: State<List<User>> = _users
 
     private val _loading = mutableStateOf(true)
     val loading: State<Boolean> = _loading
 
-    // userId -> number of projects
     private val _projectCounts = mutableStateOf<Map<Long, Int>>(emptyMap())
     val projectCounts: State<Map<Long, Int>> = _projectCounts
-
-    // Set of user IDs currently considered "online" (only the logged-in user)
-    private val _onlineUserIds = mutableStateOf<Set<Long>>(emptySet())
-    val onlineUserIds: State<Set<Long>> = _onlineUserIds
 
     init {
         loadUsers()
     }
 
     private fun loadUsers() {
-        SupabaseApi.service.getUsers()
-            .enqueue(object : Callback<List<User>> {
-
-                override fun onResponse(
-                    call: Call<List<User>>,
-                    response: Response<List<User>>
-                ) {
-                    val userList = response.body() ?: emptyList()
-                    _users.value = userList
-                    _loading.value = false
-
-                    // Mark current user as online
-                    val currentUserId = com.example.forgeplan.core.session.SessionManager.userId
-                    if (currentUserId != -1L) {
-                        _onlineUserIds.value = setOf(currentUserId)
-                    }
-
-                    // Load project counts for all active users
-                    loadProjectCounts(userList.filter { it.is_active }.map { it.id })
-                }
-
-                override fun onFailure(
-                    call: Call<List<User>>,
-                    t: Throwable
-                ) {
-                    _users.value = emptyList()
-                    _loading.value = false
-                }
-            })
+        userRepo.getUsers(
+            onSuccess = { userList ->
+                _users.value = userList
+                _loading.value = false
+                loadProjectCounts(userList.filter { it.is_active }.map { it.id })
+            },
+            onError = {
+                _users.value = emptyList()
+                _loading.value = false
+            }
+        )
     }
 
     private fun loadProjectCounts(userIds: List<Long>) {
@@ -336,20 +305,11 @@ class TeamViewModel : ViewModel() {
 
             userIds.forEach { userId ->
                 val count = suspendCancellableCoroutine<Int> { cont ->
-                    SupabaseApi.service.getProjectUsersByUserId(
-                        userId = "eq.$userId"
-                    ).enqueue(object : Callback<List<ProjectUser>> {
-                        override fun onResponse(
-                            call: Call<List<ProjectUser>>,
-                            response: Response<List<ProjectUser>>
-                        ) {
-                            cont.resume(response.body()?.size ?: 0)
-                        }
-
-                        override fun onFailure(call: Call<List<ProjectUser>>, t: Throwable) {
-                            cont.resume(0)
-                        }
-                    })
+                    projectUserRepo.getProjectIdsByUserId(
+                        userId = userId,
+                        onSuccess = { cont.resume(it.size) },
+                        onError = { cont.resume(0) }
+                    )
                 }
                 counts[userId] = count
             }
