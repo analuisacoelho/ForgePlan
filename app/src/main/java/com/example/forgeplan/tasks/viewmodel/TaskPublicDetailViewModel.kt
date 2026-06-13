@@ -8,6 +8,7 @@ import com.example.forgeplan.core.model.Task
 import com.example.forgeplan.core.model.TaskLog
 import com.example.forgeplan.core.model.TaskPhoto
 import com.example.forgeplan.core.network.SupabaseApi
+import com.example.forgeplan.core.repository.ActivityLogRepository
 import com.example.forgeplan.core.repository.CommentRepository
 import com.example.forgeplan.core.repository.TaskLogRepository
 import com.example.forgeplan.core.repository.TaskRepository
@@ -29,6 +30,7 @@ class TaskPublicDetailViewModel : ViewModel() {
     private val taskRepo    = TaskRepository()
     private val taskLogRepo = TaskLogRepository()
     private val commentRepo = CommentRepository()
+    private val logRepository = ActivityLogRepository()
 
     private val _task = MutableStateFlow<Task?>(null)
     val task: StateFlow<Task?> = _task
@@ -169,6 +171,15 @@ class TaskPublicDetailViewModel : ViewModel() {
                     taskId = taskId,
                     userId = myId,
                     content = content.trim()
+                )
+
+                val tTitle = taskRepo.getTaskTitleById(taskId)
+                logRepository.logActivity(
+                    action = "Added comment",
+                    entityType = "comment",
+                    entityId = taskId,
+                    detailsEn = "User: ${SessionManager.currentUser?.name} added a comment to task '$tTitle'",
+                    detailsPt = "User: ${SessionManager.currentUser?.name} adicionou um comentário à tarefa '$tTitle'"
                 )
 
                 loadComments(taskId)

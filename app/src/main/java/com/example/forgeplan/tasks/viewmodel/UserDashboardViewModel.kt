@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.forgeplan.core.model.Project
 import com.example.forgeplan.core.model.Task
+import com.example.forgeplan.core.repository.ActivityLogRepository
 import com.example.forgeplan.core.repository.CommentRepository
 import com.example.forgeplan.core.repository.ProjectRepository
 import com.example.forgeplan.core.repository.ProjectUserRepository
@@ -23,6 +24,7 @@ class UserDashboardViewModel : ViewModel() {
     private val taskAssignmentRepo = TaskAssignmentRepository()
     private val taskRepo           = TaskRepository()
     private val commentRepo        = CommentRepository()
+    private val logRepository      = ActivityLogRepository()
 
     private val _isLoading = MutableStateFlow(false)
     val isLoading: StateFlow<Boolean> = _isLoading
@@ -155,6 +157,16 @@ class UserDashboardViewModel : ViewModel() {
                     userId = userId,
                     content = content
                 )
+                
+                val tTitle = taskRepo.getTaskTitleById(taskId)
+                logRepository.logActivity(
+                    action = "Added comment",
+                    entityType = "comment",
+                    entityId = taskId,
+                    detailsEn = "User: ${SessionManager.currentUser?.name} added a comment to task '$tTitle'",
+                    detailsPt = "User: ${SessionManager.currentUser?.name} adicionou um comentário à tarefa '$tTitle'"
+                )
+
                 onSuccess()
             } catch (e: Exception) {
                 onError(e.message ?: "Erro ao guardar comentário")

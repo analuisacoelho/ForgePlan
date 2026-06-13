@@ -250,6 +250,12 @@ interface SupabaseService {
         @Body projectUser: ProjectUserPayload
     ): Call<List<ProjectUser>>
 
+    @DELETE("project_users")
+    fun removeUserFromProject(
+        @Query("project_id") projectIdFilter: String,
+        @Query("user_id") userIdFilter: String
+    ): Call<Void>
+
     // ── PROJECT EVALUATIONS ──────────────────────────────────────────────────
 
     @GET("project_evaluations")

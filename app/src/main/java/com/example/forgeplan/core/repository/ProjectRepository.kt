@@ -379,6 +379,10 @@ class ProjectRepository {
     // MAPPERS
     // ─────────────────────────────────────────────────────────────────────
 
+    suspend fun getProjectNameById(projectId: Long): String = withContext(Dispatchers.IO) {
+        resolveEntity(projectId)?.name ?: "Projeto #$projectId"
+    }
+
     private fun ProjectEntity.toModel() = Project(
         id = remote_id ?: id,
         created_by_id = created_by_id,

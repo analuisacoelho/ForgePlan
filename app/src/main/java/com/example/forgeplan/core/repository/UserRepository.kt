@@ -54,6 +54,10 @@ class UserRepository {
         }
     }
 
+    suspend fun getUserNameById(userId: Long): String = withContext(Dispatchers.IO) {
+        db.userDao().getUserById(userId)?.name ?: "Utilizador #$userId"
+    }
+
     private fun User.toEntity() = UserEntity(
         id = id,
         name = name,

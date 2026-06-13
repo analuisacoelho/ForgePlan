@@ -1,14 +1,21 @@
 package com.example.forgeplan.tasks.viewmodel
 
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
 import com.example.forgeplan.core.model.TaskGroup
+import com.example.forgeplan.core.repository.ActivityLogRepository
+import com.example.forgeplan.core.repository.ProjectRepository
 import com.example.forgeplan.core.repository.TaskGroupRepository
+import com.example.forgeplan.core.session.SessionManager
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.launch
 
 class TaskGroupViewModel : ViewModel() {
 
     private val repository = TaskGroupRepository()
+    private val projectRepo = ProjectRepository()
+    private val logRepository = ActivityLogRepository()
 
     private val _groups = MutableStateFlow<List<TaskGroup>>(emptyList())
     val groups: StateFlow<List<TaskGroup>> = _groups
@@ -47,6 +54,18 @@ class TaskGroupViewModel : ViewModel() {
             name = name.trim(),
             onSuccess = {
                 loadGroups(projectId)
+
+                viewModelScope.launch {
+                    val pName = projectRepo.getProjectNameById(projectId)
+                    logRepository.logActivity(
+                        action = "Created task group",
+                        entityType = "task_group",
+                        entityId = projectId,
+                        detailsEn = "Manager: ${SessionManager.currentUser?.name} created task group '$name' in project '$pName'",
+                        detailsPt = "Manager: ${SessionManager.currentUser?.name} criou o grupo de tarefas '$name' no projeto '$pName'"
+                    )
+                }
+
                 onSuccess()
             },
             onError = { message ->

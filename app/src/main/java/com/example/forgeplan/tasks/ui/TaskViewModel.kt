@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.forgeplan.core.model.Task
 import com.example.forgeplan.core.notifications.NotificationHelper
+import com.example.forgeplan.core.repository.ActivityLogRepository
 import com.example.forgeplan.core.repository.TaskRepository
 import com.example.forgeplan.core.session.SessionManager
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -13,6 +14,7 @@ import kotlinx.coroutines.launch
 class TaskViewModel : ViewModel() {
 
     private val repository = TaskRepository()
+    private val logRepository = ActivityLogRepository()
 
     private val _tasks = MutableStateFlow<List<Task>>(emptyList())
     val tasks: StateFlow<List<Task>> = _tasks
@@ -73,9 +75,20 @@ class TaskViewModel : ViewModel() {
 
         repository.createTask(
             task = task,
-            onSuccess = {
+            onSuccess = { created ->
                 _isLoading.value = false
                 loadTasks(task.project_id)
+                
+                created?.let {
+                    logRepository.logActivity(
+                        action = "Created task",
+                        entityType = "task",
+                        entityId = it.id,
+                        detailsEn = "Manager: ${SessionManager.currentUser?.name} created task '${it.title}'",
+                        detailsPt = "Manager: ${SessionManager.currentUser?.name} criou a tarefa '${it.title}'"
+                    )
+                }
+                
                 onSuccess()
             },
             onError = { message ->
@@ -97,6 +110,17 @@ class TaskViewModel : ViewModel() {
             onSuccess = { createdTask ->
                 _isLoading.value = false
                 loadTasks(task.project_id)
+                
+                createdTask?.let {
+                    logRepository.logActivity(
+                        action = "Created task",
+                        entityType = "task",
+                        entityId = it.id,
+                        detailsEn = "Manager: ${SessionManager.currentUser?.name} created task '${it.title}'",
+                        detailsPt = "Manager: ${SessionManager.currentUser?.name} criou a tarefa '${it.title}'"
+                    )
+                }
+                
                 onSuccess(createdTask)
             },
             onError = { message ->
@@ -123,9 +147,17 @@ class TaskViewModel : ViewModel() {
 
         repository.updateTask(
             task = task,
-            onSuccess = {
+            onSuccess = { updated ->
                 _isLoading.value = false
                 loadTasks(task.project_id)
+
+                logRepository.logActivity(
+                    action = "Updated task",
+                    entityType = "task",
+                    entityId = task.id,
+                    detailsEn = "Manager: ${SessionManager.currentUser?.name} updated task '${task.title}'",
+                    detailsPt = "Manager: ${SessionManager.currentUser?.name} atualizou a tarefa '${task.title}'"
+                )
 
                 // ── NOTIFICAÇÕES ─────────────────────────────────────────────
                 if (previousTask != null) {
@@ -154,6 +186,17 @@ class TaskViewModel : ViewModel() {
                                 taskTitle       = task.title,
                                 newRate         = newRate,
                                 changedByUserId = userId
+                            )
+                        }
+
+                        // Log if completed
+                        if ((oldStatus != "DONE") && (newStatus == "DONE")) {
+                            logRepository.logActivity(
+                                action = "Completed task",
+                                entityType = "task",
+                                entityId = task.id,
+                                detailsEn = "User: ${SessionManager.currentUser?.name} marked task '${task.title}' as completed",
+                                detailsPt = "User: ${SessionManager.currentUser?.name} marcou a tarefa '${task.title}' como concluída"
                             )
                         }
                     }

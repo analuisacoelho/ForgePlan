@@ -10,6 +10,7 @@ import com.example.forgeplan.core.network.SupabaseApi
 import com.example.forgeplan.core.network.SupabaseService.TaskLogPayload
 import com.example.forgeplan.core.network.SupabaseService.TaskPhotoPayload
 import com.example.forgeplan.core.notifications.NotificationHelper
+import com.example.forgeplan.core.repository.ActivityLogRepository
 import com.example.forgeplan.core.repository.TaskLogRepository
 import com.example.forgeplan.core.repository.TaskRepository
 import com.example.forgeplan.core.session.SessionManager
@@ -32,6 +33,7 @@ class ProgressViewModel : ViewModel() {
 
     private val taskLogRepo = TaskLogRepository()
     private val taskRepo    = TaskRepository()
+    private val logRepository = ActivityLogRepository()
 
     private val _isSaving = MutableStateFlow(false)
     val isSaving: StateFlow<Boolean> = _isSaving
@@ -108,6 +110,16 @@ class ProgressViewModel : ViewModel() {
                 )
                 val logId = taskLogRepo.insertTaskLog(logPayload)
                 Log.d(TAG, "task_log inserted with id=$logId")
+
+                if (logId != -1L) {
+                    logRepository.logActivity(
+                        action = "Submitted progress",
+                        entityType = "task_log",
+                        entityId = task.id,
+                        detailsEn = "User: ${SessionManager.currentUser?.name} submitted progress for task '${task.title}'",
+                        detailsPt = "User: ${SessionManager.currentUser?.name} submeteu progresso para a tarefa '${task.title}'"
+                    )
+                }
 
                 // ── NOTIFICAÇÕES ─────────────────────────────────────────────
                 // Só notifica se algo mudou de facto

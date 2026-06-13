@@ -1,14 +1,19 @@
 package com.example.forgeplan.projects.viewmodel
 
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
 import com.example.forgeplan.core.model.Project
+import com.example.forgeplan.core.repository.ActivityLogRepository
 import com.example.forgeplan.core.repository.ProjectRepository
+import com.example.forgeplan.core.session.SessionManager
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.launch
 
 class ProjectDetailViewModel : ViewModel() {
 
     private val repository = ProjectRepository()
+    private val logRepository = ActivityLogRepository()
 
     private val _project = MutableStateFlow<Project?>(null)
     val project: StateFlow<Project?> = _project
@@ -46,7 +51,19 @@ class ProjectDetailViewModel : ViewModel() {
     ) {
         repository.archiveProject(
             projectId = projectId,
-            onSuccess = { onSuccess() },
+            onSuccess = {
+                viewModelScope.launch {
+                    val pName = repository.getProjectNameById(projectId)
+                    logRepository.logActivity(
+                        action = "Archived project",
+                        entityType = "project",
+                        entityId = projectId,
+                        detailsEn = "Admin: ${SessionManager.currentUser?.name} archived project '$pName'",
+                        detailsPt = "Admin: ${SessionManager.currentUser?.name} arquivou o projeto '$pName'"
+                    )
+                }
+                onSuccess()
+            },
             onError = { message -> onError(message) }
         )
     }

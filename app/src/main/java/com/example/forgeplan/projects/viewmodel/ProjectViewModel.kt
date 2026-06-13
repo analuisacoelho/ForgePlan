@@ -1,15 +1,20 @@
 package com.example.forgeplan.projects.viewmodel
 
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
 import com.example.forgeplan.core.model.Project
 import com.example.forgeplan.core.model.ProjectPayload
+import com.example.forgeplan.core.repository.ActivityLogRepository
 import com.example.forgeplan.core.repository.ProjectRepository
+import com.example.forgeplan.core.session.SessionManager
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.launch
 
 class ProjectViewModel : ViewModel() {
 
     private val repository = ProjectRepository()
+    private val logRepository = ActivityLogRepository()
 
     private val _projects = MutableStateFlow<List<Project>>(emptyList())
     val projects: StateFlow<List<Project>> = _projects
@@ -68,9 +73,20 @@ class ProjectViewModel : ViewModel() {
         _error.value = null
         repository.createProject(
             project = project,
-            onSuccess = {
+            onSuccess = { created ->
                 _isLoading.value = false
                 loadProjects()
+                
+                created?.let {
+                    logRepository.logActivity(
+                        action = "Created project",
+                        entityType = "project",
+                        entityId = it.id,
+                        detailsEn = "Admin: ${SessionManager.currentUser?.name} created project '${it.name}'",
+                        detailsPt = "Admin: ${SessionManager.currentUser?.name} criou o projeto '${it.name}'"
+                    )
+                }
+                
                 onSuccess()
             },
             onError = { errorMessage ->
@@ -93,6 +109,15 @@ class ProjectViewModel : ViewModel() {
             onSuccess = {
                 _isLoading.value = false
                 loadProjects()
+                
+                logRepository.logActivity(
+                    action = "Updated project",
+                    entityType = "project",
+                    entityId = projectId,
+                    detailsEn = "Admin: ${SessionManager.currentUser?.name} updated project '${project.name}'",
+                    detailsPt = "Admin: ${SessionManager.currentUser?.name} atualizou o projeto '${project.name}'"
+                )
+
                 onSuccess()
             },
             onError = { errorMessage ->
@@ -123,6 +148,18 @@ class ProjectViewModel : ViewModel() {
                 _archivedProjects.value = _archivedProjects.value.filter { it.id != projectId }
                 loadProjects()
                 loadArchivedProjects()
+
+                viewModelScope.launch {
+                    val pName = repository.getProjectNameById(projectId)
+                    logRepository.logActivity(
+                        action = "Restored project",
+                        entityType = "project",
+                        entityId = projectId,
+                        detailsEn = "Admin: ${SessionManager.currentUser?.name} restored project '$pName'",
+                        detailsPt = "Admin: ${SessionManager.currentUser?.name} restaurou o projeto '$pName'"
+                    )
+                }
+
                 onSuccess()
             },
             onError = onError

@@ -171,4 +171,38 @@ class ProjectUserRepository {
             }
         }
     }
+
+    fun removeUserFromProject(
+        projectId: Long,
+        userId: Long,
+        onSuccess: () -> Unit,
+        onError: (String) -> Unit
+    ) {
+        if (NetworkUtils.isOnline(context)) {
+            SupabaseApi.service.removeUserFromProject(
+                projectIdFilter = "eq.$projectId",
+                userIdFilter = "eq.$userId"
+            ).enqueue(object : Callback<Void> {
+                override fun onResponse(call: Call<Void>, response: Response<Void>) {
+                    if (response.isSuccessful) {
+                        CoroutineScope(Dispatchers.IO).launch {
+                            db.projectUserDao().deleteByProjectIdAndUserId(projectId, userId)
+                        }
+                        onSuccess()
+                    } else onError("Erro ao remover: ${response.code()}")
+                }
+                override fun onFailure(call: Call<Void>, t: Throwable) {
+                    CoroutineScope(Dispatchers.IO).launch {
+                        db.projectUserDao().deleteByProjectIdAndUserId(projectId, userId)
+                    }
+                    onSuccess()
+                }
+            })
+        } else {
+            CoroutineScope(Dispatchers.IO).launch {
+                db.projectUserDao().deleteByProjectIdAndUserId(projectId, userId)
+                withContext(Dispatchers.Main) { onSuccess() }
+            }
+        }
+    }
 }

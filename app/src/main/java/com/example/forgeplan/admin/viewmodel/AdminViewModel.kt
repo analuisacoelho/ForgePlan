@@ -7,7 +7,7 @@ import com.example.forgeplan.core.model.ActivityLog
 import com.example.forgeplan.core.model.Project
 import com.example.forgeplan.core.model.User
 import com.example.forgeplan.core.network.SupabaseApi
-import com.example.forgeplan.core.network.SupabaseService
+import com.example.forgeplan.core.repository.ActivityLogRepository
 import com.example.forgeplan.core.repository.ProjectRepository
 import com.example.forgeplan.core.repository.UserRepository
 import com.example.forgeplan.core.session.SessionManager
@@ -22,6 +22,7 @@ class AdminViewModel : ViewModel() {
     private val userRepository = UserRepository()
     private val authRepository = AuthRepository()
     private val projectRepository = ProjectRepository()
+    private val logRepository = ActivityLogRepository()
 
     private val _users = MutableStateFlow<List<User>>(emptyList())
     val users: StateFlow<List<User>> = _users
@@ -99,7 +100,7 @@ class AdminViewModel : ViewModel() {
             user = updated,
             onSuccess = {
                 val action = if (updated.is_active) "USER_ACTIVATED" else "USER_DEACTIVATED"
-                logActivity(
+                logRepository.logActivity(
                     action = action,
                     entityType = "user",
                     entityId = user.id,
@@ -126,7 +127,7 @@ class AdminViewModel : ViewModel() {
             password = hashedPassword,
             role = role,
             onSuccess = {
-                logActivity(
+                logRepository.logActivity(
                     action = "USER_CREATED",
                     entityType = "user",
                     entityId = 0L,
@@ -147,7 +148,7 @@ class AdminViewModel : ViewModel() {
         userRepository.updateUser(
             user = user,
             onSuccess = {
-                logActivity(
+                logRepository.logActivity(
                     action = "USER_UPDATED",
                     entityType = "user",
                     entityId = user.id,
@@ -167,7 +168,7 @@ class AdminViewModel : ViewModel() {
         userRepository.updateUser(
             user = updated,
             onSuccess = {
-                logActivity(
+                logRepository.logActivity(
                     action = "USER_PASSWORD_RESET",
                     entityType = "user",
                     entityId = user.id,
@@ -186,27 +187,5 @@ class AdminViewModel : ViewModel() {
     fun clearMessages() {
         _error.value = null
         _successMessage.value = null
-    }
-
-    private fun logActivity(
-        action: String,
-        entityType: String,
-        entityId: Long,
-        detailsEn: String,
-        detailsPt: String
-    ) {
-        val details = if (AppLanguage.isPortuguese()) detailsPt else detailsEn
-        val payload = SupabaseService.ActivityLogPayload(
-            user_id = SessionManager.userId,
-            action = action,
-            entity_type = entityType,
-            entity_id = entityId,
-            details = details
-        )
-        SupabaseApi.service.createActivityLog(payload)
-            .enqueue(object : Callback<Unit> {
-                override fun onResponse(call: Call<Unit>, response: Response<Unit>) {}
-                override fun onFailure(call: Call<Unit>, t: Throwable) {}
-            })
     }
 }

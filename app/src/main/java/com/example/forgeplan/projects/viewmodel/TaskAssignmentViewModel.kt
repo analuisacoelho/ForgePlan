@@ -4,8 +4,10 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.forgeplan.core.model.TaskAssignment
 import com.example.forgeplan.core.notifications.NotificationHelper
+import com.example.forgeplan.core.repository.ActivityLogRepository
 import com.example.forgeplan.core.repository.TaskAssignmentRepository
 import com.example.forgeplan.core.repository.TaskRepository
+import com.example.forgeplan.core.repository.UserRepository
 import com.example.forgeplan.core.session.SessionManager
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -17,6 +19,8 @@ class TaskAssignmentViewModel : ViewModel() {
 
     private val repository  = TaskAssignmentRepository()
     private val taskRepo    = TaskRepository()
+    private val userRepo    = UserRepository()
+    private val logRepository = ActivityLogRepository()
 
     private val _assignments = MutableStateFlow<List<TaskAssignment>>(emptyList())
     val assignments: StateFlow<List<TaskAssignment>> = _assignments
@@ -75,6 +79,18 @@ class TaskAssignmentViewModel : ViewModel() {
                 loadAssignments(taskId)
                 _isLoading.value = false
 
+                viewModelScope.launch {
+                    val uName = userRepo.getUserNameById(userId)
+                    val tTitle = taskTitle ?: taskRepo.getTaskTitleById(taskId)
+                    logRepository.logActivity(
+                        action = "Assigned user to task",
+                        entityType = "task_assignment",
+                        entityId = taskId,
+                        detailsEn = "Manager: ${SessionManager.currentUser?.name} assigned user '$uName' to task '$tTitle'",
+                        detailsPt = "Manager: ${SessionManager.currentUser?.name} associou o utilizador '$uName' à tarefa '$tTitle'"
+                    )
+                }
+
                 // ── NOTIFICAÇÃO ───────────────────────────────────────────────
                 // Só notifica se não for o próprio utilizador a atribuir-se
                 if (userId != SessionManager.userId) {
@@ -115,6 +131,19 @@ class TaskAssignmentViewModel : ViewModel() {
             onSuccess = {
                 loadAssignments(taskId)
                 _isLoading.value = false
+
+                viewModelScope.launch {
+                    val uName = userRepo.getUserNameById(userId)
+                    val tTitle = taskRepo.getTaskTitleById(taskId)
+                    logRepository.logActivity(
+                        action = "Removed user from task",
+                        entityType = "task_assignment",
+                        entityId = taskId,
+                        detailsEn = "Manager: ${SessionManager.currentUser?.name} removed user '$uName' from task '$tTitle'",
+                        detailsPt = "Manager: ${SessionManager.currentUser?.name} removeu o utilizador '$uName' da tarefa '$tTitle'"
+                    )
+                }
+
                 onSuccess()
             },
             onError = { message ->

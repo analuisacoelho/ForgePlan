@@ -20,4 +20,7 @@ interface ProjectUserDao {
 
     @Query("DELETE FROM project_users WHERE project_id = :projectId")
     suspend fun deleteByProjectId(projectId: Long)
+
+    @Query("DELETE FROM project_users WHERE project_id = :projectId AND user_id = :userId")
+    suspend fun deleteByProjectIdAndUserId(projectId: Long, userId: Long)
 }

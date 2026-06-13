@@ -327,6 +327,10 @@ class TaskRepository {
     // MAPPERS
     // ─────────────────────────────────────────────────────────────────────
 
+    suspend fun getTaskTitleById(taskId: Long): String = withContext(Dispatchers.IO) {
+        resolveEntity(taskId)?.title ?: "Tarefa #$taskId"
+    }
+
     private fun TaskEntity.toModel() = Task(
         id = remote_id ?: id,
         project_id = project_id,
