@@ -72,6 +72,7 @@ fun AdminProjectDetailScreen(
     onProfileClick: () -> Unit = {},
     onLogout: () -> Unit = {},
     onEditProjectClick: () -> Unit = {},
+    onTaskClick: (Long) -> Unit = {},
     viewModel: ProjectDetailViewModel = viewModel(),
     taskViewModel: TaskViewModel = viewModel(),
     userViewModel: UserViewModel = viewModel(),
@@ -224,7 +225,8 @@ fun AdminProjectDetailScreen(
                                         onSearchChange = { searchText = it },
                                         tasks = filteredTasks,
                                         totalTasks = tasks.size,
-                                        taskGroups = taskGroups
+                                        taskGroups = taskGroups,
+                                        onTaskClick = onTaskClick
                                     )
                                 }
                                 Column(modifier = Modifier.weight(0.8f)) {
@@ -247,7 +249,8 @@ fun AdminProjectDetailScreen(
                                 onSearchChange = { searchText = it },
                                 tasks = filteredTasks,
                                 totalTasks = tasks.size,
-                                taskGroups = taskGroups
+                                taskGroups = taskGroups,
+                                onTaskClick = onTaskClick
                             )
                             Spacer(modifier = Modifier.height(22.dp))
                             AdminTeamSection(
@@ -436,7 +439,8 @@ private fun AdminTasksSection(
     onSearchChange: (String) -> Unit,
     tasks: List<Task>,
     totalTasks: Int,
-    taskGroups: List<TaskGroup>
+    taskGroups: List<TaskGroup>,
+    onTaskClick: (Long) -> Unit
 ) {
     Text(
         text = appText(en = "Tasks", pt = "Tarefas"),
@@ -486,7 +490,7 @@ private fun AdminTasksSection(
                 }
             } else {
                 groupTasks.forEach { task ->
-                    AdminTaskCard(task = task)
+                    AdminTaskCard(task = task, onTaskClick = onTaskClick)
                     Spacer(modifier = Modifier.height(10.dp))
                 }
             }
@@ -502,7 +506,7 @@ private fun AdminTasksSection(
             )
             Spacer(modifier = Modifier.height(8.dp))
             groupTasks.forEach { task ->
-                AdminTaskCard(task = task)
+                AdminTaskCard(task = task, onTaskClick = onTaskClick)
                 Spacer(modifier = Modifier.height(10.dp))
             }
             Spacer(modifier = Modifier.height(14.dp))
@@ -521,12 +525,19 @@ private fun AdminTasksSection(
 }
 
 @Composable
-private fun AdminTaskCard(task: Task) {
+private fun AdminTaskCard(
+    task: Task,
+    onTaskClick: (Long) -> Unit
+) {
     val isDone = task.status?.uppercase() == "DONE"
     val isInProgress = task.status?.uppercase() == "IN_PROGRESS"
     val progress = task.completion_rate ?: 0
 
-    ForgeCard(modifier = Modifier.fillMaxWidth()) {
+    ForgeCard(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onTaskClick(task.id) }
+    ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()

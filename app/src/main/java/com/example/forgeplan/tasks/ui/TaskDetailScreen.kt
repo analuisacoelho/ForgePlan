@@ -76,6 +76,7 @@ fun TaskDetailScreen(
     taskId: Long,
     onBackClick: () -> Unit,
     onEditClick: (Long) -> Unit,
+    isReadOnly: Boolean = false,
     taskViewModel: TaskViewModel = viewModel(),
     projectViewModel: ProjectViewModel = viewModel(),
     assignmentViewModel: TaskAssignmentViewModel = viewModel(),
@@ -130,26 +131,18 @@ fun TaskDetailScreen(
 
     LaunchedEffect(project?.id) {
         project?.id?.let { projectId ->
-
             SupabaseApi.service.getProjectUsersByProjectId("eq.$projectId")
                 .enqueue(object : Callback<List<ProjectUser>> {
-
                     override fun onResponse(
                         call: Call<List<ProjectUser>>,
                         response: Response<List<ProjectUser>>
                     ) {
                         projectUserIds.clear()
                         projectUserIds.addAll(
-                            response.body()
-                                ?.map { it.user_id }
-                                ?: emptyList()
+                            response.body()?.map { it.user_id } ?: emptyList()
                         )
                     }
-
-                    override fun onFailure(
-                        call: Call<List<ProjectUser>>,
-                        t: Throwable
-                    ) {
+                    override fun onFailure(call: Call<List<ProjectUser>>, t: Throwable) {
                         projectUserIds.clear()
                     }
                 })
@@ -157,8 +150,7 @@ fun TaskDetailScreen(
     }
 
     val availableUsers = users.filter { user ->
-        user.role?.uppercase() == "USER" &&
-                projectUserIds.contains(user.id)
+        user.role?.uppercase() == "USER" && projectUserIds.contains(user.id)
     }
 
     Column(
@@ -179,21 +171,18 @@ fun TaskDetailScreen(
                 isLoading && task == null -> {
                     CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
                 }
-
                 error != null -> {
                     Text(
                         text = error ?: appText(en = "Unknown error", pt = "Erro desconhecido"),
                         color = MaterialTheme.colorScheme.error
                     )
                 }
-
                 task == null -> {
                     Text(
                         text = appText(en = "Task not found.", pt = "Tarefa não encontrada."),
                         color = MaterialTheme.colorScheme.onBackground
                     )
                 }
-
                 else -> {
                     TaskDetailContent(
                         task = task!!,
@@ -203,6 +192,7 @@ fun TaskDetailScreen(
                         assignmentError = assignmentError,
                         attachments = attachments,
                         taskLogs = taskLogs,
+                        isReadOnly = isReadOnly,
                         onManageWorkersClick = { showManageWorkersDialog = true },
                         onEditClick = { onEditClick(taskId) }
                     )
@@ -211,7 +201,7 @@ fun TaskDetailScreen(
         }
     }
 
-    if (showManageWorkersDialog) {
+    if (showManageWorkersDialog && !isReadOnly) {
         ManageTaskWorkersDialog(
             taskId = taskId,
             users = availableUsers,
@@ -223,9 +213,7 @@ fun TaskDetailScreen(
 }
 
 @Composable
-fun TaskDetailTopBar(
-    onBackClick: () -> Unit
-) {
+fun TaskDetailTopBar(onBackClick: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -240,9 +228,7 @@ fun TaskDetailTopBar(
             style = MaterialTheme.typography.headlineLarge,
             modifier = Modifier.clickable { onBackClick() }
         )
-
         Spacer(modifier = Modifier.width(14.dp))
-
         Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = appText(en = "Task Details", pt = "Detalhes da Tarefa"),
@@ -250,7 +236,6 @@ fun TaskDetailTopBar(
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onTertiary
             )
-
             Text(
                 text = "ForgePlan",
                 style = MaterialTheme.typography.bodySmall,
@@ -269,6 +254,7 @@ fun TaskDetailContent(
     assignmentError: String?,
     attachments: List<TaskAttachment>,
     taskLogs: List<TaskLog>,
+    isReadOnly: Boolean = false,
     onManageWorkersClick: () -> Unit,
     onEditClick: () -> Unit
 ) {
@@ -284,6 +270,7 @@ fun TaskDetailContent(
         TaskAssignedWorkersCard(
             users = assignedUsers,
             error = assignmentError,
+            isReadOnly = isReadOnly,
             onManageClick = onManageWorkersClick
         )
 
@@ -298,13 +285,14 @@ fun TaskDetailContent(
 
         TaskEvidenceCard(attachments = attachments)
 
-        Spacer(modifier = Modifier.height(22.dp))
-
-        ForgePrimaryButton(
-            text = appText(en = "Edit task", pt = "Editar tarefa"),
-            modifier = Modifier.fillMaxWidth(),
-            onClick = onEditClick
-        )
+        if (!isReadOnly) {
+            Spacer(modifier = Modifier.height(22.dp))
+            ForgePrimaryButton(
+                text = appText(en = "Edit task", pt = "Editar tarefa"),
+                modifier = Modifier.fillMaxWidth(),
+                onClick = onEditClick
+            )
+        }
 
         Spacer(modifier = Modifier.height(24.dp))
     }
@@ -347,16 +335,13 @@ fun ManageTaskWorkersDialog(
                         fontWeight = FontWeight.Bold,
                         modifier = Modifier.weight(1f)
                     )
-
                     Text(
                         text = "×",
                         style = MaterialTheme.typography.titleLarge,
                         modifier = Modifier.clickable { onDismiss() }
                     )
                 }
-
                 Spacer(modifier = Modifier.height(6.dp))
-
                 Text(
                     text = appText(
                         en = "Select workers for this task",
@@ -384,9 +369,7 @@ fun ManageTaskWorkersDialog(
                     singleLine = true,
                     shape = RoundedCornerShape(10.dp)
                 )
-
                 Spacer(modifier = Modifier.height(14.dp))
-
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -395,16 +378,12 @@ fun ManageTaskWorkersDialog(
                 ) {
                     filteredUsers.forEach { user ->
                         val isSelected = selectedUserIds.contains(user.id)
-
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clickable {
-                                    if (isSelected) {
-                                        selectedUserIds.remove(user.id)
-                                    } else {
-                                        selectedUserIds.add(user.id)
-                                    }
+                                    if (isSelected) selectedUserIds.remove(user.id)
+                                    else selectedUserIds.add(user.id)
                                 }
                                 .padding(vertical = 10.dp),
                             verticalAlignment = Alignment.CenterVertically
@@ -413,28 +392,21 @@ fun ManageTaskWorkersDialog(
                                 checked = isSelected,
                                 onCheckedChange = { checked ->
                                     if (checked) {
-                                        if (!selectedUserIds.contains(user.id)) {
-                                            selectedUserIds.add(user.id)
-                                        }
+                                        if (!selectedUserIds.contains(user.id)) selectedUserIds.add(user.id)
                                     } else {
                                         selectedUserIds.remove(user.id)
                                     }
                                 }
                             )
-
                             Spacer(modifier = Modifier.width(8.dp))
-
                             UserAvatarChip(initials = taskDetailUserInitials(user))
-
                             Spacer(modifier = Modifier.width(12.dp))
-
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(
                                     text = user.name,
                                     style = MaterialTheme.typography.bodyMedium,
                                     fontWeight = FontWeight.Bold
                                 )
-
                                 Text(
                                     text = "${user.role ?: appText(en = "Worker", pt = "Trabalhador")} • ${user.email}",
                                     style = MaterialTheme.typography.bodySmall,
@@ -444,9 +416,7 @@ fun ManageTaskWorkersDialog(
                         }
                     }
                 }
-
                 Spacer(modifier = Modifier.height(10.dp))
-
                 Text(
                     text = appText(
                         en = "${selectedUserIds.size} users selected",
@@ -462,7 +432,6 @@ fun ManageTaskWorkersDialog(
                 onClick = {
                     val originalIds = assignedUserIds.toSet()
                     val newIds = selectedUserIds.toSet()
-
                     val usersToAdd = newIds - originalIds
                     val usersToRemove = originalIds - newIds
 
@@ -470,22 +439,16 @@ fun ManageTaskWorkersDialog(
                         assignmentViewModel.assignUserToTask(
                             taskId = taskId,
                             userId = userId,
-                            onSuccess = {
-                                assignmentViewModel.loadAssignments(taskId)
-                            }
+                            onSuccess = { assignmentViewModel.loadAssignments(taskId) }
                         )
                     }
-
                     usersToRemove.forEach { userId ->
                         assignmentViewModel.removeUserFromTask(
                             taskId = taskId,
                             userId = userId,
-                            onSuccess = {
-                                assignmentViewModel.loadAssignments(taskId)
-                            }
+                            onSuccess = { assignmentViewModel.loadAssignments(taskId) }
                         )
                     }
-
                     assignmentViewModel.loadAssignments(taskId)
                     onDismiss()
                 }
@@ -502,10 +465,7 @@ fun ManageTaskWorkersDialog(
 }
 
 @Composable
-fun TaskMainInfoCard(
-    task: Task,
-    project: Project?
-) {
+fun TaskMainInfoCard(task: Task, project: Project?) {
     val progress = task.completion_rate ?: 0
     val isDone = task.status?.uppercase() == "DONE"
 
@@ -528,9 +488,7 @@ fun TaskMainInfoCard(
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onSurface
                     )
-
                     Spacer(modifier = Modifier.height(8.dp))
-
                     Text(
                         text = appText(
                             en = "Project: ${project?.name ?: "Project ${task.project_id}"}",
@@ -540,7 +498,6 @@ fun TaskMainInfoCard(
                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.68f)
                     )
                 }
-
                 ForgeMiniChip(
                     text = readableTaskDetailStatus(task.status),
                     containerColor = if (isDone) Color(0xFFB7EBC0) else MaterialTheme.colorScheme.secondaryContainer,
@@ -565,7 +522,6 @@ fun TaskMainInfoCard(
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.72f)
                 )
-
                 Text(
                     text = "$progress%",
                     style = MaterialTheme.typography.bodyMedium,
@@ -594,7 +550,6 @@ fun TaskMainInfoCard(
                     value = task.start_date ?: appText(en = "No date", pt = "Sem data"),
                     modifier = Modifier.weight(1f)
                 )
-
                 TaskDetailIconInfo(
                     icon = "▣",
                     label = appText(en = "End Date", pt = "Data de fim"),
@@ -612,7 +567,6 @@ fun TaskMainInfoCard(
                     value = task.task_group ?: appText(en = "No group", pt = "Sem grupo"),
                     modifier = Modifier.weight(1f)
                 )
-
                 TaskDetailIconInfo(
                     icon = "◷",
                     label = appText(en = "Priority", pt = "Prioridade"),
@@ -625,9 +579,7 @@ fun TaskMainInfoCard(
 }
 
 @Composable
-fun TaskDescriptionBox(
-    text: String
-) {
+fun TaskDescriptionBox(text: String) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(10.dp),
@@ -640,9 +592,7 @@ fun TaskDescriptionBox(
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onSecondaryContainer
             )
-
             Spacer(modifier = Modifier.height(8.dp))
-
             Text(
                 text = text,
                 style = MaterialTheme.typography.bodyMedium,
@@ -659,25 +609,19 @@ fun TaskDetailIconInfo(
     value: String,
     modifier: Modifier = Modifier
 ) {
-    Row(
-        modifier = modifier,
-        verticalAlignment = Alignment.Top
-    ) {
+    Row(modifier = modifier, verticalAlignment = Alignment.Top) {
         Text(
             text = icon,
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.65f)
         )
-
         Spacer(modifier = Modifier.width(8.dp))
-
         Column {
             Text(
                 text = label,
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.68f)
             )
-
             Text(
                 text = value,
                 style = MaterialTheme.typography.bodyMedium,
@@ -692,6 +636,7 @@ fun TaskDetailIconInfo(
 fun TaskAssignedWorkersCard(
     users: List<User>,
     error: String?,
+    isReadOnly: Boolean = false,
     onManageClick: () -> Unit
 ) {
     Surface(
@@ -712,32 +657,31 @@ fun TaskAssignedWorkersCard(
                     color = MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier.weight(1f)
                 )
-
-                Surface(
-                    shape = RoundedCornerShape(8.dp),
-                    color = MaterialTheme.colorScheme.background,
-                    tonalElevation = 1.dp,
-                    modifier = Modifier.clickable { onManageClick() }
-                ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically
+                if (!isReadOnly) {
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = MaterialTheme.colorScheme.background,
+                        tonalElevation = 1.dp,
+                        modifier = Modifier.clickable { onManageClick() }
                     ) {
-                        Icon(
-                            imageVector = Icons.Outlined.PersonAddAlt1,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSurface,
-                            modifier = Modifier.size(18.dp)
-                        )
-
-                        Spacer(modifier = Modifier.width(8.dp))
-
-                        Text(
-                            text = appText(en = "Manage", pt = "Gerir"),
-                            style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
+                        Row(
+                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Outlined.PersonAddAlt1,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onSurface,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = appText(en = "Manage", pt = "Gerir"),
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
                     }
                 }
             }
@@ -750,7 +694,6 @@ fun TaskAssignedWorkersCard(
                     color = MaterialTheme.colorScheme.error,
                     style = MaterialTheme.typography.bodySmall
                 )
-
                 Spacer(modifier = Modifier.height(10.dp))
             }
 
@@ -774,9 +717,7 @@ fun TaskAssignedWorkersCard(
 }
 
 @Composable
-fun TaskAssignedWorkerRow(
-    user: User
-) {
+fun TaskAssignedWorkerRow(user: User) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(8.dp),
@@ -787,9 +728,7 @@ fun TaskAssignedWorkerRow(
             verticalAlignment = Alignment.CenterVertically
         ) {
             UserAvatarChip(initials = taskDetailUserInitials(user))
-
             Spacer(modifier = Modifier.width(14.dp))
-
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = user.name,
@@ -797,7 +736,6 @@ fun TaskAssignedWorkerRow(
                     fontWeight = FontWeight.Medium,
                     color = MaterialTheme.colorScheme.onSecondaryContainer
                 )
-
                 Text(
                     text = user.role ?: appText(en = "Worker", pt = "Trabalhador"),
                     style = MaterialTheme.typography.bodyMedium,
@@ -809,10 +747,7 @@ fun TaskAssignedWorkerRow(
 }
 
 @Composable
-fun TaskWorkerObservationsCard(
-    taskLogs: List<TaskLog>,
-    users: List<User>
-) {
+fun TaskWorkerObservationsCard(taskLogs: List<TaskLog>, users: List<User>) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(12.dp),
@@ -826,9 +761,7 @@ fun TaskWorkerObservationsCard(
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onSurface
             )
-
             Spacer(modifier = Modifier.height(22.dp))
-
             if (taskLogs.isEmpty()) {
                 Surface(
                     modifier = Modifier.fillMaxWidth(),
@@ -843,9 +776,7 @@ fun TaskWorkerObservationsCard(
                                 .clip(RoundedCornerShape(50))
                                 .background(MaterialTheme.colorScheme.primary)
                         )
-
                         Spacer(modifier = Modifier.width(12.dp))
-
                         Text(
                             text = appText(
                                 en = "No observations recorded yet.",
@@ -859,12 +790,7 @@ fun TaskWorkerObservationsCard(
             } else {
                 taskLogs.forEach { log ->
                     val author = users.firstOrNull { it.id == log.user_id }
-
-                    TaskLogObservationRow(
-                        log = log,
-                        author = author
-                    )
-
+                    TaskLogObservationRow(log = log, author = author)
                     Spacer(modifier = Modifier.height(10.dp))
                 }
             }
@@ -873,19 +799,13 @@ fun TaskWorkerObservationsCard(
 }
 
 @Composable
-fun TaskLogObservationRow(
-    log: TaskLog,
-    author: User?
-) {
+fun TaskLogObservationRow(log: TaskLog, author: User?) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(8.dp),
         color = MaterialTheme.colorScheme.secondaryContainer
     ) {
-        Row(
-            modifier = Modifier.padding(14.dp),
-            verticalAlignment = Alignment.Top
-        ) {
+        Row(modifier = Modifier.padding(14.dp), verticalAlignment = Alignment.Top) {
             Box(
                 modifier = Modifier
                     .width(4.dp)
@@ -893,9 +813,7 @@ fun TaskLogObservationRow(
                     .clip(RoundedCornerShape(50))
                     .background(MaterialTheme.colorScheme.primary)
             )
-
             Spacer(modifier = Modifier.width(12.dp))
-
             Column(modifier = Modifier.weight(1f)) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -905,7 +823,6 @@ fun TaskLogObservationRow(
                         UserAvatarChip(initials = taskDetailUserInitials(author))
                         Spacer(modifier = Modifier.width(8.dp))
                     }
-
                     Text(
                         text = author?.name ?: appText(en = "Unknown user", pt = "Utilizador desconhecido"),
                         style = MaterialTheme.typography.bodyMedium,
@@ -913,25 +830,20 @@ fun TaskLogObservationRow(
                         color = MaterialTheme.colorScheme.onSecondaryContainer,
                         modifier = Modifier.weight(1f)
                     )
-
                     Text(
                         text = formatLogDate(log.created_at).ifBlank { log.log_date ?: "" },
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.65f)
                     )
                 }
-
                 Spacer(modifier = Modifier.height(8.dp))
-
                 Text(
                     text = log.notes ?: "",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.82f)
                 )
-
                 if (!log.location.isNullOrBlank() || log.minutes_spent != null || log.completion_rate != null) {
                     Spacer(modifier = Modifier.height(6.dp))
-
                     Text(
                         text = listOfNotNull(
                             log.location,
@@ -948,9 +860,7 @@ fun TaskLogObservationRow(
 }
 
 @Composable
-fun TaskEvidenceCard(
-    attachments: List<TaskAttachment>
-) {
+fun TaskEvidenceCard(attachments: List<TaskAttachment>) {
     val context = LocalContext.current
 
     Surface(
@@ -966,9 +876,7 @@ fun TaskEvidenceCard(
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onSurface
             )
-
             Spacer(modifier = Modifier.height(18.dp))
-
             Surface(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(8.dp),
@@ -984,7 +892,6 @@ fun TaskEvidenceCard(
                         color = MaterialTheme.colorScheme.onSecondaryContainer,
                         modifier = Modifier.weight(1f)
                     )
-
                     Text(
                         text = appText(
                             en = "${attachments.size} ${if (attachments.size == 1) "file" else "files"}",
@@ -996,9 +903,7 @@ fun TaskEvidenceCard(
                     )
                 }
             }
-
             Spacer(modifier = Modifier.height(12.dp))
-
             if (attachments.isEmpty()) {
                 Text(
                     text = appText(
@@ -1012,14 +917,8 @@ fun TaskEvidenceCard(
                 attachments.forEach { attachment ->
                     TaskEvidenceFileRow(
                         fileName = attachment.file_name ?: appText(en = "Attachment", pt = "Anexo"),
-                        onClick = {
-                            openTaskAttachment(
-                                context = context,
-                                attachment = attachment
-                            )
-                        }
+                        onClick = { openTaskAttachment(context = context, attachment = attachment) }
                     )
-
                     Spacer(modifier = Modifier.height(8.dp))
                 }
             }
@@ -1028,10 +927,7 @@ fun TaskEvidenceCard(
 }
 
 @Composable
-fun TaskEvidenceFileRow(
-    fileName: String,
-    onClick: () -> Unit
-) {
+fun TaskEvidenceFileRow(fileName: String, onClick: () -> Unit) {
     Surface(
         modifier = Modifier
             .fillMaxWidth()
@@ -1048,9 +944,7 @@ fun TaskEvidenceFileRow(
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSecondaryContainer
             )
-
             Spacer(modifier = Modifier.width(10.dp))
-
             Text(
                 text = fileName,
                 style = MaterialTheme.typography.bodyMedium,
@@ -1058,7 +952,6 @@ fun TaskEvidenceFileRow(
                 modifier = Modifier.weight(1f),
                 maxLines = 1
             )
-
             Text(
                 text = appText(en = "Open", pt = "Abrir"),
                 style = MaterialTheme.typography.bodySmall,
@@ -1096,67 +989,33 @@ private fun formatLogDate(value: String?): String {
         ?: ""
 }
 
-private fun openTaskAttachment(
-    context: Context,
-    attachment: TaskAttachment
-) {
+private fun openTaskAttachment(context: Context, attachment: TaskAttachment) {
     val fileUrl = attachment.file_url
-
     if (fileUrl.isNullOrBlank()) {
-        Toast.makeText(
-            context,
-            "Ficheiro indisponível.",
-            Toast.LENGTH_SHORT
-        ).show()
+        Toast.makeText(context, "Ficheiro indisponível.", Toast.LENGTH_SHORT).show()
         return
     }
-
     try {
         val uri = Uri.parse(fileUrl)
-
         val intent = Intent(Intent.ACTION_VIEW).apply {
             setDataAndType(uri, attachment.file_type ?: "*/*")
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         }
-
-        context.startActivity(
-            Intent.createChooser(
-                intent,
-                "Open attachment"
-            )
-        )
+        context.startActivity(Intent.createChooser(intent, "Open attachment"))
     } catch (e: ActivityNotFoundException) {
-        Toast.makeText(
-            context,
-            "Não existe nenhuma app para abrir este ficheiro.",
-            Toast.LENGTH_SHORT
-        ).show()
+        Toast.makeText(context, "Não existe nenhuma app para abrir este ficheiro.", Toast.LENGTH_SHORT).show()
     } catch (e: Exception) {
-        Toast.makeText(
-            context,
-            "Não foi possível abrir o ficheiro.",
-            Toast.LENGTH_SHORT
-        ).show()
+        Toast.makeText(context, "Não foi possível abrir o ficheiro.", Toast.LENGTH_SHORT).show()
     }
 }
 
-private fun loadTaskDetailAttachments(
-    taskId: Long,
-    onSuccess: (List<TaskAttachment>) -> Unit
-) {
+private fun loadTaskDetailAttachments(taskId: Long, onSuccess: (List<TaskAttachment>) -> Unit) {
     SupabaseApi.service.getTaskAttachmentsByTaskId("eq.$taskId")
         .enqueue(object : Callback<List<TaskAttachment>> {
-            override fun onResponse(
-                call: Call<List<TaskAttachment>>,
-                response: Response<List<TaskAttachment>>
-            ) {
+            override fun onResponse(call: Call<List<TaskAttachment>>, response: Response<List<TaskAttachment>>) {
                 onSuccess(response.body() ?: emptyList())
             }
-
-            override fun onFailure(
-                call: Call<List<TaskAttachment>>,
-                t: Throwable
-            ) {
+            override fun onFailure(call: Call<List<TaskAttachment>>, t: Throwable) {
                 onSuccess(emptyList())
             }
         })

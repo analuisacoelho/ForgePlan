@@ -133,10 +133,23 @@ fun AppNavigation(
                 projectId = projectId,
                 onBackClick = { navController.navigate("admin") },
                 onEditProjectClick = { navController.navigate("adminEditProject/$projectId") },
+                onTaskClick = { taskId -> navController.navigate("adminTaskDetail/$taskId") },
                 onUsersClick = { navController.navigate("adminUsers") },
                 onActivityClick = { navController.navigate("adminActivity") },
                 onProfileClick = { navController.navigate("profile") },
                 onLogout = { navController.navigate("login") { popUpTo(0) { inclusive = true } } }
+            )
+        }
+
+        composable(
+            route = "adminTaskDetail/{taskId}",
+            arguments = listOf(navArgument("taskId") { type = NavType.LongType })
+        ) { back ->
+            TaskDetailScreen(
+                taskId = back.arguments?.getLong("taskId") ?: 0L,
+                onBackClick = { navController.popBackStack() },
+                onEditClick = { navController.popBackStack() },
+                isReadOnly = true
             )
         }
 
