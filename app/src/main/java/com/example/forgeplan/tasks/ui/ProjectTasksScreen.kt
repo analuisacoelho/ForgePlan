@@ -443,13 +443,7 @@ fun TaskCard(
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable {
-                if (isBlockedByDep) {
-                    showBlockedDialog = true
-                } else {
-                    onClick()
-                }
-            },
+            .clickable { onClick() },
         shape  = RoundedCornerShape(22.dp),
         colors = CardDefaults.cardColors(containerColor = containerColor)
     ) {
@@ -551,6 +545,16 @@ fun TaskCard(
                         }
                     }
                 }
+            }
+
+            if (isBlockedByDep && blockingTaskNames.isNotEmpty()) {
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    text = appText("Depends on: ", "Depende de: ") + blockingTaskNames.joinToString(", "),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error,
+                    maxLines = 1
+                )
             }
 
             Spacer(Modifier.height(6.dp))

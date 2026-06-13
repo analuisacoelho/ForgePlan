@@ -10,6 +10,7 @@ import com.example.forgeplan.core.database.dao.ProjectUserDao
 import com.example.forgeplan.core.database.dao.TaskAssignmentDao
 import com.example.forgeplan.core.database.dao.TaskAttachmentDao
 import com.example.forgeplan.core.database.dao.TaskDao
+import com.example.forgeplan.core.database.dao.TaskDependencyDao
 import com.example.forgeplan.core.database.dao.TaskLogDao
 import com.example.forgeplan.core.database.dao.TaskPhotoDao
 import com.example.forgeplan.core.database.dao.UserDao
@@ -20,6 +21,7 @@ import com.example.forgeplan.core.database.entity.ProjectEntity
 import com.example.forgeplan.core.database.entity.ProjectUserEntity
 import com.example.forgeplan.core.database.entity.TaskAssignmentEntity
 import com.example.forgeplan.core.database.entity.TaskAttachmentEntity
+import com.example.forgeplan.core.database.entity.TaskDependencyEntity
 import com.example.forgeplan.core.database.entity.TaskEntity
 import com.example.forgeplan.core.database.entity.TaskLogEntity
 import com.example.forgeplan.core.database.entity.TaskPhotoEntity
@@ -37,9 +39,10 @@ import com.example.forgeplan.core.database.entity.UserEntity
         CommentEntity::class,
         ProjectUserEntity::class,
         TaskAssignmentEntity::class,
-        NotificationEntity::class
+        NotificationEntity::class,
+        TaskDependencyEntity::class
     ],
-    version = 4,
+    version = 5,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -54,4 +57,5 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun projectUserDao(): ProjectUserDao
     abstract fun taskAssignmentDao(): TaskAssignmentDao
     abstract fun notificationDao(): NotificationDao
+    abstract fun taskDependencyDao(): TaskDependencyDao
 }

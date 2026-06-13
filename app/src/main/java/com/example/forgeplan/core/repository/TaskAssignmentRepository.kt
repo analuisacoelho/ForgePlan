@@ -113,23 +113,34 @@ class TaskAssignmentRepository {
         onSuccess: (TaskAssignment?) -> Unit,
         onError: (String) -> Unit
     ) {
-        SupabaseApi.service.assignUserToTask(assignment)
-            .enqueue(object : Callback<List<TaskAssignment>> {
-                override fun onResponse(call: Call<List<TaskAssignment>>, response: Response<List<TaskAssignment>>) {
-                    if (response.isSuccessful) {
-                        onSuccess(response.body()?.firstOrNull())
-                    } else {
-                        if (response.code() == 409) {
+        if (NetworkUtils.isOnline(context)) {
+            SupabaseApi.service.assignUserToTask(assignment)
+                .enqueue(object : Callback<List<TaskAssignment>> {
+                    override fun onResponse(call: Call<List<TaskAssignment>>, response: Response<List<TaskAssignment>>) {
+                        if (response.isSuccessful) {
+                            onSuccess(response.body()?.firstOrNull())
+                        } else if (response.code() == 409) {
                             onError("Este utilizador já está associado à tarefa.")
                         } else {
-                            onError("Erro ao associar utilizador à tarefa: ${response.code()}")
+                            saveAssignmentLocally(assignment, onSuccess)
                         }
                     }
-                }
-                override fun onFailure(call: Call<List<TaskAssignment>>, t: Throwable) {
-                    onError(t.message ?: "Erro desconhecido")
-                }
-            })
+                    override fun onFailure(call: Call<List<TaskAssignment>>, t: Throwable) {
+                        saveAssignmentLocally(assignment, onSuccess)
+                    }
+                })
+        } else {
+            saveAssignmentLocally(assignment, onSuccess)
+        }
+    }
+
+    private fun saveAssignmentLocally(assignment: TaskAssignment, onSuccess: (TaskAssignment?) -> Unit) {
+        CoroutineScope(Dispatchers.IO).launch {
+            db.taskAssignmentDao().insertAll(listOf(
+                TaskAssignmentEntity(task_id = assignment.task_id, user_id = assignment.user_id, is_synced = false)
+            ))
+            withContext(Dispatchers.Main) { onSuccess(assignment) }
+        }
     }
 
     fun removeUserFromTask(
@@ -138,18 +149,32 @@ class TaskAssignmentRepository {
         onSuccess: () -> Unit,
         onError: (String) -> Unit
     ) {
-        SupabaseApi.service.removeUserFromTask(
-            taskIdFilter = "eq.$taskId",
-            userIdFilter = "eq.$userId"
-        ).enqueue(object : Callback<Void> {
-            override fun onResponse(call: Call<Void>, response: Response<Void>) {
-                if (response.isSuccessful) onSuccess()
-                else onError("Erro ao remover utilizador da tarefa: ${response.code()}")
+        if (NetworkUtils.isOnline(context)) {
+            SupabaseApi.service.removeUserFromTask(
+                taskIdFilter = "eq.$taskId",
+                userIdFilter = "eq.$userId"
+            ).enqueue(object : Callback<Void> {
+                override fun onResponse(call: Call<Void>, response: Response<Void>) {
+                    if (response.isSuccessful) {
+                        CoroutineScope(Dispatchers.IO).launch {
+                            db.taskAssignmentDao().deleteByTaskAndUser(taskId, userId)
+                        }
+                        onSuccess()
+                    } else onError("Erro ao remover utilizador da tarefa: ${response.code()}")
+                }
+                override fun onFailure(call: Call<Void>, t: Throwable) {
+                    CoroutineScope(Dispatchers.IO).launch {
+                        db.taskAssignmentDao().deleteByTaskAndUser(taskId, userId)
+                    }
+                    onSuccess()
+                }
+            })
+        } else {
+            CoroutineScope(Dispatchers.IO).launch {
+                db.taskAssignmentDao().deleteByTaskAndUser(taskId, userId)
+                withContext(Dispatchers.Main) { onSuccess() }
             }
-            override fun onFailure(call: Call<Void>, t: Throwable) {
-                onError(t.message ?: "Erro desconhecido")
-            }
-        })
+        }
     }
 
     suspend fun getUserIdsForTask(taskId: Long): List<Long> =

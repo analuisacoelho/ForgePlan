@@ -27,7 +27,12 @@ import com.example.forgeplan.core.ui.components.ForgePlanBottomBar
 import com.example.forgeplan.core.ui.components.ForgePlanTopBar
 import com.example.forgeplan.notifications.viewmodel.NotificationViewModel
 import com.example.forgeplan.tasks.viewmodel.TaskPublicDetailViewModel
+import com.example.forgeplan.core.model.Task
 import com.example.forgeplan.core.model.TaskLog
+import com.example.forgeplan.core.repository.TaskDependencyRepository
+import com.example.forgeplan.core.repository.TaskRepository
+import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlin.coroutines.resume
 
 @Composable
 fun TaskOwnerDetailScreen(
@@ -57,9 +62,46 @@ fun TaskOwnerDetailScreen(
 
     var commentText by remember { mutableStateOf("") }
 
+    // ── Bloqueio por dependências ─────────────────────────────────────────────
+    var isBlocked by remember { mutableStateOf(false) }
+    val blockingNames = remember { mutableStateListOf<String>() }
+    var showBlockedDialog by remember { mutableStateOf(false) }
+    // ─────────────────────────────────────────────────────────────────────────
+
     LaunchedEffect(taskId) {
         viewModel.load(taskId)
         notifVm.load()                             // ← carrega contagem de não lidas
+    }
+
+    LaunchedEffect(task) {
+        isBlocked = false
+        blockingNames.clear()
+
+        val t2 = task ?: return@LaunchedEffect
+        val depRepo = TaskDependencyRepository()
+        val taskRepo = TaskRepository()
+
+        val deps = suspendCancellableCoroutine<List<Long>> { cont ->
+            depRepo.getDependencies(
+                taskId = t2.id,
+                onSuccess = { result -> cont.resume(result.map { it.depends_on_task_id }) },
+                onError = { cont.resume(emptyList()) }
+            )
+        }
+
+        deps.forEach { depId ->
+            val depTask = suspendCancellableCoroutine<Task?> { cont ->
+                taskRepo.getTaskById(
+                    taskId = depId,
+                    onSuccess = { cont.resume(it) },
+                    onError = { cont.resume(null) }
+                )
+            }
+            if (depTask != null && depTask.status?.uppercase() != "DONE") {
+                blockingNames.add(depTask.title)
+            }
+        }
+        isBlocked = blockingNames.isNotEmpty()
     }
 
     Scaffold(
@@ -260,14 +302,37 @@ fun TaskOwnerDetailScreen(
             Spacer(Modifier.height(12.dp))
 
             Button(
-                onClick = { onAddProgress(taskId) },
+                onClick = {
+                    if (isBlocked) showBlockedDialog = true
+                    else onAddProgress(taskId)
+                },
+                enabled = !isBlocked,
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Text("Adicionar progresso")
+                Text(if (isBlocked) "Bloqueado — depende de outra tarefa" else "Adicionar progresso")
             }
 
             Spacer(Modifier.height(24.dp))
         }
+    }
+
+    if (showBlockedDialog) {
+        AlertDialog(
+            onDismissRequest = { showBlockedDialog = false },
+            title = { Text("Tarefa Bloqueada") },
+            text = {
+                Column {
+                    Text("Ainda não podes adicionar progresso. Esta tarefa depende de:")
+                    Spacer(Modifier.height(8.dp))
+                    blockingNames.forEach {
+                        Text("• $it", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.error)
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showBlockedDialog = false }) { Text("OK") }
+            }
+        )
     }
 }
 

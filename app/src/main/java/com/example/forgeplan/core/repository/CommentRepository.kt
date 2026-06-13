@@ -86,8 +86,24 @@ class CommentRepository {
             SupabaseApi.service.getCommentsByTaskId("eq.$taskId")
                 .enqueue(object : Callback<List<Comment>> {
                     override fun onResponse(call: Call<List<Comment>>, response: Response<List<Comment>>) {
-                        if (response.isSuccessful) onSuccess(response.body() ?: emptyList())
-                        else loadLocalComments(taskId, onSuccess)
+                        if (response.isSuccessful) {
+                            val remote = response.body() ?: emptyList()
+                            kotlinx.coroutines.CoroutineScope(Dispatchers.IO).launch {
+                                remote.forEach {
+                                    db.commentDao().insert(
+                                        CommentEntity(
+                                            id = it.id,
+                                            task_id = it.task_id,
+                                            user_id = it.user_id,
+                                            content = it.content,
+                                            created_at = it.created_at,
+                                            is_synced = true
+                                        )
+                                    )
+                                }
+                            }
+                            onSuccess(remote)
+                        } else loadLocalComments(taskId, onSuccess)
                     }
                     override fun onFailure(call: Call<List<Comment>>, t: Throwable) {
                         loadLocalComments(taskId, onSuccess)

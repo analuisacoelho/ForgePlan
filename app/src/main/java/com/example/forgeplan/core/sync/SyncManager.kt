@@ -12,6 +12,8 @@ import com.example.forgeplan.core.network.SupabaseService
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 /**
  * CONVENÇÃO DE IDs (Caminho B):
@@ -31,19 +33,23 @@ import kotlinx.coroutines.launch
  */
 object SyncManager {
 
+    private val syncMutex = Mutex()
+
     fun syncIfOnline(context: Context) {
         if (!NetworkUtils.isOnline(context)) return
 
         CoroutineScope(Dispatchers.IO).launch {
-            val db = DatabaseProvider.getDatabase(context)
-            val syncedProjects = syncProjects(db)
-            fixTaskProjectIdsAfterProjectSync(db, syncedProjects)
-            syncTasks(db)
-            syncTaskLogs(db)
-            syncTaskPhotos(db)
-            syncComments(db)
-            syncTaskAttachments(db)
-            syncProjectAttachments(db)
+            syncMutex.withLock {
+                val db = DatabaseProvider.getDatabase(context)
+                val syncedProjects = syncProjects(db)
+                fixTaskProjectIdsAfterProjectSync(db, syncedProjects)
+                syncTasks(db)
+                syncTaskLogs(db)
+                syncTaskPhotos(db)
+                syncComments(db)
+                syncTaskAttachments(db)
+                syncProjectAttachments(db)
+            }
         }
     }
 

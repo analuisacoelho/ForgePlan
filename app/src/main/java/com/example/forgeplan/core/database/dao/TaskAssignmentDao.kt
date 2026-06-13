@@ -23,4 +23,7 @@ interface TaskAssignmentDao {
 
     @Query("DELETE FROM task_assignments WHERE task_id = :taskId")
     suspend fun deleteByTaskId(taskId: Long)
+
+    @Query("DELETE FROM task_assignments WHERE task_id = :taskId AND user_id = :userId")
+    suspend fun deleteByTaskAndUser(taskId: Long, userId: Long)
 }
