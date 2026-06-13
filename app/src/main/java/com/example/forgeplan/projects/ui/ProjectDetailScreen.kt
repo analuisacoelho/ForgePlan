@@ -146,7 +146,7 @@ fun ProjectDetailScreen(
                 isLoading -> CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
 
                 error != null -> Text(
-                    text = error ?: appText(en = "Unknown error", pt = "Erro desconhecido"),
+                    text = error!!,
                     color = MaterialTheme.colorScheme.error
                 )
 
