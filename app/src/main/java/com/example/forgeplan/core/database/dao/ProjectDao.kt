@@ -16,6 +16,9 @@ interface ProjectDao {
     @Query("SELECT * FROM projects WHERE id = :id")
     suspend fun getProjectById(id: Long): ProjectEntity?
 
+    @Query("SELECT * FROM projects WHERE remote_id = :remoteId LIMIT 1")
+    suspend fun getProjectByRemoteId(remoteId: Long): ProjectEntity?
+
     @Query("SELECT * FROM projects WHERE is_synced = 0")
     suspend fun getUnsynced(): List<ProjectEntity>
 

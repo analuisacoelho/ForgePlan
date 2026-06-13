@@ -1,8 +1,14 @@
 package com.example.forgeplan.core.repository
 
+import com.example.forgeplan.ForgePlanApplication
+import com.example.forgeplan.core.database.DatabaseProvider
+import com.example.forgeplan.core.database.entity.TaskAssignmentEntity
 import com.example.forgeplan.core.model.TaskAssignment
+import com.example.forgeplan.core.network.NetworkUtils
 import com.example.forgeplan.core.network.SupabaseApi
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import retrofit2.Call
 import retrofit2.Callback
@@ -10,59 +16,96 @@ import retrofit2.Response
 
 class TaskAssignmentRepository {
 
+    private val context get() = ForgePlanApplication.instance
+    private val db get() = DatabaseProvider.getDatabase(context)
+
     fun getAssignmentsByTaskId(
         taskId: Long,
         onSuccess: (List<TaskAssignment>) -> Unit,
         onError: (String) -> Unit
     ) {
-        SupabaseApi.service.getTaskAssignmentsByTaskId("eq.$taskId")
-            .enqueue(object : Callback<List<TaskAssignment>> {
-                override fun onResponse(
-                    call: Call<List<TaskAssignment>>,
-                    response: Response<List<TaskAssignment>>
-                ) {
-                    if (response.isSuccessful) {
-                        onSuccess(response.body() ?: emptyList())
-                    } else {
-                        onError("Erro ao carregar associações: ${response.code()}")
+        if (NetworkUtils.isOnline(context)) {
+            SupabaseApi.service.getTaskAssignmentsByTaskId("eq.$taskId")
+                .enqueue(object : Callback<List<TaskAssignment>> {
+                    override fun onResponse(call: Call<List<TaskAssignment>>, response: Response<List<TaskAssignment>>) {
+                        if (response.isSuccessful) {
+                            val list = response.body() ?: emptyList()
+                            CoroutineScope(Dispatchers.IO).launch {
+                                db.taskAssignmentDao().insertAll(list.map {
+                                    TaskAssignmentEntity(task_id = it.task_id, user_id = it.user_id, is_synced = true)
+                                })
+                            }
+                            onSuccess(list)
+                        } else loadLocalByTaskId(taskId, onSuccess)
                     }
-                }
-
-                override fun onFailure(
-                    call: Call<List<TaskAssignment>>,
-                    t: Throwable
-                ) {
-                    onError(t.message ?: "Erro desconhecido")
-                }
-            })
+                    override fun onFailure(call: Call<List<TaskAssignment>>, t: Throwable) {
+                        loadLocalByTaskId(taskId, onSuccess)
+                    }
+                })
+        } else {
+            loadLocalByTaskId(taskId, onSuccess)
+        }
     }
 
+    private fun loadLocalByTaskId(taskId: Long, onSuccess: (List<TaskAssignment>) -> Unit) {
+        CoroutineScope(Dispatchers.IO).launch {
+            val local = db.taskAssignmentDao().getByTaskId(taskId).map {
+                TaskAssignment(task_id = it.task_id, user_id = it.user_id, assigned_at = null)
+            }
+            withContext(Dispatchers.Main) { onSuccess(local) }
+        }
+    }
+
+    /**
+     * Devolve os task_id de todas as tarefas atribuídas ao utilizador.
+     * task_id em task_assignments é gravado como o id "público" da task
+     * (remote_id ?: id, igual ao que TaskRepository.toModel() devolve),
+     * por isso não precisa de tradução extra ao comparar com Task.id na UI.
+     */
     fun getTaskIdsByUserId(
         userId: Long,
         onSuccess: (List<Long>) -> Unit,
         onError: (String) -> Unit
     ) {
-        SupabaseApi.service.getTaskAssignmentsByUserId("eq.$userId")
-            .enqueue(object : Callback<List<TaskAssignment>> {
-                override fun onResponse(
-                    call: Call<List<TaskAssignment>>,
-                    response: Response<List<TaskAssignment>>
-                ) {
-                    if (response.isSuccessful) {
-                        val ids = response.body()?.map { it.task_id } ?: emptyList()
-                        onSuccess(ids)
-                    } else {
-                        onError("Erro ao carregar tarefas do utilizador: ${response.code()}")
+        if (NetworkUtils.isOnline(context)) {
+            SupabaseApi.service.getTaskAssignmentsByUserId("eq.$userId")
+                .enqueue(object : Callback<List<TaskAssignment>> {
+                    override fun onResponse(call: Call<List<TaskAssignment>>, response: Response<List<TaskAssignment>>) {
+                        if (response.isSuccessful) {
+                            val list = response.body() ?: emptyList()
+                            CoroutineScope(Dispatchers.IO).launch {
+                                db.taskAssignmentDao().insertAll(list.map {
+                                    TaskAssignmentEntity(task_id = it.task_id, user_id = it.user_id, is_synced = true)
+                                })
+                            }
+                            onSuccess(list.map { it.task_id })
+                        } else loadLocalIdsByUserId(userId, onSuccess)
                     }
-                }
+                    override fun onFailure(call: Call<List<TaskAssignment>>, t: Throwable) {
+                        loadLocalIdsByUserId(userId, onSuccess)
+                    }
+                })
+        } else {
+            loadLocalIdsByUserId(userId, onSuccess)
+        }
+    }
 
-                override fun onFailure(
-                    call: Call<List<TaskAssignment>>,
-                    t: Throwable
-                ) {
-                    onError(t.message ?: "Erro desconhecido")
-                }
-            })
+    private fun loadLocalIdsByUserId(userId: Long, onSuccess: (List<Long>) -> Unit) {
+        CoroutineScope(Dispatchers.IO).launch {
+            val rows = db.taskAssignmentDao().getByUserId(userId)
+
+            // row.task_id foi gravado como o id "público" da task (remote_id ?: id).
+            // Resolve para o id atual que a UI usa via TaskDao (cobre o caso de
+            // uma task ter sido criada offline e mais tarde sincronizada, mudando
+            // de id local para remote_id).
+            val resolvedIds = rows.mapNotNull { row ->
+                val task = db.taskDao().getTaskByRemoteId(row.task_id)
+                    ?: db.taskDao().getTaskById(row.task_id)
+                task?.let { it.remote_id ?: it.id } ?: row.task_id
+            }.distinct()
+
+            withContext(Dispatchers.Main) { onSuccess(resolvedIds) }
+        }
     }
 
     fun assignUserToTask(
@@ -72,10 +115,7 @@ class TaskAssignmentRepository {
     ) {
         SupabaseApi.service.assignUserToTask(assignment)
             .enqueue(object : Callback<List<TaskAssignment>> {
-                override fun onResponse(
-                    call: Call<List<TaskAssignment>>,
-                    response: Response<List<TaskAssignment>>
-                ) {
+                override fun onResponse(call: Call<List<TaskAssignment>>, response: Response<List<TaskAssignment>>) {
                     if (response.isSuccessful) {
                         onSuccess(response.body()?.firstOrNull())
                     } else {
@@ -86,11 +126,7 @@ class TaskAssignmentRepository {
                         }
                     }
                 }
-
-                override fun onFailure(
-                    call: Call<List<TaskAssignment>>,
-                    t: Throwable
-                ) {
+                override fun onFailure(call: Call<List<TaskAssignment>>, t: Throwable) {
                     onError(t.message ?: "Erro desconhecido")
                 }
             })
@@ -106,30 +142,16 @@ class TaskAssignmentRepository {
             taskIdFilter = "eq.$taskId",
             userIdFilter = "eq.$userId"
         ).enqueue(object : Callback<Void> {
-            override fun onResponse(
-                call: Call<Void>,
-                response: Response<Void>
-            ) {
-                if (response.isSuccessful) {
-                    onSuccess()
-                } else {
-                    onError("Erro ao remover utilizador da tarefa: ${response.code()}")
-                }
+            override fun onResponse(call: Call<Void>, response: Response<Void>) {
+                if (response.isSuccessful) onSuccess()
+                else onError("Erro ao remover utilizador da tarefa: ${response.code()}")
             }
-
-            override fun onFailure(
-                call: Call<Void>,
-                t: Throwable
-            ) {
+            override fun onFailure(call: Call<Void>, t: Throwable) {
                 onError(t.message ?: "Erro desconhecido")
             }
         })
     }
 
-    /**
-     * Devolve os user_id de todos os utilizadores atribuídos a uma tarefa.
-     * Usado pelo NotificationHelper para saber quem notificar.
-     */
     suspend fun getUserIdsForTask(taskId: Long): List<Long> =
         withContext(Dispatchers.IO) {
             try {

@@ -11,8 +11,6 @@ data class Task(
     val completion_rate: Int?,
     val start_date: String?,
     val end_date: String?,
-
-    // NOVO
     val task_group: String?
 )
 

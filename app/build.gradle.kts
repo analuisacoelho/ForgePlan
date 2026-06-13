@@ -2,7 +2,9 @@ import java.util.Properties
 
 plugins {
     alias(libs.plugins.android.application)
+    alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
+    alias(libs.plugins.ksp)
 }
 
 // Lê o local.properties para não expor keys no código
@@ -14,18 +16,17 @@ if (localPropertiesFile.exists()) {
 
 android {
     namespace = "com.example.forgeplan"
-    compileSdk = 36
+    compileSdk = 35
 
     defaultConfig {
         applicationId = "com.example.forgeplan"
         minSdk = 28
-        targetSdk = 36
+        targetSdk = 35
         versionCode = 1
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
-        // Injeta as keys do local.properties — nunca hardcoded no código
         buildConfigField("String", "SUPABASE_URL", "\"${localProperties["SUPABASE_URL"]}\"")
         buildConfigField("String", "SUPABASE_ANON_KEY", "\"${localProperties["SUPABASE_ANON_KEY"]}\"")
     }
@@ -45,6 +46,10 @@ android {
         targetCompatibility = JavaVersion.VERSION_11
     }
 
+    kotlinOptions {
+        jvmTarget = "11"
+    }
+
     buildFeatures {
         compose = true
         buildConfig = true
@@ -62,27 +67,31 @@ dependencies {
     implementation(libs.androidx.compose.ui.graphics)
     implementation(libs.androidx.compose.ui.tooling.preview)
     implementation(libs.androidx.compose.material3)
+
+    // Coil
     implementation("io.coil-kt:coil-compose:2.6.0")
+
     // Rede
     implementation("com.squareup.retrofit2:retrofit:2.11.0")
     implementation("com.squareup.retrofit2:converter-gson:2.11.0")
     implementation("com.google.code.gson:gson:2.10.1")
-    implementation("io.coil-kt:coil-compose:2.6.0")
+    implementation("com.squareup.okhttp3:logging-interceptor:4.12.0")
     implementation("com.github.yalantis:ucrop:2.2.8")
 
     // Navegação
     implementation("androidx.navigation:navigation-compose:2.8.0")
 
-    // Room (base de dados local)
-    implementation("androidx.room:room-runtime:2.6.1")
-    implementation("androidx.room:room-ktx:2.6.1")
-
-    // Ktor (cliente HTTP para Supabase SDK)
+    // Ktor
     implementation("io.ktor:ktor-client-android:3.1.2")
 
-    // BCrypt para hashing de passwords
+    // BCrypt
     implementation("at.favre.lib:bcrypt:0.10.2")
-    implementation("com.squareup.okhttp3:logging-interceptor:4.12.0")
+
+    // Room
+    val roomVersion = "2.6.1"
+    implementation("androidx.room:room-runtime:$roomVersion")
+    implementation("androidx.room:room-ktx:$roomVersion")
+    ksp("androidx.room:room-compiler:$roomVersion")
 
     // Testes
     testImplementation(libs.junit)

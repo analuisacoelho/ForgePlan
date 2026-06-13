@@ -4,6 +4,7 @@ import androidx.room.Database
 import androidx.room.RoomDatabase
 import com.example.forgeplan.core.database.dao.CommentDao
 import com.example.forgeplan.core.database.dao.NotificationDao
+import com.example.forgeplan.core.database.dao.ProjectAttachmentDao
 import com.example.forgeplan.core.database.dao.ProjectDao
 import com.example.forgeplan.core.database.dao.ProjectUserDao
 import com.example.forgeplan.core.database.dao.TaskAssignmentDao
@@ -14,6 +15,7 @@ import com.example.forgeplan.core.database.dao.TaskPhotoDao
 import com.example.forgeplan.core.database.dao.UserDao
 import com.example.forgeplan.core.database.entity.CommentEntity
 import com.example.forgeplan.core.database.entity.NotificationEntity
+import com.example.forgeplan.core.database.entity.ProjectAttachmentEntity
 import com.example.forgeplan.core.database.entity.ProjectEntity
 import com.example.forgeplan.core.database.entity.ProjectUserEntity
 import com.example.forgeplan.core.database.entity.TaskAssignmentEntity
@@ -31,12 +33,13 @@ import com.example.forgeplan.core.database.entity.UserEntity
         TaskLogEntity::class,
         TaskPhotoEntity::class,
         TaskAttachmentEntity::class,
+        ProjectAttachmentEntity::class,
         CommentEntity::class,
         ProjectUserEntity::class,
         TaskAssignmentEntity::class,
         NotificationEntity::class
     ],
-    version = 3,
+    version = 4,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -46,6 +49,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun taskLogDao(): TaskLogDao
     abstract fun taskPhotoDao(): TaskPhotoDao
     abstract fun taskAttachmentDao(): TaskAttachmentDao
+    abstract fun projectAttachmentDao(): ProjectAttachmentDao
     abstract fun commentDao(): CommentDao
     abstract fun projectUserDao(): ProjectUserDao
     abstract fun taskAssignmentDao(): TaskAssignmentDao

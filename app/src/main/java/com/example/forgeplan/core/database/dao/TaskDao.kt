@@ -19,6 +19,9 @@ interface TaskDao {
     @Query("SELECT * FROM tasks WHERE id = :id")
     suspend fun getTaskById(id: Long): TaskEntity?
 
+    @Query("SELECT * FROM tasks WHERE remote_id = :remoteId LIMIT 1")
+    suspend fun getTaskByRemoteId(remoteId: Long): TaskEntity?
+
     @Query("SELECT * FROM tasks WHERE is_synced = 0")
     suspend fun getUnsynced(): List<TaskEntity>
 

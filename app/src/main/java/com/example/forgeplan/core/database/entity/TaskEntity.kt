@@ -1,9 +1,13 @@
 package com.example.forgeplan.core.database.entity
 
 import androidx.room.Entity
+import androidx.room.Index
 import androidx.room.PrimaryKey
 
-@Entity(tableName = "tasks")
+@Entity(
+    tableName = "tasks",
+    indices = [Index(value = ["remote_id"], unique = true)]
+)
 data class TaskEntity(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val remote_id: Long? = null,
