@@ -17,11 +17,14 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.PersonRemove
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -226,13 +229,27 @@ fun AdminProjectDetailScreen(
                                         tasks = filteredTasks,
                                         totalTasks = tasks.size,
                                         taskGroups = taskGroups,
-                                        onTaskClick = onTaskClick
+                                        onTaskClick = onTaskClick,
+                                        onDeleteTask = { task ->
+                                            taskViewModel.deleteTask(task, onSuccess = {
+                                                taskViewModel.loadTasks(projectId)
+                                            })
+                                        }
                                     )
                                 }
                                 Column(modifier = Modifier.weight(0.8f)) {
                                     AdminTeamSection(
                                         users = assignedUsers,
-                                        onAddManagerClick = { showAddManagerDialog = true }
+                                        onAddManagerClick = { showAddManagerDialog = true },
+                                        onRemoveUser = { user ->
+                                            projectUserViewModel.removeUserFromProject(
+                                                projectId = projectId,
+                                                userId = user.id,
+                                                onSuccess = {
+                                                    projectUserViewModel.loadProjectUsers(projectId)
+                                                }
+                                            )
+                                        }
                                     )
 
                                     Spacer(modifier = Modifier.height(14.dp))
@@ -250,12 +267,26 @@ fun AdminProjectDetailScreen(
                                 tasks = filteredTasks,
                                 totalTasks = tasks.size,
                                 taskGroups = taskGroups,
-                                onTaskClick = onTaskClick
+                                onTaskClick = onTaskClick,
+                                onDeleteTask = { task ->
+                                    taskViewModel.deleteTask(task, onSuccess = {
+                                        taskViewModel.loadTasks(projectId)
+                                    })
+                                }
                             )
                             Spacer(modifier = Modifier.height(22.dp))
                             AdminTeamSection(
                                 users = assignedUsers,
-                                onAddManagerClick = { showAddManagerDialog = true }
+                                onAddManagerClick = { showAddManagerDialog = true },
+                                onRemoveUser = { user ->
+                                    projectUserViewModel.removeUserFromProject(
+                                        projectId = projectId,
+                                        userId = user.id,
+                                        onSuccess = {
+                                            projectUserViewModel.loadProjectUsers(projectId)
+                                        }
+                                    )
+                                }
                             )
 
                             Spacer(modifier = Modifier.height(14.dp))
@@ -440,7 +471,8 @@ private fun AdminTasksSection(
     tasks: List<Task>,
     totalTasks: Int,
     taskGroups: List<TaskGroup>,
-    onTaskClick: (Long) -> Unit
+    onTaskClick: (Long) -> Unit,
+    onDeleteTask: (Task) -> Unit
 ) {
     Text(
         text = appText(en = "Tasks", pt = "Tarefas"),
@@ -490,7 +522,11 @@ private fun AdminTasksSection(
                 }
             } else {
                 groupTasks.forEach { task ->
-                    AdminTaskCard(task = task, onTaskClick = onTaskClick)
+                    AdminTaskCard(
+                        task = task,
+                        onTaskClick = onTaskClick,
+                        onDeleteClick = { onDeleteTask(task) }
+                    )
                     Spacer(modifier = Modifier.height(10.dp))
                 }
             }
@@ -506,7 +542,11 @@ private fun AdminTasksSection(
             )
             Spacer(modifier = Modifier.height(8.dp))
             groupTasks.forEach { task ->
-                AdminTaskCard(task = task, onTaskClick = onTaskClick)
+                AdminTaskCard(
+                    task = task,
+                    onTaskClick = onTaskClick,
+                    onDeleteClick = { onDeleteTask(task) }
+                )
                 Spacer(modifier = Modifier.height(10.dp))
             }
             Spacer(modifier = Modifier.height(14.dp))
@@ -527,7 +567,8 @@ private fun AdminTasksSection(
 @Composable
 private fun AdminTaskCard(
     task: Task,
-    onTaskClick: (Long) -> Unit
+    onTaskClick: (Long) -> Unit,
+    onDeleteClick: () -> Unit
 ) {
     val isDone = task.status?.uppercase() == "DONE"
     val isInProgress = task.status?.uppercase() == "IN_PROGRESS"
@@ -559,23 +600,37 @@ private fun AdminTaskCard(
                         maxLines = 2
                     )
                 }
-                ForgeMiniChip(
-                    text = when (task.status?.uppercase()) {
-                        "DONE" -> appText(en = "Done", pt = "Feita")
-                        "IN_PROGRESS" -> appText(en = "In Progress", pt = "Em progresso")
-                        else -> appText(en = "To Do", pt = "Por fazer")
-                    },
-                    containerColor = when {
-                        isDone -> Color(0xFFB7EBC0)
-                        isInProgress -> MaterialTheme.colorScheme.primary
-                        else -> MaterialTheme.colorScheme.secondaryContainer
-                    },
-                    contentColor = when {
-                        isDone -> Color(0xFF14532D)
-                        isInProgress -> MaterialTheme.colorScheme.onPrimary
-                        else -> MaterialTheme.colorScheme.onSecondaryContainer
+
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (progress == 0) {
+                        IconButton(onClick = onDeleteClick) {
+                            Icon(
+                                imageVector = Icons.Default.Delete,
+                                contentDescription = appText(en = "Delete", pt = "Eliminar"),
+                                tint = MaterialTheme.colorScheme.error.copy(alpha = 0.7f),
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
                     }
-                )
+
+                    ForgeMiniChip(
+                        text = when (task.status?.uppercase()) {
+                            "DONE" -> appText(en = "Done", pt = "Feita")
+                            "IN_PROGRESS" -> appText(en = "In Progress", pt = "Em progresso")
+                            else -> appText(en = "To Do", pt = "Por fazer")
+                        },
+                        containerColor = when {
+                            isDone -> Color(0xFFB7EBC0)
+                            isInProgress -> MaterialTheme.colorScheme.primary
+                            else -> MaterialTheme.colorScheme.secondaryContainer
+                        },
+                        contentColor = when {
+                            isDone -> Color(0xFF14532D)
+                            isInProgress -> MaterialTheme.colorScheme.onPrimary
+                            else -> MaterialTheme.colorScheme.onSecondaryContainer
+                        }
+                    )
+                }
             }
 
             Spacer(modifier = Modifier.height(10.dp))
@@ -604,7 +659,8 @@ private fun AdminTaskCard(
 @Composable
 private fun AdminTeamSection(
     users: List<User>,
-    onAddManagerClick: () -> Unit
+    onAddManagerClick: () -> Unit,
+    onRemoveUser: (User) -> Unit
 ) {
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -655,9 +711,25 @@ private fun AdminTeamSection(
                                 color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.65f)
                             )
                         }
-                        ForgeMiniChip(
-                            text = user.role.lowercase().replaceFirstChar { it.uppercase() }
-                        )
+                        
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            ForgeMiniChip(
+                                text = user.role.lowercase().replaceFirstChar { it.uppercase() }
+                            )
+                            
+                            val isUser = user.role.uppercase() == "USER"
+                            if (isUser) {
+                                Spacer(modifier = Modifier.width(8.dp))
+                                IconButton(onClick = { onRemoveUser(user) }) {
+                                    Icon(
+                                        imageVector = Icons.Default.PersonRemove,
+                                        contentDescription = appText(en = "Remove", pt = "Remover"),
+                                        tint = MaterialTheme.colorScheme.error.copy(alpha = 0.7f),
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
+                            }
+                        }
                     }
                     Spacer(modifier = Modifier.height(12.dp))
                 }

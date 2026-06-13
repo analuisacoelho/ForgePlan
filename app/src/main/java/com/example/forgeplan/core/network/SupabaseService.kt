@@ -122,6 +122,11 @@ interface SupabaseService {
         @Body task: TaskPayload
     ): Call<List<Task>>
 
+    @DELETE("tasks")
+    fun deleteTask(
+        @Query("id") idFilter: String
+    ): Call<Void>
+
     // ── TASK LOGS ────────────────────────────────────────────────────────────
 
     data class TaskLogPayload(

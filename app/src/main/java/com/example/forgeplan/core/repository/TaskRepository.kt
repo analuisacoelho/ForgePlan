@@ -289,6 +289,43 @@ class TaskRepository {
         )
     }
 
+    fun deleteTask(
+        taskId: Long,
+        onSuccess: () -> Unit,
+        onError: (String) -> Unit
+    ) {
+        CoroutineScope(Dispatchers.IO).launch {
+            val existing = resolveEntity(taskId)
+            val remoteId = existing?.remote_id
+
+            if (NetworkUtils.isOnline(context) && remoteId != null) {
+                SupabaseApi.service.deleteTask("eq.$remoteId")
+                    .enqueue(object : Callback<Void> {
+                        override fun onResponse(call: Call<Void>, response: Response<Void>) {
+                            if (response.isSuccessful) {
+                                CoroutineScope(Dispatchers.IO).launch {
+                                    db.taskDao().deleteById(taskId)
+                                    if (existing.id != taskId) db.taskDao().deleteById(existing.id)
+                                }
+                                onSuccess()
+                            } else onError("Erro ao eliminar tarefa: ${response.code()}")
+                        }
+                        override fun onFailure(call: Call<Void>, t: Throwable) {
+                            // Mesmo com falha de rede, se já tentámos apagar o remoto e falhou a resposta,
+                            // podemos apagar local se quisermos forçar, mas o ideal é manter para sync.
+                            // Para tarefas sem progressão, vamos apagar local anyway se falhar rede? 
+                            // Melhor não, para manter consistência.
+                            onError(t.message ?: "Erro de rede ao eliminar")
+                        }
+                    })
+            } else {
+                // Só local ou offline
+                db.taskDao().deleteById(taskId)
+                withContext(Dispatchers.Main) { onSuccess() }
+            }
+        }
+    }
+
     // ─────────────────────────────────────────────────────────────────────
     // REMOTE <-> LOCAL MAPPING
     // ─────────────────────────────────────────────────────────────────────

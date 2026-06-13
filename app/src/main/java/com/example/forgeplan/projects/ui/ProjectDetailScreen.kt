@@ -12,12 +12,18 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.PersonRemove
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -227,7 +233,12 @@ fun ProjectDetailScreen(
                                             )
                                         }
                                     },
-                                    onTaskClick = onTaskClick
+                                    onTaskClick = onTaskClick,
+                                    onDeleteTask = { task ->
+                                        taskViewModel.deleteTask(task, onSuccess = {
+                                            taskViewModel.loadTasks(projectId)
+                                        })
+                                    }
                                 )
                             }
 
@@ -236,7 +247,16 @@ fun ProjectDetailScreen(
                                     users = assignedUsers,
                                     error = projectUserError,
                                     onAddUserClick = { showAddUserDialog = true },
-                                    isReadOnly = isDone
+                                    isReadOnly = isDone,
+                                    onRemoveUser = { user ->
+                                        projectUserViewModel.removeUserFromProject(
+                                            projectId = projectId,
+                                            userId = user.id,
+                                            onSuccess = {
+                                                projectUserViewModel.loadProjectUsers(projectId)
+                                            }
+                                        )
+                                    }
                                 )
                             }
                         }
@@ -264,7 +284,12 @@ fun ProjectDetailScreen(
                                     )
                                 }
                             },
-                            onTaskClick = onTaskClick
+                            onTaskClick = onTaskClick,
+                            onDeleteTask = { task ->
+                                taskViewModel.deleteTask(task, onSuccess = {
+                                    taskViewModel.loadTasks(projectId)
+                                })
+                            }
                         )
 
                         Spacer(modifier = Modifier.height(22.dp))
@@ -273,7 +298,16 @@ fun ProjectDetailScreen(
                             users = assignedUsers,
                             error = projectUserError,
                             onAddUserClick = { showAddUserDialog = true },
-                            isReadOnly = isDone
+                            isReadOnly = isDone,
+                            onRemoveUser = { user ->
+                                projectUserViewModel.removeUserFromProject(
+                                    projectId = projectId,
+                                    userId = user.id,
+                                    onSuccess = {
+                                        projectUserViewModel.loadProjectUsers(projectId)
+                                    }
+                                )
+                            }
                         )
                     }
                 }
@@ -321,7 +355,8 @@ fun ProjectDetailTasksArea(
     onNewGroupNameChange: (String) -> Unit,
     onShowCreateGroupChange: (Boolean) -> Unit,
     onCreateGroup: () -> Unit,
-    onTaskClick: (Long) -> Unit
+    onTaskClick: (Long) -> Unit,
+    onDeleteTask: (Task) -> Unit
 ) {
     Text(
         text = appText(en = "Tasks", pt = "Tarefas"),
@@ -387,7 +422,8 @@ fun ProjectDetailTasksArea(
         tasks = tasks,
         allTasks = allTasks,
         taskGroups = taskGroups,
-        onTaskClick = onTaskClick
+        onTaskClick = onTaskClick,
+        onDeleteTask = onDeleteTask
     )
 }
 
@@ -396,7 +432,8 @@ fun ProjectDetailTaskList(
     tasks: List<Task>,
     allTasks: List<Task>,
     taskGroups: List<TaskGroup>,
-    onTaskClick: (Long) -> Unit
+    onTaskClick: (Long) -> Unit,
+    onDeleteTask: (Task) -> Unit
 ) {
     val groupedTasks = tasks.groupBy { task ->
         task.task_group?.takeIf { it.isNotBlank() }
@@ -431,7 +468,8 @@ fun ProjectDetailTaskList(
                 ProjectDetailTaskGroup(
                     title = groupName,
                     tasks = groupTasks,
-                    onTaskClick = onTaskClick
+                    onTaskClick = onTaskClick,
+                    onDeleteTask = onDeleteTask
                 )
             }
         }
@@ -442,7 +480,8 @@ fun ProjectDetailTaskList(
                 ProjectDetailTaskGroup(
                     title = groupName,
                     tasks = groupTasks,
-                    onTaskClick = onTaskClick
+                    onTaskClick = onTaskClick,
+                    onDeleteTask = onDeleteTask
                 )
             }
     }
@@ -663,7 +702,8 @@ fun ProjectDetailCustomGroup(
 fun ProjectDetailTaskGroup(
     title: String,
     tasks: List<Task>,
-    onTaskClick: (Long) -> Unit
+    onTaskClick: (Long) -> Unit,
+    onDeleteTask: (Task) -> Unit
 ) {
     if (tasks.isEmpty()) return
 
@@ -685,7 +725,8 @@ fun ProjectDetailTaskGroup(
     tasks.forEach { task ->
         ProjectDetailTaskCard(
             task = task,
-            onClick = { onTaskClick(task.id) }
+            onClick = { onTaskClick(task.id) },
+            onDeleteClick = { onDeleteTask(task) }
         )
 
         Spacer(modifier = Modifier.height(10.dp))
@@ -697,7 +738,8 @@ fun ProjectDetailTaskGroup(
 @Composable
 fun ProjectDetailTaskCard(
     task: Task,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    onDeleteClick: () -> Unit
 ) {
     val isDone = task.status?.uppercase() == "DONE"
     val isInProgress = task.status?.uppercase() == "IN_PROGRESS"
@@ -737,19 +779,32 @@ fun ProjectDetailTaskCard(
                     )
                 }
 
-                ForgeMiniChip(
-                    text = readableProjectDetailTaskStatus(task.status),
-                    containerColor = when {
-                        isDone -> Color(0xFFB7EBC0)
-                        isInProgress -> MaterialTheme.colorScheme.primary
-                        else -> MaterialTheme.colorScheme.secondaryContainer
-                    },
-                    contentColor = when {
-                        isDone -> Color(0xFF14532D)
-                        isInProgress -> MaterialTheme.colorScheme.onPrimary
-                        else -> MaterialTheme.colorScheme.onSecondaryContainer
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (progress == 0) {
+                        IconButton(onClick = onDeleteClick) {
+                            Icon(
+                                imageVector = Icons.Default.Delete,
+                                contentDescription = appText(en = "Delete", pt = "Eliminar"),
+                                tint = MaterialTheme.colorScheme.error.copy(alpha = 0.7f),
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
                     }
-                )
+
+                    ForgeMiniChip(
+                        text = readableProjectDetailTaskStatus(task.status),
+                        containerColor = when {
+                            isDone -> Color(0xFFB7EBC0)
+                            isInProgress -> MaterialTheme.colorScheme.primary
+                            else -> MaterialTheme.colorScheme.secondaryContainer
+                        },
+                        contentColor = when {
+                            isDone -> Color(0xFF14532D)
+                            isInProgress -> MaterialTheme.colorScheme.onPrimary
+                            else -> MaterialTheme.colorScheme.onSecondaryContainer
+                        }
+                    )
+                }
             }
 
             Spacer(modifier = Modifier.height(10.dp))
@@ -788,7 +843,8 @@ fun ProjectDetailTeamSection(
     users: List<User>,
     error: String?,
     onAddUserClick: () -> Unit,
-    isReadOnly: Boolean = false
+    isReadOnly: Boolean = false,
+    onRemoveUser: (User) -> Unit
 ) {
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -833,7 +889,11 @@ fun ProjectDetailTeamSection(
                 )
             } else {
                 users.forEach { user ->
-                    ProjectDetailTeamMemberRow(user = user)
+                    ProjectDetailTeamMemberRow(
+                        user = user,
+                        onRemoveClick = { onRemoveUser(user) },
+                        isReadOnly = isReadOnly
+                    )
                     Spacer(modifier = Modifier.height(12.dp))
                 }
             }
@@ -843,7 +903,9 @@ fun ProjectDetailTeamSection(
 
 @Composable
 fun ProjectDetailTeamMemberRow(
-    user: User
+    user: User,
+    onRemoveClick: () -> Unit,
+    isReadOnly: Boolean = false
 ) {
     Row(verticalAlignment = Alignment.CenterVertically) {
         UserAvatarChip(initials = projectDetailUserInitials(user))
@@ -865,7 +927,22 @@ fun ProjectDetailTeamMemberRow(
             )
         }
 
-        ForgeMiniChip(text = user.role ?: appText(en = "Member", pt = "Membro"))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            ForgeMiniChip(text = user.role ?: appText(en = "Member", pt = "Membro"))
+
+            val isUser = user.role?.uppercase() == "USER"
+            if (!isReadOnly && isUser) {
+                Spacer(modifier = Modifier.width(8.dp))
+                IconButton(onClick = onRemoveClick) {
+                    Icon(
+                        imageVector = Icons.Default.PersonRemove,
+                        contentDescription = appText(en = "Remove", pt = "Remover"),
+                        tint = MaterialTheme.colorScheme.error.copy(alpha = 0.7f),
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+            }
+        }
     }
 }
 

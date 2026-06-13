@@ -237,4 +237,39 @@ class TaskViewModel : ViewModel() {
             previousTask = task  // passa a tarefa original para comparar
         )
     }
+
+    fun deleteTask(
+        task: Task,
+        onSuccess: () -> Unit
+    ) {
+        if ((task.completion_rate ?: 0) > 0) {
+            _error.value = "Não é possível eliminar uma tarefa com progresso."
+            return
+        }
+
+        _isLoading.value = true
+        _error.value = null
+
+        repository.deleteTask(
+            taskId = task.id,
+            onSuccess = {
+                _isLoading.value = false
+                loadTasks(task.project_id)
+
+                logRepository.logActivity(
+                    action = "Deleted task",
+                    entityType = "task",
+                    entityId = task.id,
+                    detailsEn = "Manager: ${SessionManager.currentUser?.name} deleted task '${task.title}'",
+                    detailsPt = "Manager: ${SessionManager.currentUser?.name} eliminou a tarefa '${task.title}'"
+                )
+
+                onSuccess()
+            },
+            onError = { message ->
+                _error.value = message
+                _isLoading.value = false
+            }
+        )
+    }
 }
