@@ -21,10 +21,12 @@ class TaskGroupRepository {
                         onSuccess(response.body() ?: emptyList())
                     } else {
                         onSuccess(emptyList())
+                        // tratado como lista vazia
                     }
                 }
                 override fun onFailure(call: Call<List<TaskGroup>>, t: Throwable) {
                     onSuccess(emptyList())
+                    // falha de rede silenciada
                 }
             })
     }
@@ -37,7 +39,7 @@ class TaskGroupRepository {
     ) {
         val payload = TaskGroupPayload(
             project_id = projectId,
-            name = name.trim()
+            name = name.trim() // remove espaços no início e no fim
         )
 
         SupabaseApi.service.createTaskGroup(payload)
@@ -55,7 +57,7 @@ class TaskGroupRepository {
 
                 override fun onFailure(
                     call: Call<List<TaskGroup>>,
-                    t: Throwable
+                    t: Throwable // base de todos os erros
                 ) {
                     onError(t.message ?: "Erro desconhecido ao criar grupo.")
                 }

@@ -46,15 +46,17 @@ import com.example.forgeplan.core.language.appText
 
 private val BrandDarkBlue = Color(0xFF171A4A)
 
+//Recebe o role do utilizador e navega para o ecrã seguinte
 @Composable
 fun LoginScreen(
     onLoginSuccess: (String) -> Unit
 ) {
     val configuration = LocalConfiguration.current
-    val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+    val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE //deteta layout
 
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
+    // Mensagens de erro por campo
     var emailError by remember { mutableStateOf<String?>(null) }
     var passwordError by remember { mutableStateOf<String?>(null) }
 
@@ -63,9 +65,11 @@ fun LoginScreen(
     val passwordRequired= appText(en = "Password is required.",                    pt = "A password é obrigatória.")
     val passwordShort   = appText(en = "Password must have at least 6 characters.", pt = "A password deve ter pelo menos 6 caracteres.")
 
+    // Obtém o ViewModel ligado a este ecrã
     val loginViewModel: LoginViewModel = viewModel()
     val uiState by loginViewModel.uiState.collectAsState()
 
+    // Bloco de código que corre quando `uiState` muda.
     LaunchedEffect(uiState) {
         if (uiState is LoginUiState.Success) {
             val user = (uiState as LoginUiState.Success).user
@@ -172,14 +176,14 @@ fun LoginScreen(
 
 @Composable
 fun LoginFormFields(
-    email: String,
+    email: String, // valor atual do campo
     password: String,
-    emailError: String?,
+    emailError: String?, // mensagem de erro ou null
     passwordError: String?,
-    uiState: LoginUiState,
-    onEmailChange: (String) -> Unit,
+    uiState: LoginUiState, // estado atual (Loading, Error, Success, Idle)
+    onEmailChange: (String) -> Unit, // callback quando o utilizador escreve
     onPasswordChange: (String) -> Unit,
-    onLoginClick: () -> Unit
+    onLoginClick: () -> Unit // callback quando carrega no botão
 ) {
     Column(modifier = Modifier.fillMaxWidth()) {
         Text(
@@ -262,6 +266,7 @@ fun LoginFormFields(
         if (uiState is LoginUiState.Error) {
             Spacer(modifier = Modifier.height(8.dp))
             Text(text = uiState.message, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+            // Erro que vem da API
         }
     }
 }

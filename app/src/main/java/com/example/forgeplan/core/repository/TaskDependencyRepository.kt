@@ -32,6 +32,10 @@ class TaskDependencyRepository {
                             val deps = response.body() ?: emptyList()
                             CoroutineScope(Dispatchers.IO).launch {
                                 db.taskDependencyDao().deleteByTaskId(taskId)
+                                // apaga PRIMEIRO os registos locais antes de inserir os novos
+                                // padrão "replace completo"
+                                // sem apagar, porque dependências podem ser removidas no servidor
+                                // e o cache local ficaria desatualizado com dados obsoletos
                                 db.taskDependencyDao().insertAll(deps.map {
                                     TaskDependencyEntity(task_id = taskId, depends_on_task_id = it.depends_on_task_id)
                                 })
@@ -64,6 +68,7 @@ class TaskDependencyRepository {
         onSuccess: () -> Unit,
         onError: (String) -> Unit
     ) {
+        // se não há internet, onFailure é chamado com erro e a operação falha
         SupabaseApi.service.createDependency(dependency)
             .enqueue(object : Callback<List<TaskDependency>> {
                 override fun onResponse(call: Call<List<TaskDependency>>, response: Response<List<TaskDependency>>) {

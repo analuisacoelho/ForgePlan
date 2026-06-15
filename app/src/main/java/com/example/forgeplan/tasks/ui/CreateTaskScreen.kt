@@ -118,14 +118,15 @@ fun CreateTaskScreen(
     var isSaving by remember { mutableStateOf(false) }
 
     val projectGroups = remember(groups, tasks, taskGroup) {
+        // recalcula só quando groups, tasks ou taskGroup mudam
         (
-                groups.map { it.name.trim() } +
-                        tasks.mapNotNull { it.task_group?.trim() } +
-                        listOf(taskGroup.trim())
+                groups.map { it.name.trim() } + // grupos guardados na BD
+                        tasks.mapNotNull { it.task_group?.trim() } + // grupos já usados nas tarefas
+                        listOf(taskGroup.trim()) // grupo que o utilizador está a escrever agora
                 )
             .filter { it.isNotBlank() }
-            .distinctBy { it.lowercase() }
-            .sortedBy { it.lowercase() }
+            .distinctBy { it.lowercase() } // remove duplicados ignorando capitalização
+            .sortedBy { it.lowercase() } // ordena alfabeticamente
     }
 
     val saveTask: () -> Unit = {
@@ -230,6 +231,7 @@ fun CreateTaskScreen(
                     val createdId = createdTask?.id
 
                     if (createdId == null || createdId == 0L) {
+                        // proteção: se a tarefa foi criada mas sem ID válido, não tenta associar dados
                         isSaving = false
                         message = appText(
                             en = "Error: task created without a valid ID.",
@@ -240,6 +242,7 @@ fun CreateTaskScreen(
 
                     selectedDependency?.let { dependency ->
                         dependencyViewModel.createDependency(
+                            // cria a dependência só se o utilizador selecionou uma
                             taskId = createdId,
                             dependsOnTaskId = dependency.id,
                             onSuccess = {}
@@ -248,6 +251,7 @@ fun CreateTaskScreen(
 
                     selectedUsers.forEach { user ->
                         assignmentViewModel.assignUserToTask(
+                            // atribui cada utilizador selecionado à tarefa — chamadas paralelas
                             taskId = createdId,
                             userId = user.id,
                             onSuccess = {}
@@ -258,9 +262,9 @@ fun CreateTaskScreen(
 
                     if (attachmentsToUpload.isEmpty()) {
                         isSaving = false
-                        onTaskCreated()
+                        onTaskCreated() // sem anexos → navega imediatamente
                     } else {
-                        uploadTaskAttachmentsSequentially(
+                        uploadTaskAttachmentsSequentially( // com anexos → upload sequencial
                             context = context,
                             repository = attachmentRepository,
                             taskId = createdId,
@@ -320,13 +324,14 @@ fun CreateTaskScreen(
         }
     }
 
+    // recarrega dados quando projeto muda
     LaunchedEffect(selectedProject?.id) {
         selectedProject?.let { project ->
-            taskViewModel.loadTasks(project.id)
-            taskGroupViewModel.loadGroups(project.id)
-            projectUserViewModel.loadProjectUsers(project.id)
-            selectedDependency = null
-            taskGroup = ""
+            taskViewModel.loadTasks(project.id) // tarefas para dependências
+            taskGroupViewModel.loadGroups(project.id) // grupos disponíveis
+            projectUserViewModel.loadProjectUsers(project.id) // membros para atribuição
+            selectedDependency = null // limpa dependência — era de outro projeto
+            taskGroup = "" // limpa grupo — pode não existir no novo projeto
         }
     }
 
@@ -340,6 +345,8 @@ fun CreateTaskScreen(
                 user.role?.uppercase() == "MANAGER"
 
         isInProject && (isUser || isCurrentManager)
+        // só membros do projeto com role USER ou o próprio manager podem ser atribuídos
+        // outros managers e admins não aparecem na lista
     }
 
     Column(
@@ -410,6 +417,8 @@ fun CreateTaskScreen(
                                 startDate = it
                                 if (endDate.isNotBlank() && endDate < it) {
                                     endDate = ""
+                                    // se a data de fim era anterior à nova data de início, limpa-a automaticamente
+                                    // evita que o formulário fique num estado inválido sem o utilizador reparar
                                 }
                                 dateError = null
                             },
@@ -420,6 +429,9 @@ fun CreateTaskScreen(
                             onDependencySelected = {
                                 selectedDependency = it
                                 message = null
+                                // clica na tarefa já selecionada → deseleciona (null)
+                                // clica noutra tarefa → seleciona essa
+                                // só é possível uma dependência de cada vez
                             },
                             onPriorityChange = { priority = it }
                         )
@@ -686,10 +698,14 @@ fun CreateTaskMainFields(
             CreateTaskDatePickerField(
                 value = endDate,
                 onDateSelected = onEndDateChange,
+                // campo da data de fim
                 minDate = maxOf(
                     LocalDate.now(),
                     CreateTaskDateUtils.parse(startDate) ?: LocalDate.now()
                 ),
+                // a data mínima do fim é o máximo entre hoje e a data de início
+                // garante que o utilizador não pode selecionar uma data de fim antes do início
+                // e também não pode selecionar datas no passado
                 placeholder = appText(
                     en = "Select date",
                     pt = "Selecionar data"
@@ -1091,12 +1107,12 @@ private fun uploadTaskAttachmentsSequentially(
     repository: TaskAttachmentRepository,
     taskId: Long,
     attachments: List<Uri>,
-    index: Int,
+    index: Int, // índice atual na lista
     onSuccess: () -> Unit,
     onError: (String) -> Unit
 ) {
     if (index >= attachments.size) {
-        onSuccess()
+        onSuccess() // condição de paragem: todos os anexos foram enviados
         return
     }
 
@@ -1105,7 +1121,7 @@ private fun uploadTaskAttachmentsSequentially(
         taskId = taskId,
         uri = attachments[index],
         onSuccess = {
-            uploadTaskAttachmentsSequentially(
+            uploadTaskAttachmentsSequentially( // avança para o próximo anexo recursivamente
                 context = context,
                 repository = repository,
                 taskId = taskId,
@@ -1116,10 +1132,11 @@ private fun uploadTaskAttachmentsSequentially(
             )
         },
         onError = { error ->
-            onError("Erro ao guardar anexo: $error")
+            onError("Erro ao guardar anexo: $error") // para no primeiro erro — os restantes anexos não são enviados
         }
     )
 }
+// sequencial em vez de paralelo para evitar sobrecarga da API e manter a ordem
 
 @Composable
 fun NewTaskTopBar(
@@ -1722,6 +1739,8 @@ fun CreateTaskDatePickerField(
 }
 
 private fun getFileNameFromUri(
+    // URIs de ficheiros não têm o nome visível diretamente
+    // é necessário consultar o ContentResolver com OpenableColumns.DISPLAY_NAME
     context: Context,
     uri: Uri
 ): String {
@@ -1742,7 +1761,7 @@ private fun getFileNameFromUri(
             fileName = it.getString(nameIndex)
         }
     }
-
+    // cursor?.use { } fecha o cursor automaticamente mesmo se houver exceção
     return fileName
 }
 

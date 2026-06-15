@@ -112,6 +112,9 @@ fun EditTaskScreen(
     val selectedUsers = remember { mutableStateListOf<User>() }
     val newAttachments = remember { mutableStateListOf<Uri>() }
     val existingAttachments = remember { mutableStateListOf<TaskAttachment>() }
+    // separação entre anexos já guardados na BD (existingAttachments)
+    // e anexos novos ainda por enviar (newAttachments como URI local)
+    // ao guardar, só os newAttachments são enviados para a API
 
     var message by remember { mutableStateOf<String?>(null) }
     var titleError by remember { mutableStateOf<String?>(null) }
@@ -120,6 +123,8 @@ fun EditTaskScreen(
 
     val canRemoveExistingAttachments =
         status.uppercase() != "DONE"
+    // tarefas concluídas ficam em modo só de leitura para anexos
+    // impede apagar evidências de trabalho já entregue
 
     val documentPicker = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument()
@@ -186,13 +191,14 @@ fun EditTaskScreen(
     }
 
     LaunchedEffect(taskId) {
+        // corre uma vez quando o ecrã abre — carrega todos os dados iniciais
         taskViewModel.loadTaskById(taskId)
         projectViewModel.loadProjects()
         userViewModel.loadUsers()
         assignmentViewModel.loadAssignments(taskId)
         dependencyViewModel.loadDependencies(taskId)
 
-        loadEditTaskAttachments(
+        loadEditTaskAttachments( // chamada direta à API — fora do ViewModel
             taskId = taskId,
             onSuccess = {
                 existingAttachments.clear()
@@ -218,6 +224,7 @@ fun EditTaskScreen(
     }
 
     LaunchedEffect(projects, selectedTask) {
+        // garante que o projeto é selecionado mesmo se os projetos chegaram depois da tarefa
         selectedTask?.let { task ->
             if (selectedProject == null) {
                 selectedProject = projects.firstOrNull { it.id == task.project_id }
@@ -226,6 +233,7 @@ fun EditTaskScreen(
     }
 
     LaunchedEffect(assignments, users) {
+        // sincroniza os utilizadores selecionados com as atribuições da BD
         val assignedIds = assignments.map { it.user_id }
         val assignedUsers = users.filter { assignedIds.contains(it.id) }
 
@@ -234,8 +242,10 @@ fun EditTaskScreen(
     }
 
     LaunchedEffect(dependencies, tasks) {
+        // resolve a dependência: o ID vem das dependências, o objeto Task vem das tarefas
         val firstDependencyId = dependencies.firstOrNull()?.depends_on_task_id
         selectedDependency = tasks.firstOrNull { it.id == firstDependencyId }
+        // só suporta uma dependência — se houver mais, as restantes são ignoradas
     }
 
     val saveChanges: () -> Unit = {
@@ -326,6 +336,7 @@ fun EditTaskScreen(
                 completionRate > 0 -> "IN_PROGRESS"
                 else -> status.ifBlank { "PENDING" }
             }
+            // o status é derivado do completionRate, não definido manualmente
 
             val updatedTask = Task(
                 id = task.id,
@@ -358,6 +369,8 @@ fun EditTaskScreen(
                                 priority  = priority,
                                 onSuccess = {}
                             )
+                            // só envia atribuições para utilizadores que ainda não estavam na tarefa
+                            // evita duplicados e chamadas desnecessárias à API
                         }
 
                     val existingDependencyIds = dependencies.map { it.depends_on_task_id }
@@ -1404,9 +1417,12 @@ private fun editAttachmentAlreadyExists(
 ): Boolean {
     return existingAttachments.any { attachment ->
         attachment.file_name.equals(fileName, ignoreCase = true)
+        // verifica nos anexos já guardados na BD
     } || newAttachments.any { uri ->
         editGetFileNameFromUri(context, uri).equals(fileName, ignoreCase = true)
+        // verifica nos anexos novos ainda por enviar
     }
+    // compara por nome de ficheiro — se o utilizador renomear o ficheiro, passa na verificação
 }
 
 private fun deleteEditTaskAttachment(

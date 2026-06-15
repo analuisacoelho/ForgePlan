@@ -18,31 +18,35 @@ import retrofit2.Response
 class ProjectUserRepository {
 
     private val context get() = ForgePlanApplication.instance
+    // avaliada cada vez que é acedida, não guardada em memória
     private val db get() = DatabaseProvider.getDatabase(context)
+    // base de dados Room local
 
     fun getProjectUsersByProjectId(
         projectId: Long,
         onSuccess: (List<ProjectUser>) -> Unit,
         onError: (String) -> Unit
     ) {
-        if (NetworkUtils.isOnline(context)) {
+        if (NetworkUtils.isOnline(context)) { // verifica conectividade antes de chamar a API
             SupabaseApi.service.getProjectUsersByProjectId("eq.$projectId")
                 .enqueue(object : Callback<List<ProjectUser>> {
                     override fun onResponse(call: Call<List<ProjectUser>>, response: Response<List<ProjectUser>>) {
                         if (response.isSuccessful) {
-                            val list = response.body() ?: emptyList()
+                            val list = response.body() ?: emptyList() // garante que nunca passamos null ao ViewModel
                             CoroutineScope(Dispatchers.IO).launch {
+                                // Dispatchers.IO = nunca bloqueia a UI
                                 db.projectUserDao().insertAll(list.map {
                                     ProjectUserEntity(
                                         project_id = it.project_id,
                                         user_id = it.user_id,
                                         joined_at = it.joined_at,
+                                        // guarda os dados da API localmente como cache
                                         is_synced = true
                                     )
                                 })
                             }
                             onSuccess(list)
-                        } else loadLocalByProjectId(projectId, onSuccess)
+                        } else loadLocalByProjectId(projectId, onSuccess) // se a API falhar, cai para os dados locais
                     }
                     override fun onFailure(call: Call<List<ProjectUser>>, t: Throwable) {
                         loadLocalByProjectId(projectId, onSuccess)
@@ -57,21 +61,28 @@ class ProjectUserRepository {
         CoroutineScope(Dispatchers.IO).launch {
             val project = db.projectDao().getProjectById(projectId)
                 ?: db.projectDao().getProjectByRemoteId(projectId)
+            // tenta encontrar o projeto pelo id local primeiro, depois pelo id remoto (Supabase)
+            // necessário porque o mesmo projeto pode ter ids diferentes localmente e no servidor
 
             val candidateIds = mutableSetOf(projectId)
             project?.remote_id?.let { candidateIds.add(it) }
             project?.id?.let { candidateIds.add(it) }
+            // constrói um conjunto com todos os ids possíveis do projeto
+            // para garantir que encontramos os utilizadores independentemente do id usado
 
             val local = db.projectUserDao().getByProjectId(projectId)
                 .let { rows ->
                     if (rows.isNotEmpty()) rows
                     else candidateIds.flatMap { db.projectUserDao().getByProjectId(it) }
+                    // se a pesquisa direta não encontrar nada,
+                    // tenta todos os ids candidatos (local + remoto)
                 }
-                .distinctBy { it.user_id }
+                .distinctBy { it.user_id } // remove duplicados que possam surgir
                 .map {
                     ProjectUser(project_user_id = 0, project_id = it.project_id, user_id = it.user_id, joined_at = it.joined_at)
                 }
             withContext(Dispatchers.Main) { onSuccess(local) }
+            // volta à thread principal para entregar o resultado ao ViewModel
         }
     }
 

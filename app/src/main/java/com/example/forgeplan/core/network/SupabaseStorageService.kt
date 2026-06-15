@@ -11,12 +11,20 @@ import retrofit2.http.Path
 
 interface SupabaseStorageService {
 
+    //Header fixo enviado em todos os uploads.
+    // cria o ficheiro se não existir
+    // substitui o ficheiro se já existir
     @Headers("x-upsert: true")
+    // pedido HTTP PUT para o endpoint do Storage.
     @PUT("object/{bucket}/{filePath}")
     fun uploadFile(
+        // nome do bucket do Supabase
         @Path("bucket") bucket: String,
+        // caminho completo do ficheiro dentro do bucket
         @Path("filePath", encoded = true) filePath: String,
+        // Tipo MIME do ficheiro (jpeg, png, pdf, etc.)
         @Header("Content-Type") contentType: String,
+        //Contém os bytes da imagem, PDF, etc.
         @Body file: RequestBody
-    ): Call<ResponseBody>
+    ): Call<ResponseBody> // resposta devolvida pelo servidor
 }

@@ -16,8 +16,9 @@ import retrofit2.Response
 
 class TaskAssignmentRepository {
 
+    // padrão offline-first
     private val context get() = ForgePlanApplication.instance
-    private val db get() = DatabaseProvider.getDatabase(context)
+    private val db get() = DatabaseProvider.getDatabase(context) //evita memory leaks
 
     fun getAssignmentsByTaskId(
         taskId: Long,
@@ -131,6 +132,7 @@ class TaskAssignmentRepository {
                 })
         } else {
             saveAssignmentLocally(assignment, onSuccess)
+            // outros erros HTTP → guarda offline para sincronizar depois
         }
     }
 
@@ -179,13 +181,16 @@ class TaskAssignmentRepository {
 
     suspend fun getUserIdsForTask(taskId: Long): List<Long> =
         withContext(Dispatchers.IO) {
+            // suspend fun = pode ser chamada diretamente de uma coroutine no ViewModel
+            // sem precisar de callbacks onSuccess/onError
+            // usada em contextos onde o resultado é necessário imediatamente
             try {
                 val response = SupabaseApi.service
                     .getTaskAssignmentsByTaskId("eq.$taskId")
-                    .execute()
+                    .execute() // .execute() = síncrono
                 response.body()?.map { it.user_id } ?: emptyList()
             } catch (e: Exception) {
-                emptyList()
+                emptyList() // qualquer erro, lista vazia sem crashar
             }
         }
 }

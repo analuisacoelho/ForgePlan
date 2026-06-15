@@ -73,6 +73,8 @@ class ManagerTimelineViewModel : ViewModel() {
      */
     fun loadAllProjects() {
         viewModelScope.launch {
+            // viewModelScope garante que a coroutine é cancelada automaticamente
+            // se o utilizador sair do ecrã — sem memory leaks
             _isLoading.value = true
             _error.value = null
             try {
@@ -87,10 +89,12 @@ class ManagerTimelineViewModel : ViewModel() {
 
     private suspend fun fetchProjectIds(userId: Long): List<Long> =
         suspendCancellableCoroutine { cont ->
+            // suspendCancellableCoroutine = transforma uma função com callbacks
+            // numa suspend fun que pode ser usada com await dentro de uma coroutine
             projectUserRepo.getProjectIdsByUserId(
                 userId    = userId,
-                onSuccess = { cont.resume(it) },
-                onError   = { cont.resume(emptyList()) }
+                onSuccess = { cont.resume(it) }, // desbloqueia a coroutine com o resultado
+                onError   = { cont.resume(emptyList()) } // em erro, devolve lista vazia em vez de lançar exceção
             )
         }
 

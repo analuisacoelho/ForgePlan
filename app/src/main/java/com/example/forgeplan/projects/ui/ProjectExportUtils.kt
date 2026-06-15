@@ -11,6 +11,7 @@ import java.io.File
 import java.io.FileOutputStream
 
 fun exportProjectFile(
+    // cria o ficheiro no formato pedido, obtém um URI seguro para partilhar
     context: Context,
     project: Project,
     tasks: List<Task>,
@@ -28,6 +29,9 @@ fun exportProjectFile(
         "${context.packageName}.provider",
         file
     )
+    // FileProvider = mecanismo de segurança Android que permite partilhar ficheiros
+    // com outras apps sem expor o caminho real do ficheiro no sistema de ficheiros
+    // requer declaração no AndroidManifest.xml
 
     val mimeType = when (format) {
         "PDF" -> "application/pdf"
@@ -40,10 +44,12 @@ fun exportProjectFile(
         type = mimeType
         putExtra(Intent.EXTRA_STREAM, uri)
         addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        // concede permissão temporária de leitura à app que receber o ficheiro
     }
 
     context.startActivity(
         Intent.createChooser(intent, "Export project")
+        // createChooser = abre o seletor nativo do Android com todas as apps disponíveis
     )
 }
 
@@ -56,6 +62,8 @@ private fun createProjectPdf(
 
     val pdf = PdfDocument()
     val pageInfo = PdfDocument.PageInfo.Builder(595, 842, 1).create()
+    // tamanho A4 em pontos tipográficos
+
     val page = pdf.startPage(pageInfo)
 
     val canvas = page.canvas
@@ -65,6 +73,7 @@ private fun createProjectPdf(
     }
 
     var y = 50f
+    // posição vertical atual no canvas
 
     canvas.drawText("ForgePlan - Project Export", 40f, y, paint)
 
@@ -96,6 +105,7 @@ private fun createProjectPdf(
         y += 24f
 
         if (y > 800f) return@forEach
+        // proteção básica contra overflow
 
         canvas.drawText(
             "- ${task.title} | ${task.status ?: "No status"} | ${task.completion_rate ?: 0}%",
@@ -108,10 +118,10 @@ private fun createProjectPdf(
     pdf.finishPage(page)
 
     FileOutputStream(file).use {
-        pdf.writeTo(it)
+        pdf.writeTo(it) // escreve o PDF para o ficheiro em cache
     }
 
-    pdf.close()
+    pdf.close() // escreve o PDF para o ficheiro em cache
 
     return file
 }
@@ -124,6 +134,7 @@ private fun createProjectCsv(
     val file = File(context.cacheDir, "${safeName(project.name)}.csv")
 
     val content = buildString {
+        // forma idiomática Kotlin de construir strings com múltiplas linhas
         appendLine("Project,Status,Priority,Start,End")
         appendLine("${project.name},${project.status ?: ""},${project.priority ?: ""},${project.start_date ?: ""},${project.end_date ?: ""}")
         appendLine()
@@ -136,7 +147,7 @@ private fun createProjectCsv(
         }
     }
 
-    file.writeText(content)
+    file.writeText(content) // escreve tudo de uma vez no ficheiro
 
     return file
 }
@@ -170,6 +181,7 @@ private fun createProjectTxt(
     return file
 }
 
+// sanitização do nome do ficheiro
 private fun safeName(value: String): String {
     return value
         .replace(" ", "_")

@@ -116,6 +116,8 @@ fun TaskDetailScreen(
             onSuccess = { logs ->
                 taskLogs.clear()
                 taskLogs.addAll(logs.filter { !it.notes.isNullOrBlank() })
+                // só mostra logs que têm observações escritas pelo trabalhador
+                // logs de atualização de progresso sem nota são ignorados
             },
             onError = {
                 taskLogs.clear()
@@ -141,9 +143,11 @@ fun TaskDetailScreen(
                         projectUserIds.addAll(
                             response.body()?.map { it.user_id } ?: emptyList()
                         )
+
                     }
                     override fun onFailure(call: Call<List<ProjectUser>>, t: Throwable) {
                         projectUserIds.clear()
+                        // carrega os IDs dos membros do projeto para filtrar quem pode ser atribuído
                     }
                 })
         }
@@ -151,6 +155,7 @@ fun TaskDetailScreen(
 
     val availableUsers = users.filter { user ->
         user.role?.uppercase() == "USER" && projectUserIds.contains(user.id)
+    // só utilizadores com role USER, que sejam do mesmo projeto
     }
 
     Column(
@@ -432,9 +437,10 @@ fun ManageTaskWorkersDialog(
                 onClick = {
                     val originalIds = assignedUserIds.toSet()
                     val newIds = selectedUserIds.toSet()
-                    val usersToAdd = newIds - originalIds
-                    val usersToRemove = originalIds - newIds
+                    val usersToAdd = newIds - originalIds // utilizadores a adicionar
+                    val usersToRemove = originalIds - newIds // utilizadores a remover
 
+                    // só faz chamadas à API para as diferenças — não recria todas as atribuições
                     usersToAdd.forEach { userId ->
                         assignmentViewModel.assignUserToTask(
                             taskId = taskId,
@@ -850,6 +856,8 @@ fun TaskLogObservationRow(log: TaskLog, author: User?) {
                             log.minutes_spent?.let { "$it min" },
                             log.completion_rate?.let { "$it%" }
                         ).joinToString(" • "),
+                        // listOfNotNull filtra automaticamente os campos null
+                        // mostra só os metadados que existem: localização, tempo gasto e progresso
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.65f)
                     )
@@ -999,13 +1007,16 @@ private fun openTaskAttachment(context: Context, attachment: TaskAttachment) {
         val uri = Uri.parse(fileUrl)
         val intent = Intent(Intent.ACTION_VIEW).apply {
             setDataAndType(uri, attachment.file_type ?: "*/*")
+            // file_type define qual app abre o ficheiro
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         }
         context.startActivity(Intent.createChooser(intent, "Open attachment"))
     } catch (e: ActivityNotFoundException) {
         Toast.makeText(context, "Não existe nenhuma app para abrir este ficheiro.", Toast.LENGTH_SHORT).show()
+        // nenhuma app instalada suporta este tipo de ficheiro
     } catch (e: Exception) {
         Toast.makeText(context, "Não foi possível abrir o ficheiro.", Toast.LENGTH_SHORT).show()
+        // erro genérico — URI inválido, permissões, etc.
     }
 }
 

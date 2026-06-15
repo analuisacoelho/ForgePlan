@@ -104,6 +104,8 @@ fun ProjectDetailScreen(
     var newGroupName by remember { mutableStateOf("") }
 
     LaunchedEffect(projectId) {
+        // carrega todos os dados necessários para o ecrã quando projectId muda
+        // 6 chamadas paralelas — se uma falhar, as restantes continuam independentemente
         viewModel.loadProject(projectId)
         taskViewModel.loadTasks(projectId)
         userViewModel.loadUsers()
@@ -114,9 +116,12 @@ fun ProjectDetailScreen(
 
     val assignedUserIds = projectUsers.map { it.user_id }
     val assignedUsers = users.filter { assignedUserIds.contains(it.id) }
+    // utilizadores já atribuídos ao projeto
     val availableUsers = users.filter { user ->
         !assignedUserIds.contains(user.id) &&
                 user.role?.uppercase() == "USER"
+        // utilizadores disponíveis para adicionar:
+        // não estão no projeto E têm role USER (admins e managers não são adicionáveis)
     }
 
     val progress = calculateProjectDetailProgress(tasks)
@@ -438,8 +443,11 @@ fun ProjectDetailTaskList(
     val groupedTasks = tasks.groupBy { task ->
         task.task_group?.takeIf { it.isNotBlank() }
             ?: appText(en = "No group", pt = "Sem grupo")
+        // tarefas sem grupo ficam no grupo "Sem grupo"
+        // takeIf evita grupos com nome em branco
     }
 
+    // mostra primeiro os grupos guardados na BD
     val savedGroupNames = taskGroups.map { it.name }
     val existingGroupNames = groupedTasks.keys.toSet()
 
@@ -474,6 +482,7 @@ fun ProjectDetailTaskList(
             }
         }
 
+        // depois mostra grupos que existem nas tarefas mas não estão guardados
         groupedTasks
             .filterKeys { it !in savedGroupNames }
             .forEach { (groupName, groupTasks) ->
@@ -596,6 +605,7 @@ fun ProjectDetailHeader(
         Spacer(modifier = Modifier.width(10.dp))
 
         if (isCompleted) {
+            // projeto concluído → mostra botão "Avaliar" ou "Review" consoante já tem avaliação
             Box(
                 modifier = Modifier
                     .height(30.dp)
@@ -788,6 +798,8 @@ fun ProjectDetailTaskCard(
                                 tint = MaterialTheme.colorScheme.error.copy(alpha = 0.7f),
                                 modifier = Modifier.size(20.dp)
                             )
+                            // só permite apagar tarefas sem progresso registado
+                            // evita apagar acidentalmente trabalho já iniciado
                         }
                     }
 
@@ -934,6 +946,8 @@ fun ProjectDetailTeamMemberRow(
             if (!isReadOnly && isUser) {
                 Spacer(modifier = Modifier.width(8.dp))
                 IconButton(onClick = onRemoveClick) {
+                    // admins e managers não têm botão de remoção
+                    // isReadOnly = true quando o projeto está DONE (não se podem fazer alterações)
                     Icon(
                         imageVector = Icons.Default.PersonRemove,
                         contentDescription = appText(en = "Remove", pt = "Remover"),
@@ -976,8 +990,9 @@ private fun projectDetailUserInitials(user: User): String {
     return user.name
         .split(" ")
         .mapNotNull { it.firstOrNull()?.toString() }
-        .take(2)
+        .take(2) // máximo 2 letras
         .joinToString("")
         .uppercase()
         .ifBlank { user.username.take(2).uppercase() }
+        // fallback para username se o nome não tiver letras válidas
 }

@@ -84,17 +84,21 @@ fun ManagerDashboardScreen(
     var managerProjectIds by remember { mutableStateOf<List<Long>?>(null) }
 
     LaunchedEffect(Unit) {
+        // corre uma única vez quando o ecrã abre (Unit nunca muda)
         viewModel.loadProjects()
         notifVm.load()
 
         projectUserRepository.getProjectIdsByUserId(
             userId = SessionManager.userId,
             onSuccess = { ids -> managerProjectIds = ids },
+            // filtra os projetos para mostrar só os que o manager gere
             onError = { managerProjectIds = emptyList() }
         )
     }
 
     LaunchedEffect(projects) {
+        // corre sempre que a lista de projetos muda
+        // carrega tarefas e utilizadores para cada projeto
         projects.forEach { project ->
             taskRepository.getTasksByProjectId(
                 projectId = project.id,
@@ -118,6 +122,7 @@ fun ManagerDashboardScreen(
         searchText.isBlank() ||
                 project.name.contains(searchText, ignoreCase = true) ||
                 (project.description ?: "").contains(searchText, ignoreCase = true)
+        // pesquisa local, sem chamadas à API
     }
 
     val activeProjects = managerProjects.count { project ->
@@ -230,6 +235,7 @@ fun ManagerDashboardScreen(
                     }
 
                     isLandscape -> {
+                        // divide a lista em grupos de 3 para criar uma grelha de 3 colunas
                         items(visibleProjects.chunked(3)) { rowProjects ->
                             Row(
                                 modifier = Modifier
@@ -249,6 +255,7 @@ fun ManagerDashboardScreen(
 
                                 repeat(3 - rowProjects.size) {
                                     Spacer(modifier = Modifier.weight(1f))
+                                    // preenche colunas vazias na última linha para manter o alinhamento
                                 }
                             }
                         }
@@ -546,9 +553,13 @@ private fun calculateProjectProgress(tasks: List<Task>): Int {
 
     val averageCompletion =
         tasks.map { it.completion_rate ?: 0 }.average().toInt()
+    // média da percentagem de conclusão de cada tarefa individualmente
 
     val doneProgress =
         ((tasks.count { it.status?.uppercase() == "DONE" }.toFloat() / tasks.size.toFloat()) * 100).toInt()
+    // percentagem de tarefas marcadas como DONE
 
     return maxOf(averageCompletion, doneProgress).coerceIn(0, 100)
+    // usa o valor mais alto dos dois critérios
+    // garante que o progresso nunca fica abaixo do número de tarefas concluídas
 }

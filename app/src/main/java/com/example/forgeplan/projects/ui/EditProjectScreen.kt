@@ -72,11 +72,14 @@ fun EditProjectScreen(
 
     LaunchedEffect(projectId) {
         viewModel.loadProjectById(projectId)
+        // corre uma vez quando o ecrã abre, para carregar o projeto a editar
     }
 
     LaunchedEffect(project) {
         project?.let {
             name = it.name
+            // preenche os campos do formulário quando o projeto chega do ViewModel
+            // separado do LaunchedEffect anterior porque o projeto chega de forma assíncrona
             description = it.description ?: ""
             priority = it.priority ?: "MEDIUM"
             startDate = it.start_date ?: ""
@@ -87,6 +90,7 @@ fun EditProjectScreen(
     fun saveProject() {
         var hasError = false
         val dateRegex = Regex("""^\d{4}-\d{2}-\d{2}$""")
+        // valida formato YYYY-MM-DD antes de enviar para a API
 
         if (name.isBlank()) {
             nameError = appText(
@@ -131,9 +135,9 @@ fun EditProjectScreen(
                 name = name.trim(),
                 description = description.trim().ifBlank { null },
                 priority = priority,
-                status = project?.status ?: "IN_PROGRESS",
+                status = project?.status ?: "IN_PROGRESS",  // mantém o status atual do projeto
                 start_date = startDate.trim().ifBlank { null },
-                end_date = endDate.trim().ifBlank { null }
+                end_date = endDate.trim().ifBlank { null }   // descrição vazia enviada como null,
             )
 
             viewModel.updateProject(
@@ -334,12 +338,14 @@ fun EditProjectDatePriorityFields(
     val context = LocalContext.current
 
     fun parseDateParts(date: String): Triple<Int, Int, Int> {
+        // converte string "YYYY-MM-DD" para (ano, mês, dia)
+        // mês é subtraído 1 porque Calendar usa meses 0-indexados
         val cal = Calendar.getInstance()
         return if (date.matches(Regex("""\d{4}-\d{2}-\d{2}"""))) {
             val parts = date.split("-")
             Triple(parts[0].toInt(), parts[1].toInt() - 1, parts[2].toInt())
         } else {
-            Triple(cal.get(Calendar.YEAR), cal.get(Calendar.MONTH), cal.get(Calendar.DAY_OF_MONTH))
+            Triple(cal.get(Calendar.YEAR), cal.get(Calendar.MONTH), cal.get(Calendar.DAY_OF_MONTH)) // se não há data, abre no dia de hoje
         }
     }
 
@@ -347,6 +353,7 @@ fun EditProjectDatePriorityFields(
         val (year, month, day) = parseDateParts(currentDate)
         DatePickerDialog(context, { _, y, m, d ->
             onDateSelected("%04d-%02d-%02d".format(y, m + 1, d))
+            // m + 1 porque DatePickerDialog também devolve meses 0-indexados
         }, year, month, day).show()
     }
 
@@ -500,8 +507,10 @@ fun ProjectEditChip(
     modifier: Modifier = Modifier
 ) {
     FilterChip(
+        // FilterChip = componente com estado visual de selecionado/não selecionado
+        // usado aqui para escolha de prioridade (LOW / MEDIUM / HIGH)
         modifier = modifier,
-        selected = selected,
+        selected = selected, // muda visualmente consoante a prioridade ativa
         onClick = onClick,
         label = {
             Row(

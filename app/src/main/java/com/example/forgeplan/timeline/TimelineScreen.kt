@@ -61,9 +61,10 @@ fun parseDate(s: String?): LocalDate? =
         try {
             LocalDate.parse(it, DATE_FMT)
         } catch (e: Exception) {
-            null
+            null // devolve null em vez de crashar com formato inválido
         }
     }
+// public porque é usada em ProjectTasksScreen para ordenar tarefas por data
 
 private val COL_W = 98.dp
 private val TASK_COL_W = 120.dp
@@ -75,6 +76,9 @@ fun TimelineScreen(
     onTeamClick: () -> Unit = {},
     onProfileClick: () -> Unit = {},
     isManagerTimeline: Boolean = false,
+    // true  → manager/admin: mostra projetos, usa ManagerTimelineViewModel
+    // false → utilizador: mostra as suas tarefas, usa UserDashboardViewModel
+    // evita duplicar o ecrã inteiro para cada role
     dashboardViewModel: UserDashboardViewModel = viewModel(),
     managerTimelineViewModel: ManagerTimelineViewModel = viewModel()
 ) {
@@ -83,6 +87,8 @@ fun TimelineScreen(
     LaunchedEffect(isManagerTimeline) {
         if (isManagerTimeline) managerTimelineViewModel.loadTimeline()
         else dashboardViewModel.loadDashboard()
+        // carrega dados diferentes consoante o modo
+
     }
 
     Column(
@@ -130,6 +136,8 @@ fun ManagerTimelineContent(
 
     var searchText by rememberSaveable { mutableStateOf("") }
     var selectedMode by rememberSaveable { mutableStateOf("Week") }
+    // rememberSaveable (em vez de remember) = persiste quando o ecrã roda
+    // o utilizador não perde o texto de pesquisa nem o modo selecionado ao rodar o telemóvel
 
     val sortedProjects = remember(projects) {
         projects.sortedWith(compareBy(nullsLast()) { parseDate(it.start_date) })
@@ -275,8 +283,10 @@ private fun ManagerTimelineBoard(
     val columns: List<Pair<String, LocalDate>> = if (mode == "Week") {
         // Começa na segunda-feira da semana atual
         val weekStart = today.minusDays(today.dayOfWeek.value.toLong() - 1)
+        // dayOfWeek.value: Segunda=1, Domingo=7 → subtrai para chegar à segunda-feira
         (0 until 5).map { i ->
             val day = weekStart.plusDays(i.toLong())
+            // gera 5 colunas: Segunda a Sexta da semana atual
             buildString {
                 append(day.dayOfWeek.getDisplayName(TextStyle.SHORT, locale))
                 append("\n")
@@ -290,6 +300,7 @@ private fun ManagerTimelineBoard(
         (0 until 5).map { i ->
             val weekStart = monthStart.plusWeeks(i.toLong())
             val weekEnd   = weekStart.plusDays(6)
+            // gera 5 semanas a partir do início do mês atual
             buildString {
                 append(appText("Week", "Sem."))
                 append(" ${i + 1}\n")
@@ -353,6 +364,8 @@ private fun ManagerTimelineBoard(
             Column(modifier = Modifier.width(columnWidth * 5)) {
                 Row {
                     columns.forEach { (label, date) ->
+                        // em modo Semana: verifica se é o dia exato de hoje
+                        // em modo Mês: verifica se hoje está dentro da semana desta coluna
                         val isToday = date == today ||
                                 (mode == "Month" && today >= date && today < date.plusWeeks(1))
                         Text(
@@ -884,6 +897,7 @@ private fun computeBar(
         else -> appText("$progress% Pending", "$progress% Pendente")
     }
 
+    // casos especiais sem datas
     if (start == null) {
         return BarData(
             startX = 8.dp,
@@ -891,6 +905,7 @@ private fun computeBar(
             label = labelText
         )
     }
+    // tarefa começa depois da janela visível → cola à direita
 
     if (start >= colEnd) {
         return BarData(
@@ -899,6 +914,7 @@ private fun computeBar(
             label = labelText
         )
     }
+    // tarefa terminou antes da janela visível → cola à esquerda
 
     val safeEnd = end ?: start.plusDays(1)
 
@@ -910,8 +926,10 @@ private fun computeBar(
         )
     }
 
+    // clip das datas aos limites da janela visível
     val clippedStart = maxOf(start, colStart)
     val clippedEnd = minOf(maxOf(safeEnd, clippedStart.plusDays(1)), colEnd)
+    // coerceAtLeast(1) garante que a barra tem pelo menos 1 dia de largura
 
     val offsetDays = ChronoUnit.DAYS.between(colStart, clippedStart)
         .coerceAtLeast(0)

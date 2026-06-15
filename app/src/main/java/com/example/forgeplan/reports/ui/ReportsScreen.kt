@@ -131,6 +131,8 @@ fun ReportsScreen(
     val pdfLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.CreateDocument("application/pdf")
     ) { uri ->
+        // este callback só é chamado depois do utilizador escolher onde guardar o ficheiro
+        // por isso guardamos o estado em `pendingPdfExport` antes de lançar o launcher
         val export = pendingPdfExport
         if (uri != null && export != null) {
             writeReportPdf(
@@ -173,16 +175,18 @@ fun ReportsScreen(
     }
 
     LaunchedEffect(Unit) {
+        // corre uma vez: carrega projetos e utilizadores
         projectViewModel.loadProjects()
         userViewModel.loadUsers()
     }
 
     LaunchedEffect(projects) {
         if (projects.isNotEmpty() && selectedProject == null) {
-            selectedProject = projects.first()
+            selectedProject = projects.first() // seleciona o primeiro projeto automaticamente
         }
 
         projects.forEach { project ->
+            // carrega tarefas e membros de cada projeto para ter dados nos relatórios
             taskRepository.getTasksByProjectId(
                 projectId = project.id,
                 onSuccess = { tasks -> projectTasks[project.id] = tasks },
@@ -199,7 +203,7 @@ fun ReportsScreen(
 
     LaunchedEffect(users) {
         if (users.isNotEmpty() && selectedUser == null) {
-            selectedUser = users.first()
+            selectedUser = users.first() // seleciona o primeiro utilizador automaticamente
         }
     }
 
@@ -207,11 +211,13 @@ fun ReportsScreen(
 
     LaunchedEffect(allTasks.size) {
         if (allTasks.isNotEmpty() && selectedTask == null) {
-            selectedTask = allTasks.first()
+            selectedTask = allTasks.first() // seleciona a primeira tarefa automaticamente
         }
     }
 
     LaunchedEffect(selectedUser?.id) {
+        // corre sempre que o utilizador selecionado muda
+        // carrega os IDs das tarefas atribuídas a esse utilizador
         selectedUserTaskIds.clear()
 
         selectedUser?.let { user ->
@@ -413,11 +419,15 @@ fun ReportsScreen(
                     isLandscape = isLandscape,
                     onExportPdf = {
                         val name = selectedProject?.name?.safeFileName() ?: "project"
+                        // quando o utilizador carrega "Exportar PDF":
                         pendingPdfExport = PendingPdfExport(
                             type = "PROJECT",
                             fileName = "forgeplan_project_report_$name.pdf"
                         )
                         pdfLauncher.launch(pendingPdfExport!!.fileName)
+                        // 1. guarda o contexto (tipo e nome) em pendingPdfExport
+                        // 2. abre o seletor de ficheiros nativo do Android
+                        // 3. quando o utilizador confirma, o callback acima recebe o URI e escreve o ficheiro
                     },
                     onExportCsv = {
                         val name = selectedProject?.name?.safeFileName() ?: "project"
@@ -1061,6 +1071,7 @@ fun TaskStatusDonutChart(
             modifier = Modifier.size(220.dp),
             contentAlignment = Alignment.Center
         ) {
+            // gráfico desenhado manualmente
             Canvas(modifier = Modifier.size(210.dp)) {
                 val stroke = Stroke(
                     width = 26.dp.toPx(),
